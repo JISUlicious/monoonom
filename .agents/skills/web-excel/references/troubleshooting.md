@@ -8,7 +8,8 @@ on a connected machine run `pip download -r scripts/requirements.txt -d wheels`,
 with "xlrd가 필요합니다", only xlrd is missing.
 
 ## Preview shows the menus but no workbook opens ("인증 정보가 없습니다", HTTP 401)
-The page was opened without its token. Open the URL that `serve`/`status` prints, including `#t=…`.
+The page was opened without its token (the page shows a panel saying so). Give the user the URL from
+`xl.py url`, verbatim, including `#t=…`.
 Previews that embed the page in an iframe of another site (VS Code Simple Browser, apps built with
 Tauri/Electron webviews) do not send cookies, so the token in the URL is the only way in there.
 "토큰이 이 서버와 다릅니다": the URL belongs to another server or workspace; use the current `status` URL.

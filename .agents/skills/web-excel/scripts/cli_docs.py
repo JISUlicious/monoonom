@@ -103,6 +103,7 @@ def cmd_open(args):
     if args.json:
         return out_json(res)
     print(f"열림: {res['docId']}  {res['name']}  시트: {', '.join(res['sheets'])}  (미리보기에 탭으로 표시됨)")
+    print("  미리보기 주소(토큰 포함)는 `xl.py url`로 확인해 그대로 전달하세요.")
     for w in res.get("warnings", []):
         print(f"  주의: {w}")
     return 0

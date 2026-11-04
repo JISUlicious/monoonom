@@ -31,12 +31,17 @@ workspace is where the server keeps its state (`.web-excel/`), which files it ma
 relative file paths are resolved against. If the shell is elsewhere, `cd` to the workspace first or
 pass `--root <workspace>`; xl.py refuses to run with the skill folder as its workspace (exit code 2).
 
+## Preview URL (always with its token)
+
+Give the user **exactly the URL that `xl.py serve` or `xl.py url` prints**, copied verbatim, including
+the `#t=…` token at the end. Never write `http://localhost:PORT/` yourself or shorten the URL: without
+the token the page loads but no workbook opens. If you no longer have the URL, run `xl.py url`.
+
 ## Workflow
 
-1. **Start**: `xl.py serve` (reuses a running server). Give the user the printed URL **including its
-   `#t=…` token** (`http://localhost:8765/#t=…`) to open in the preview pane; without the token the page
-   loads but no workbook opens. If it exits with code 6, a Python package is missing: ask the user
-   before running the printed `pip install -r scripts/requirements.txt` command, then retry.
+1. **Start**: `xl.py serve` (reuses a running server). Give the user the URL it prints (see Preview
+   URL above) to open in the preview pane. If it exits with code 6, a Python package is missing: ask
+   the user before running the printed `pip install -r scripts/requirements.txt` command, then retry.
 2. **Open**: `xl.py open report.xlsx` — the file also appears as a tab in the preview.
    `xl.py ls` lists Excel files in the workspace.
 3. **Understand before editing**: `xl.py describe` (sheets, used range, header row, column types,
@@ -76,6 +81,7 @@ without clients. Use `xl.py stop` only on request (it refuses while there are un
 | Format copy, decimals | `xl.py format-copy A1:F1 A20:F20`, `xl.py decimals B2:B9 +1` |
 | Sheets | `xl.py sheet add 요약`, `rename Old New`, `rm`, `copy`, `move Name 1`, `hide`/`unhide`, `color Name #FF0000`, `gridlines Name off` |
 | Charts | `xl.py chart add 'A1:C13' --type line --title 'Monthly' --at H2`, `chart set ID --title … --to-type bar --data A1:D13`, `chart ls`, `chart rm ID` |
+| Preview URL (with token) | `xl.py url` |
 | Show the user something | `xl.py goto 'Sheet2!B10'` (moves the preview), `xl.py view --zoom 150 --formulas` |
 | History / undo | `xl.py changes --since 0`, `xl.py undo BATCH` |
 

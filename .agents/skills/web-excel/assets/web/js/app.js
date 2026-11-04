@@ -1456,11 +1456,27 @@ class App {
   /** 401: tell the user how to open the page with its token (once). Returns true if it was an auth error. */
   onAuthError(e) {
     if (e?.status !== 401) return false;
-    if (!this._authWarned) {
-      this._authWarned = true;
-      this.toast(`${e.message}${hasToken() ? '' : '\n지금 주소에는 토큰(#t=…)이 없습니다.'}`, 'error', 30000);
-    }
+    if (!this._authWarned) { this._authWarned = true; this.showAuthPanel(e); }
     return true;
+  }
+
+  /** Stays on screen (unlike a toast): the page is useless until it is opened with its token, and the
+   * user needs to know what to ask the agent for. */
+  showAuthPanel(e) {
+    if (document.getElementById('auth-panel')) return;
+    const mismatch = e?.data?.reason === 'token-mismatch';
+    const el = document.createElement('div');
+    el.id = 'auth-panel';
+    el.setAttribute('role', 'alertdialog');
+    el.innerHTML = `<div class="auth-box">
+      <h2>${mismatch ? '주소의 토큰이 서버와 맞지 않습니다' : '이 주소에는 토큰이 없어 파일을 열 수 없습니다'}</h2>
+      <p>${mismatch ? '서버가 새 토큰을 쓰고 있거나 다른 작업 폴더의 주소입니다.' : '미리보기 주소는 끝에 <code>#t=…</code> 토큰이 붙은 전체 주소여야 합니다.'}</p>
+      <p>에이전트에게 이렇게 요청한 뒤, 받은 주소를 <b>그대로</b> 여세요:</p>
+      <p class="ask">“<code>xl.py url</code>로 미리보기 주소를 알려 줘”</p>
+      <p class="muted small">${D.esc(e?.message || '')}</p>
+      <div class="auth-btns"><button class="btn" data-act="close">닫기</button></div></div>`;
+    el.querySelector('[data-act=close]').addEventListener('click', () => el.remove());
+    document.body.append(el);
   }
 
   /** attachDoc() that never throws: a document can be closed between being listed and being loaded. */

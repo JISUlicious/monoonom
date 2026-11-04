@@ -26,6 +26,7 @@ python3 tests/make_samples.py     # 예제 xlsx 생성 (samples/sample.xls는 �
 ```bash
 cd ~/my-project                          # 작업 폴더
 XL=/path/to/.agents/skills/web-excel/scripts/xl.py
+python3 $XL url                         # 미리보기 주소(#t= 토큰 포함) — 사용자에게 그대로 전달
 python3 $XL open report.xlsx            # 열기 → 미리보기에 탭으로 표시
 python3 $XL describe                    # 시트·사용 범위·머리글·열 유형·차트
 python3 $XL read '매출!A1:F20'           # 필요한 범위만 (날짜는 YYYY-MM-DD)

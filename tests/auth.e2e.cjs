@@ -33,6 +33,7 @@ function hostPage(port) {
 }
 const framed = (page) => page.frames().find((f) => f.url().startsWith('http://localhost:'));
 const docsIn = (f) => f.evaluate(() => (window.webExcel?.docs || []).map((d) => d.wb.name));
+const panel = (f) => f.evaluate(() => document.getElementById('auth-panel')?.textContent || '');
 const toasts = (f) => f.evaluate(() => [...document.querySelectorAll('#toasts .toast')].map((t) => t.textContent).join(' | '));
 
 (async () => {
@@ -78,7 +79,7 @@ const toasts = (f) => f.evaluate(() => [...document.querySelectorAll('#toasts .t
     const errs2 = []; page.on('pageerror', (e) => errs2.push(e.message));
     await page.goto(`http://127.0.0.1:8779/?src=${encodeURIComponent(state(wsA).base_url + '#t=abc%E')}`);
     await sleep(1500);
-    check('malformed #t: app starts and shows the token hint', errs2.length === 0 && /#t=/.test(await toasts(framed(page))), errs2.join('; '));
+    check('malformed #t: app starts and shows the token panel', errs2.length === 0 && /xl\.py url/.test(await panel(framed(page))), errs2.join('; '));
     await page.close();
 
     // 2) same iframe without the token: clear explanation instead of a silent failure
@@ -86,8 +87,11 @@ const toasts = (f) => f.evaluate(() => [...document.querySelectorAll('#toasts .t
     await page.goto(`http://127.0.0.1:8779/?src=${encodeURIComponent(state(wsA).base_url)}`);
     await sleep(2000);
     f = framed(page);
-    const t = await toasts(f);
-    check('iframe without #t: says the token is missing', /인증 정보가 없습니다/.test(t) && /#t=/.test(t), t.slice(0, 120));
+    const t = await panel(f);
+    check('iframe without #t: a panel stays on screen and says what to ask the agent', /토큰이 없어/.test(t) && /xl\.py url/.test(t), t.slice(0, 120));
+    await sleep(3000);
+    check('…and it does not disappear like a toast', /xl\.py url/.test(await panel(f)));
+    if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
     await page.close();
 
     // 3) two servers on one host: each tab keeps working (cookies are per host, not per port)
@@ -116,14 +120,15 @@ const toasts = (f) => f.evaluate(() => [...document.querySelectorAll('#toasts .t
       await stale.goto(state(wsA).url); await sleep(1200);             // token A now in sessionStorage
       xl(wsA, 'stop', '--force'); xl(wsC, 'serve', '--port', '8771'); xl(wsC, 'open', 'gamma.xlsx');
       await stale.goto(state(wsC).base_url); await sleep(1500);       // reload without #t= (cookie for C)
-      check('stale token from another server does not block the valid cookie', JSON.stringify(await docsIn(stale.mainFrame())) === '["gamma.xlsx"]', JSON.stringify(await docsIn(stale.mainFrame())));
+      // (other windows that lost their tabs to the server change may add a blank workbook: check inclusion)
+      check('stale token from another server does not block the valid cookie', (await docsIn(stale.mainFrame())).includes('gamma.xlsx'), JSON.stringify(await docsIn(stale.mainFrame())));
       // same, inside an iframe (no cookie): the stale token is dropped and the hint says it is missing
       const pg = await ctx.newPage();
       await pg.goto(`http://127.0.0.1:8779/?src=${encodeURIComponent(state(wsC).base_url)}`); await sleep(1500);
       const fr = framed(pg);
       await fr.evaluate(() => sessionStorage.setItem('wx_token', 'stale-token-of-another-server')); await fr.evaluate(() => location.reload()); await sleep(1500);
       const fr2 = framed(pg);
-      check('iframe with a stale stored token: forgets it and explains', !(await fr2.evaluate(() => sessionStorage.getItem('wx_token'))) && /#t=/.test(await toasts(fr2)), (await toasts(fr2)).slice(0, 100));
+      check('iframe with a stale stored token: forgets it and explains', !(await fr2.evaluate(() => sessionStorage.getItem('wx_token'))) && /xl\.py url/.test(await panel(fr2)), (await panel(fr2)).slice(0, 100));
     } finally { try { xl(wsC, 'stop', '--force'); } catch {} fs.rmSync(wsC, { recursive: true, force: true }); }
 
     // 5) the log never contains the token or a stream ticket

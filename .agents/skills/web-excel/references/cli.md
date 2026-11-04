@@ -1,7 +1,7 @@
 # xl.py command reference
 
 ## Contents
-- Server: serve, status, stop, launch-config
+- Server: serve, url, status, stop, launch-config
 - Documents: ls, open, new, docs, close, save
 - Reading: describe, read, changes, selection
 - Editing: write, fill, series, clear, format, format-copy, decimals, merge, unmerge, width, height, autofit, hide, unhide, freeze, filter, rows, cols, cells, sort, dedupe, copy, move, find, replace, comment, link, sheet, chart, apply, undo
@@ -19,6 +19,7 @@ and most accept `--json`.
 |---|---|
 | `serve [--port P] [--idle-timeout S] [--no-sandbox] [--allow-host H]` | Starts a detached server for the workspace or reuses the running one. Picks the first free port from 8765. Prints the page URL with the workspace token (`http://localhost:PORT/#t=TOKEN`, also in `status`); the token stays the same across restarts (`.web-excel/token`); `serve --new-token` (server stopped) issues a new one, after which old preview URLs stop working. `status --brief` omits the token. Stops after S seconds (default 3600) with no clients/requests; dirty workbooks are written to `.web-excel/recovery/` first. |
 | `serve --foreground [--exit-with-parent]` | Runs in the current process (used by `.claude/launch.json`); exits when the parent exits. |
+| `url [--bare]` | The preview URL with its token (`http://localhost:PORT/#t=TOKEN`), to give the user verbatim. `--bare`: the URL line only. Exit 3 if not running. |
 | `status [--brief]` | URL, pid, open workbooks. Exit 3 if not running (`--brief` always exits 0). |
 | `stop [--force]` | Refuses (exit 4) while a workbook has unsaved changes unless `--force`. |
 | `launch-config [--port P]` | Adds/updates the `web-excel` entry in `.claude/launch.json` (Claude Code desktop preview owns the process). |
