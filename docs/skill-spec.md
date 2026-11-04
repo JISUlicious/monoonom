@@ -21,14 +21,22 @@
 ## 2. 전제와 확인된 사실
 
 ### 2.1 Agent Skills (확인한 범위)
-- Skill = 폴더 + `SKILL.md`(YAML 프론트매터 + 지시문) + 선택적 지원 파일(scripts 등). 에이전트는 먼저 이름·설명만 보고, 필요할 때 본문을 읽고, 그다음 필요한 파일만 읽거나 실행한다(**점진적 공개**) [1][2].
-- Claude Code 기준 위치: 개인 `~/.claude/skills/<name>/SKILL.md`, 프로젝트 `.claude/skills/<name>/SKILL.md`, 플러그인 `<plugin>/skills/<name>/` [1].
-- 번들 스크립트는 **컨텍스트에 로드되지 않고 실행**된다. 문서화된 패턴: 본문과 `allowed-tools`에 `${CLAUDE_SKILL_DIR}/scripts/...`를 사용 [1].
-- 치환 변수: `${CLAUDE_SKILL_DIR}`, `${CLAUDE_PROJECT_DIR}`, `$ARGUMENTS` 등 [1].
-- `` !`command` `` 동적 주입: Skill 호출 전에 명령을 실행해 결과를 본문에 넣는다. 기본 2분 타임아웃, 실패 시 호출 중단 [1]. → **서버 상태 확인(`xl status`)을 주입**하는 데 적합. 서버 기동 자체는 주입보다 명시적 단계가 안전.
-- 이식성: Claude Code 밖(claude.ai, Skills API)에서는 `name`, `description`, `license`, `compatibility`, `metadata`, `allowed-tools`만 허용되고 다른 키는 오류 [1]. → **프론트매터는 이 6개만 사용**한다.
-- 한도: `SKILL.md` 500줄 이하 권장, description(+when_to_use)은 목록에서 1,536자로 잘림 [1].
-- 오픈 표준 명세(agentskills.io)는 이 세션의 네트워크 정책상 열람하지 못했다. 다른 에이전트 SW의 지원 범위는 각 제품 문서로 재확인 필요.
+
+출처: Claude Code 문서 [1] 원문 + 사용자의 `analysis-docs` 저장소 [12](공식 문서 4종·`skill-creator`·배포 스킬 40개 실측 기반, 2026-09-04). agentskills.io 원문은 이 세션과 [12] 작성 환경 모두에서 네트워크 정책으로 열람하지 못했다.
+
+- **구조**: 폴더당 `SKILL.md` 정확히 1개(루트). 선택 디렉터리 `scripts/`(실행), `references/`(필요 시 읽음), `assets/`(산출물용 파일), `evals/`(패키징 제외). 중첩 `SKILL.md`는 거부 → 여러 스킬이면 플러그인 [12].
+- **점진적 공개 3단계**: L1 name+description 항상 로드(스킬당 약 100토큰) / L2 본문 트리거 시(5k토큰 미만 목표, 500줄 이하) / L3 번들은 읽거나 실행할 때만, 스크립트 코드는 컨텍스트에 들어가지 않음 [1][12].
+- **이식 가능(P0) 필드 6개**: `name`, `description`, `license`, `compatibility`, `metadata`, `allowed-tools`. 그 밖의 Claude Code 확장 필드(약 14개)는 claude.ai·Skills API 업로드에서 **하드 에러** [1][12].
+- **하드 제약** [12]
+  - `name`: `^[a-z0-9-]+$`, 64자 이하, 앞뒤 하이픈·`--` 금지, `anthropic`/`claude` 포함 금지, 디렉터리 이름과 일치 권장(명령 이름은 디렉터리에서 옴).
+  - `description`: 필수, 1,024자 이하, **`<` `>` 금지**(프롬프트 인젝션 방어). Claude Code 목록에서는 `when_to_use`와 합쳐 1,536자에서 잘림 [1].
+  - `compatibility`: 500자 이하. 업로드 전체 30MB 미만(압축 해제 기준).
+  - 참조는 SKILL.md에서 1단계까지, 100줄 넘는 참조 파일은 맨 위에 목차.
+- **Claude Code 전용(P1)**: `${CLAUDE_SKILL_DIR}`·`$ARGUMENTS` 치환, `` !`cmd` `` 동적 주입(실패 시 호출 전체 중단 → `|| true`, 기본 2분 타임아웃), `allowed-tools`에 스크립트 경로 지정 [1]. claude.ai에서 동기화된 스킬은 `!` 명령이 실행되지 않고 글자 그대로 남아 조용히 깨진다 [12].
+- **권한 수명**: `allowed-tools` 승인은 **다음 사용자 메시지에서 해제**된다 [1][12]. → 매 턴 `xl.py` 실행 권한 확인이 뜰 수 있으므로 설치 안내에 권한 규칙(예: `Bash(python */scripts/xl.py *)`) 추가 방법을 넣는다.
+- **배포 위치**: 개인 `~/.claude/skills/`, 프로젝트 `.claude/skills/`, 플러그인. **Cowork와 클라우드 세션은 로컬 `~/.claude/skills/`를 읽지 않는다**(저장소 커밋·플러그인·claude.ai 업로드로 배포) [12].
+- **실행 환경 차이** [12]: Claude Code는 네트워크·설치 가능(전역 설치는 지양), claude.ai는 설정에 따름, **API는 네트워크 없음·패키지 설치 불가**.
+- **검증 도구**: [12]의 `validate_skill.py <dir> [--portable]`이 위 제약을 검사(오류 시 exit 1, `--portable`이면 CC 전용 필드도 오류). 이 프로젝트 CI에서 그대로 사용한다.
 
 ### 2.2 미리보기 창
 - 사용자 제공 전제: `localhost:{port}` 웹을 보여주는 뷰. → 서버가 UI·API·SSE를 **하나의 포트, 같은 출처**로 제공하면 된다.
@@ -114,21 +122,30 @@ web-excel/
 └─ LICENSE, THIRD_PARTY_NOTICES
 ```
 
-`SKILL.md` 프론트매터 초안(이식 가능한 키만 사용):
+`SKILL.md`는 [12]의 템플릿처럼 **두 판**으로 낸다.
+
+- `SKILL.md`(P0, 기본): 6필드만 사용. 스크립트 경로는 "이 스킬 폴더의 `scripts/xl.py`"로 서술.
+- `SKILL.claude-code.md`(P1): `${CLAUDE_SKILL_DIR}`를 쓰는 `allowed-tools`와 `` !`python ${CLAUDE_SKILL_DIR}/scripts/xl.py status --brief || true` `` 상태 주입을 추가. Claude Code 설치 시 이 파일을 `SKILL.md`로 배치.
+
+P0 프론트매터 초안(검증기 `--portable` 통과 기준: `<>` 없음, 1,024자 이하, 3인칭, 배제 조건 포함):
 
 ```yaml
 ---
 name: web-excel
 description: >
-  Open, inspect, edit, format, chart, filter and save Excel workbooks (.xlsx/.xlsm/.xls) in the
-  user's workspace through a local web-excel server, while the user watches and edits the same
-  workbook live in the agent's preview pane (http://localhost:<port>). Use when the user asks to
-  read or change spreadsheet data, build formulas or charts, or wants to see/edit an Excel file.
+  Opens, inspects, edits, formats, charts, filters and saves Excel workbooks (.xlsx, .xlsm, .xls)
+  in the workspace through a local web-excel server, while the user watches and edits the same
+  workbook live in the agent's preview pane at a localhost URL. Use when the user asks to read or
+  change spreadsheet data, build formulas or charts, or wants to see or edit an Excel file
+  together with the agent. Do not use for CSV-only data processing, Google Sheets, or one-off
+  conversions where no live view is wanted; use a plain spreadsheet library for those.
 license: MIT
-compatibility: Requires Python 3.9+. Optional Node.js 18+ for server-side formula recalculation.
+compatibility: >
+  Needs a local agent with a shell and loopback networking (e.g. Claude Code on the user's
+  machine) and Python 3.9+. Optional Node.js 18+ for server-side recalculation. Not usable from
+  the Skills API or cloud sandboxes that cannot serve the user's localhost.
 metadata:
   version: "0.1"
-allowed-tools: Bash(python ${CLAUDE_SKILL_DIR}/scripts/xl.py *)
 ---
 ```
 
@@ -253,7 +270,17 @@ allowed-tools: Bash(python ${CLAUDE_SKILL_DIR}/scripts/xl.py *)
 | 경로 탈출 | 정규화 후 root 비교(현재 구현 유지) |
 | 에이전트의 의도치 않은 덮어쓰기 | 명시적 save, 자동 백업, batch 단위 undo, 감사 로그 `.web-excel/audit.log` |
 
-### 5.9 비기능 요구사항(목표치)
+### 5.9 실행 표면(surface)별 지원 범위
+
+| 표면 | 스킬 로드 | 서버 실행·미리보기 | 판정 |
+|---|---|---|---|
+| Claude Code (사용자 PC: CLI/데스크톱) | 개인·프로젝트·플러그인 | 가능 (loopback, 셸) | **주 대상** |
+| Cowork / Claude Code 클라우드 세션 | 저장소 `.claude/skills/`·동기화 스킬만 [12] | 서버는 원격 컨테이너에서 돌아 사용자 PC 파일·미리보기와 분리 | 미리보기 요구 충족 불가 |
+| claude.ai | 업로드 스킬(P0 필드만) | 장시간 서버·사용자 localhost 불가 | 대상 외 |
+| Skills API | 업로드 스킬 | 네트워크 없음 [12] | 대상 외 |
+| 타사 에이전트(Codex, Cursor 등) | 표준 지원 여부 각자 | 셸+loopback이면 가능 | **미검증**, P0판으로 시험 |
+
+### 5.10 비기능 요구사항(목표치)
 
 | 항목 | 목표 |
 |---|---|
@@ -275,7 +302,7 @@ allowed-tools: Bash(python ${CLAUDE_SKILL_DIR}/scripts/xl.py *)
 | P3 구조 op | 참조 재작성 Python 포팅, insert/delete/sort/rename, 409 + 재동기화·좌표 변환 | JS와 Python 재작성 결과 **동등성 테스트**(무작위 수식 1만 건) 일치 | 5–8 |
 | P4 계산 단계화 | Node 워커, 브라우저 계산 보고(리더 선출), stale 표시 | 세 계산 원천의 결과가 테스트 코퍼스에서 일치 | 3–5 |
 | P5 안전·보안 | 토큰/쿠키, 백업, 외부 변경 감지, 복구, 감사 로그, batch undo | 보안 체크리스트 통과, 충돌 시 데이터 손실 0 | 3–4 |
-| P6 문서·평가 | SKILL.md, references/, Skill 트리거 평가(사용해야 할/말아야 할 요청 각 20개), 동시 편집 E2E | 트리거 정확도 ≥ 90%, E2E 통과 | 2–3 |
+| P6 문서·평가 | SKILL.md(P0/P1 두 판), references/(1단계·목차), `validate_skill.py --portable` CI, `evals/evals.json`(시나리오 ≥3, 새 세션 스킬 유/무 A/B), 트리거 쿼리 20개(해당 8–10·키워드가 겹치는 비해당 8–10, 각 3회, 60/40 분할 후 test 점수로 선택), Haiku·Sonnet·Opus 각각 [12], 동시 편집 E2E | 검증기 오류 0, 트리거 정확도(test) ≥ 90%, E2E 통과 | 2–3 |
 | **합계** | | | **24–36** |
 
 우선순위: P0 → P1 → P2만으로도 "에이전트가 조작하고 사용자가 실시간으로 보는" 최소 기능(MVP, 약 11–16 인일)이 된다. 구조 op 충돌(P3)은 MVP에서 "구조 op는 서버 단일 순서로만 허용, 충돌 시 재동기화"로 단순 처리 가능.
@@ -310,4 +337,8 @@ allowed-tools: Bash(python ${CLAUDE_SKILL_DIR}/scripts/xl.py *)
 10. WHATWG, *HTML Living Standard — Server-sent events*. https://html.spec.whatwg.org/multipage/server-sent-events.html
 11. OWASP, *Cross-Site Request Forgery Prevention Cheat Sheet*. https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html
 
-검증 메모: [1]은 이 세션에서 원문을 열람해 확인했고, [2][3][4][8]은 검색으로 서지 정보를 확인했다. agentskills.io 명세는 네트워크 정책으로 열람하지 못했다. [5][6][9][10][11]은 널리 알려진 표준·문서로, 링크는 이 환경에서 직접 열어 보지 못했다.
+12. JISUlicious, *Agent Skills 작성 표준* (analysis-docs, 2026-09-04; 근거: Claude Code skills 문서, platform.claude.com의 best-practices·overview·skills-guide, `anthropics/skills`의 skill-creator, 배포 스킬 40개 실측) 및 `validate_skill.py`, `templates/`. https://github.com/JISUlicious/analysis-docs/tree/main/agent-skills
+13. Anthropic, *Skill authoring best practices*. https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices
+14. Anthropic, *Agent Skills overview*. https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview
+
+검증 메모: [1]과 [12]는 이 세션에서 원문을 열람해 확인했고([13][14]는 [12]가 인용한 1차 문서), [2][3][4][8]은 검색으로 서지 정보를 확인했다. agentskills.io 명세는 네트워크 정책으로 열람하지 못했다. [5][6][9][10][11]은 널리 알려진 표준·문서로, 링크는 이 환경에서 직접 열어 보지 못했다.
