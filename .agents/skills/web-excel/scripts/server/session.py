@@ -88,6 +88,7 @@ class DocSession:
         self.calc_version = -1
         self.calc_source = None
         self.dirty = False
+        self.audit_path = None          # set by the API layer: <root>/.web-excel/audit.log
         self.path = path
         self.base_path = path
         self.format = fmt
@@ -261,6 +262,9 @@ class DocSession:
                      "transformed": transformed}
             self.log.append(entry)
             self.dirty = True
+            self.audit({"event": "edit", "v": self.version, "actor": actor, "batchId": entry["batchId"],
+                        "label": label, "cells": sum(len(o.get("cells", [])) for o in ops if o.get("op") == "setCells"),
+                        "structural": bool(structural), "transformed": transformed})
             self.hub.publish("ops", {"docId": self.id, **{k: entry[k] for k in ("v", "actor", "clientId", "batchId", "label", "ops", "structural", "transformed")}})
             return self.version
 
@@ -360,6 +364,17 @@ class DocSession:
                 self.active_sheet = int(props["activeSheet"])
         else:
             raise SessionError(400, f"알 수 없는 op: {kind}")
+
+    def audit(self, rec):
+        """Append-only JSON lines of who changed what (no cell contents, so nothing sensitive is copied)."""
+        if not self.audit_path:
+            return
+        try:
+            with open(self.audit_path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "doc": self.name, "path": self.path, **rec},
+                                    ensure_ascii=False) + "\n")
+        except OSError:
+            pass
 
     def events_since(self, since):
         with self.lock:

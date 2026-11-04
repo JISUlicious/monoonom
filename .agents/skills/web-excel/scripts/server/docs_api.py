@@ -38,16 +38,23 @@ def _wrap(fn):
     return inner
 
 
+def _register(doc):
+    os.makedirs(state_dir(), exist_ok=True)
+    doc.audit_path = os.path.join(state_dir(), "audit.log")
+    doc.audit({"event": "open"})
+    return REGISTRY.add(doc)
+
+
 def open_document(path=None, new=False, name=None) -> DocSession:
     if new:
         model = blank_workbook(name or "통합 문서1.xlsx")
-        return REGISTRY.add(DocSession(model, None, "xlsx"))
+        return _register(DocSession(model, None, "xlsx"))
     path = _norm(path)
     existing = REGISTRY.find_path(path)
     if existing:
         return existing
     model = read_workbook(path)
-    return REGISTRY.add(DocSession(model, path, model.get("format", "xlsx")))
+    return _register(DocSession(model, path, model.get("format", "xlsx")))
 
 
 @route("GET", "/api/docs")
@@ -73,6 +80,7 @@ def r_doc_close(h, m, q, body):
     doc = _doc(m)
     if doc.dirty and not body.get("force"):
         raise ApiError(409, f"'{doc.name}'에 저장되지 않은 변경이 있습니다.")
+    doc.audit({"event": "close", "discarded": bool(doc.dirty)})
     REGISTRY.remove(doc.id)
     return {"ok": True}
 
@@ -163,6 +171,7 @@ def r_save_doc(h, m, q, body):
             meta_ops.append({"op": "setSheetMeta", "sheet": sh["id"], "meta": {"origName": sh["name"], "charts": charts}})
         doc.apply(meta_ops, actor="system", label="저장")
         doc.dirty = False
+        doc.audit({"event": "save", "to": path, "format": fmt, "backup": backup})
     info = {"path": path, "name": doc.name, "format": fmt, "warnings": warns, "backup": backup,
             "version": doc.version, "savedAt": time.time()}
     doc.hub.publish("saved", {"docId": doc.id, **info})

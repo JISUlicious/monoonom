@@ -118,3 +118,18 @@
 ### 남은 것
 - 서로 다른 클라이언트가 **동시에 둘 다 구조 변경**을 하면 늦은 쪽은 여전히 409 후 다시 불러오기(드묾).
 - 정렬 뒤의 동시 셀 편집은 409(위치를 정할 수 없음).
+
+## P4–P6 마무리 (2026-11-04)
+
+### P4. 수식 계산 출처 — P2에서 구현됨
+미리보기 창의 보고값(최대 2초 대기) → Node 워커(같은 JS 엔진) → `stale` 표시. `read`·`describe` 응답에 `calc.status/source`. 추가 작업 없음.
+
+### P5. 안전·보안
+- P1–P2에서 구현: 토큰(헤더)·`SameSite=Strict` 쿠키, Host 검사, 작업 경로 샌드박스, 저장 전 백업, 디스크 변경 감지, 유휴 종료 시 복구 스냅샷, batch 되돌리기.
+- 이번에 추가: **감사 로그** `<작업 경로>/.web-excel/audit.log` — 열기·편집(버전, 행위자, batch, 라벨, 셀 개수, 구조 변경 여부, 좌표 변환 여부)·저장(경로, 형식, 백업 위치)·닫기를 JSON 줄로 기록. **셀 내용은 기록하지 않음**(DRM 문서 내용이 평문으로 복사되지 않게).
+
+### P6. 문서·평가
+- `evals/evals.json`: 시나리오 4개(이익률 열 추가, 사용자 선택 영역 서식, 행 삽입+정렬+저장, 사용자 변경 요약). 스키마는 analysis-docs 작성 표준(§11)의 `skill_name` + `evals[{id, prompt, expected_output, files, expectations}]`. 스킬 루트의 `evals/`는 패키징에서 제외됨.
+- `evals/trigger_queries.json`: 써야 할 질문 10개 + 키워드가 겹치는 쓰면 안 되는 질문 10개.
+- 검증기: `validate_skill.py --portable` 오류 0. 공식 `skills-ref`(PyPI 0.1.1, agentskills.io / anthropics/agentskills)는 내려받았지만 **외부 코드 실행이 권한 검사에서 막혀 실행하지 않았다.** 대신 소스(`validator.py`)를 읽어 같은 규칙(허용 필드 6개, name 소문자·문자/숫자/하이픈·폴더 이름 일치·64자, description 1,024자, compatibility 500자, metadata 문자열 값)을 직접 확인: 모두 만족(description 549자, compatibility 363자). 차이는 `strictyaml` 파서뿐이라 실제 실행으로 한 번 더 확인 필요.
+- **평가는 아직 실행하지 않음**: 표준대로 하려면 새 세션에서 skill 있음/없음 A/B, 트리거 질문 각 3회·60/40 분할, Haiku·Sonnet·Opus 각각 실행이 필요하다. 모델 호출 비용이 들고 이 세션에서 다른 에이전트 세션을 돌리는 것이므로 사용자 승인 후 진행.

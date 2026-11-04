@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-04: Skill P4–P6 마무리 — 감사 로그(셀 내용 제외), 평가 시나리오 4개·트리거 질문 20개, 공식 검증기 규칙 확인(실행은 권한상 보류), 평가 실행은 승인 대기 (→ docs/skill-implementation.md)
 - 2026-11-04: Skill P3 구현 — 수식 참조 재작성 Python 이식(JS와 1만 건 동등성 확인), 에이전트 행/열 삽입·삭제·정렬, 동시 편집 시 셀 편집 좌표 변환 (→ docs/skill-implementation.md)
 - 2026-11-04: 고해상도 화면에서 차트가 상자의 1/4 크기로 그려지던 버그 수정, 에이전트 편집 중 미리보기 화면 캡처 추가 (→ docs/skill-implementation.md)
 - 2026-11-04: Skill P2 구현 — 에이전트 CLI(열기·요약·읽기·쓰기·채우기·서식·차트·시트·일괄 적용·변경 이력·되돌리기·저장), Node 계산, SKILL.md 완성, 참조 문서 (→ docs/skill-implementation.md)

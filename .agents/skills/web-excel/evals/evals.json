@@ -1,0 +1,51 @@
+{
+  "skill_name": "web-excel",
+  "evals": [
+    {
+      "id": "add-margin-column",
+      "prompt": "samples/sample.xlsx 열어서 매출 시트에 '이익률' 열을 추가해줘. 합계의 30%로 계산하고 소수 첫째 자리까지 보이게. 나도 화면에서 보고 싶어.",
+      "expected_output": "Server started (or reused) and the preview URL given to the user; G1 header and G2:G7 formulas =E2*0.3..=E7*0.3 with number format showing one decimal; file not saved unless asked.",
+      "files": ["samples/sample.xlsx"],
+      "expectations": [
+        "Ran xl.py serve and told the user the localhost URL to open in the preview pane",
+        "Used describe or read before editing",
+        "Wrote formulas with fill (relative references), not hard-coded numbers",
+        "Applied a number format with one decimal (nf like #,##0.0 or 0.0)",
+        "Did not run xl.py save because the user did not ask to save"
+      ]
+    },
+    {
+      "id": "react-to-user-selection",
+      "prompt": "내가 지금 미리보기에서 선택한 부분을 굵게 하고 노란색 배경으로 바꿔줘.",
+      "expected_output": "Agent queries xl.py selection, then formats exactly that range (b=true, bg yellow).",
+      "files": ["samples/sample.xlsx"],
+      "expectations": [
+        "Called xl.py selection to find the user's current range",
+        "Formatted only that range with b=true and a yellow bg",
+        "Reported the batch id or how to undo"
+      ]
+    },
+    {
+      "id": "insert-and-sort-then-save",
+      "prompt": "sample.xlsx 매출 시트 3월 아래에 빈 행 하나 넣고, 데이터를 제품A 기준 내림차순으로 정렬한 다음 저장해줘.",
+      "expected_output": "rows insert 5, sort of the data range by B descending with the header kept, then save with backup; totals formulas still correct.",
+      "files": ["samples/sample.xlsx"],
+      "expectations": [
+        "Used xl.py rows insert (not manual cell moves)",
+        "Used xl.py sort with --by B:desc (header row excluded)",
+        "Ran xl.py save and mentioned the backup",
+        "Verified totals with read after the changes"
+      ]
+    },
+    {
+      "id": "user-edits-meanwhile",
+      "prompt": "방금 내가 화면에서 몇 군데 고쳤는데, 뭘 바꿨는지 정리해줘.",
+      "expected_output": "Agent runs xl.py changes --actor user and summarizes the user's edits by range.",
+      "files": ["samples/sample.xlsx"],
+      "expectations": [
+        "Called xl.py changes with --actor user",
+        "Summarized ranges and values without modifying the workbook"
+      ]
+    }
+  ]
+}
