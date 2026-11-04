@@ -22,7 +22,12 @@ const check = (name, cond, extra = '') => { console.log(`${cond ? 'PASS' : 'FAIL
   let expect409 = false;
   page.on('console', (m) => { if (m.type() === 'error' && !(expect409 && /status of 409/.test(m.text()))) errors.push(m.text()); });
   await page.goto(BASE);
-  await page.waitForFunction(() => window.webExcel?.doc);
+  await page.waitForFunction(() => window.webExcel?.started);
+  check('empty server: start screen instead of a new workbook', await page.evaluate(() => !window.webExcel.docs.length && !document.getElementById('empty-state')?.hidden));
+  check('…start screen says the agent\'s files appear here', /에이전트가 파일을 열면/.test(await page.evaluate(() => document.getElementById('empty-state')?.textContent || '')));
+  await page.click('#empty-state [data-act=new]');
+  await page.waitForFunction(() => window.webExcel?.doc?.sync);
+  check('…its button creates a workbook and hides it', await page.evaluate(() => window.webExcel.docs.length === 1 && document.getElementById('empty-state').hidden));
   const val = (r, c, sheet) => page.evaluate(([r, c, s]) => { const a = window.webExcel; const sh = s == null ? a.doc.wb.sheet : a.doc.wb.sheets[s]; const v = a.doc.wb.value(sh, r, c); return v && v.err ? v.err : v; }, [r, c, sheet]);
   const cell = (r, c) => page.evaluate(([r, c]) => window.webExcel.doc.wb.sheet.get(r, c) || null, [r, c]);
   const sel = (r, c) => page.evaluate(([r, c]) => window.webExcel.select(r, c), [r, c]);

@@ -29,7 +29,7 @@ and most accept `--json`.
 | Command | Notes |
 |---|---|
 | `ls [DIR]` | Excel files and folders. |
-| `open PATH` | Opens (or reuses) a workbook; it appears as a tab in every preview window. |
+| `open PATH` | Opens (or reuses) a workbook and shows it in every preview window (an already open one is brought to the front; a window where the user is typing only marks the tab). |
 | `new [--name N]` | New blank workbook (needs `save --as` later). |
 | `docs` | Open workbooks: id, version, unsaved flag, number of preview windows. |
 | `save [--as PATH] [--format xlsx\|xlsm] [--overwrite] [--force] [--no-backup]` | Python writes the file. `--overwrite`: replace another existing file. `--force`: overwrite although the file changed on disk since it was opened. Backup goes to `.web-excel/backups/` unless `--no-backup` (for DRM policies that forbid copies). |

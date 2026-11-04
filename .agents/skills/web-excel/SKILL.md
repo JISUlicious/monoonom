@@ -42,7 +42,9 @@ the token the page loads but no workbook opens. If you no longer have the URL, r
 1. **Start**: `xl.py serve` (reuses a running server). Give the user the URL it prints (see Preview
    URL above) to open in the preview pane. If it exits with code 6, a Python package is missing: ask
    the user before running the printed `pip install -r scripts/requirements.txt` command, then retry.
-2. **Open**: `xl.py open report.xlsx` — the file also appears as a tab in the preview.
+2. **Open**: `xl.py open report.xlsx` — the preview shows the file (a tab in every preview window); run
+   it again to bring an already open file to the front. If the user is typing in a cell, its tab is
+   only marked.
    `xl.py ls` lists Excel files in the workspace.
 3. **Understand before editing**: `xl.py describe` (sheets, used range, header row, column types,
    charts), then `xl.py read 'Sheet1!A1:F20'` for just the range you need. Avoid reading whole

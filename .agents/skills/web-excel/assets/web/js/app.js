@@ -104,7 +104,7 @@ class App {
     if (i < 0) return;
     doc.sync.close();
     this.docs.splice(i, 1);
-    if (!this.docs.length) { this.di = -1; this.newDoc(); return; }
+    if (!this.docs.length) { this.renderEmpty(); return; }
     if (i === this.di || this.di >= this.docs.length) { this.di = -1; this.activateDoc(Math.min(i, this.docs.length - 1)); }
     else { if (i < this.di) this.di--; this.renderTabs(); }
   }
@@ -126,9 +126,14 @@ class App {
   }
 
   activateDoc(i) {
+    if (!this.docs[i]) return;
     if (this.editor.active && !this.editor.commit()) return;
     if (this.doc) this.saveScroll();
     this.di = i;
+    this.doc.unseen = false;
+    const empty = document.getElementById('empty-state');
+    if (empty) empty.hidden = true;
+    try { sessionStorage.setItem('wx_active_doc', this.doc.wb.docId); } catch { /* ignore */ }
     this.clipboard.state && this.clipboard.state.wb !== this.doc.wb && null;
     this.restoreScroll();
     this.render();
@@ -177,7 +182,11 @@ class App {
 
   /** ops from another client (agent CLI or another window) were applied */
   onRemoteChange(doc, ev, boxes) {
-    if (doc !== this.doc) { this.renderTabs(); return; }
+    if (doc !== this.doc) {
+      if (ev.actor !== 'system' && boxes.length) doc.unseen = true; // the agent or another window changed it
+      this.renderTabs();
+      return;
+    }
     const now = performance.now();
     this.grid.flashes = (this.grid.flashes || []).filter((f) => f.until > now).concat(boxes.map((b) => ({ ...b, until: now + 1600 })));
     if (boxes.length) setTimeout(() => this.grid.render(), 1700);
@@ -203,7 +212,7 @@ class App {
   renderTabs() {
     const bar = this.$('#doc-tabs');
     bar.innerHTML = this.docs.map((d, i) => `<div class="doc-tab${i === this.di ? ' on' : ''}" data-i="${i}" title="${D.esc(d.wb.path || d.wb.name)}">
-      <span class="dt-ic">${d.wb.format === 'xls' ? '📗' : '📊'}</span><span class="dt-name">${D.esc(d.wb.name)}</span>${d.wb.dirty ? '<span class="dt-dirty" title="저장되지 않은 변경 내용">●</span>' : ''}<button class="dt-x" data-close="${i}" title="닫기 (Ctrl+F4)">×</button></div>`).join('')
+      <span class="dt-ic">${d.wb.format === 'xls' ? '📗' : '📊'}</span><span class="dt-name">${D.esc(d.wb.name)}</span>${d.unseen && i !== this.di ? '<span class="dt-new" title="화면에 없는 동안 바뀌었습니다">●</span>' : ''}${d.wb.dirty ? '<span class="dt-dirty" title="저장되지 않은 변경 내용">●</span>' : ''}<button class="dt-x" data-close="${i}" title="닫기 (Ctrl+F4)">×</button></div>`).join('')
       + '<button class="doc-new" data-cmd="new" title="새 통합 문서 (Ctrl+N)">＋</button>';
     if (this.doc) document.title = `${this.doc.wb.dirty ? '● ' : ''}${this.doc.wb.name} - Web Excel`;
   }
@@ -877,7 +886,7 @@ class App {
   // ------------------------------------------------------------------ files
   async newDoc() {
     try {
-      const res = await api.newDoc(this.nextBlankName());
+      const res = await api.newDoc(this.nextBlankName(), this.clientId);
       await this.attachDoc(res.docId);
     } catch (e) { this.toast(`새 통합 문서를 만들 수 없습니다: ${e.message}`, 'error'); }
   }
@@ -890,7 +899,7 @@ class App {
     }
     this.showBusy(`여는 중… ${path}`);
     try {
-      const res = await api.openDoc(path);
+      const res = await api.openDoc(path, this.clientId);
       // replace an untouched blank workbook (Excel behaviour)
       const blank = this.docs.length === 1 && this.isUntouchedBlank(this.doc) && this.doc.wb.docId !== res.docId ? this.doc : null;
       const doc = await this.attachDoc(res.docId);
@@ -1126,6 +1135,7 @@ class App {
   exec(cmd, arg) {
     const fn = this.commands[cmd];
     if (!fn) return;
+    if (!this.doc && !['new', 'open', 'help'].includes(cmd)) return; // nothing open: only start something
     if (this.editor.active && !['undo', 'bold', 'italic', 'underline'].includes(cmd)) { if (!this.editor.commit()) return; }
     try { fn(arg); } catch (e) { console.error(e); this.toast(e.message, 'error'); }
     if (!['undo', 'redo', 'find', 'replace', 'formatCells', 'open', 'save', 'saveAs'].includes(cmd)) this.focusGrid();
@@ -1194,9 +1204,10 @@ class App {
     if (ctrl && K === 'n' && !sh) return go(() => this.exec('new'));
     if (alt && K === 'n' && !ctrl) return go(() => this.exec('new'));
     if (ctrl && k === 'F4') return go(() => this.exec('close'));
-    if (ctrl && k === 'Tab') return go(() => this.activateDoc((this.di + (sh ? -1 : 1) + this.docs.length) % this.docs.length));
+    if (ctrl && k === 'Tab') return go(() => this.docs.length && this.activateDoc((this.di + (sh ? -1 : 1) + this.docs.length) % this.docs.length));
     if (ctrl && (k === 'PageDown' || k === 'PageUp')) return go(() => this.cycleSheet(k === 'PageDown' ? 1 : -1));
     if (inField) return;
+    if (!this.doc) return; // empty start screen
     if (this.editor.active) return; // editor handles its own keys
     if (this.painter && k === 'Escape') { this.painter = null; document.body.classList.remove('painting'); this.setStatus(''); return; }
     if (this.charts.selected && (k === 'Delete' || k === 'Backspace')) return go(() => this.charts.remove(this.charts.selected));
@@ -1428,29 +1439,29 @@ class App {
       if (!this.onAuthError(e)) this.toast(`서버에 연결할 수 없습니다: ${e.message}. 페이지를 새로 고치세요.`, 'error', 15000);
       return;
     }
-    for (const d of docs) await this.attachQuiet(d.docId, { activate: d.docId === want });
-    let blank = null;
-    if (!this.docs.length) { await this.newDoc(); blank = this.doc; }
+    // read before attaching: attaching activates the first document, which overwrites this value
+    const last = (() => { try { return sessionStorage.getItem('wx_active_doc'); } catch { return null; } })();
+    for (const d of docs) await this.attachQuiet(d.docId, { activate: false });
     if (want && !this.docs.some((d) => d.wb.docId === want)) this.toast('요청한 문서가 서버에 없습니다.', 'warn');
-    if (want) history.replaceState(null, '', location.pathname);
+    if (want) history.replaceState(null, '', location.pathname + location.hash);
+    // the document to show: the one the URL asks for, else the one this window showed before a reload,
+    // else the one most recently opened/shown/worked on anywhere (server's focusedAt)
+    const newest = [...docs].sort((a, b) => (b.focusedAt || 0) - (a.focusedAt || 0)).map((d) => d.docId);
+    const pick = [want, last, ...newest].find((id) => id && this.docs.some((d) => d.wb.docId === id));
+    if (pick) this.activateDoc(this.docs.findIndex((d) => d.wb.docId === pick));
     if (open) await this.openFile(open);
-    // documents opened while this page was starting: their 'opened' events were queued, and the
+    // documents opened while this page was starting: their 'opened'/'focus' events were queued, and the
     // stream's 'ready' list covers documents opened before the stream connected
     this.started = true;
     const early = [...(this._earlyOpened || []), ...(this._readyList || [])];
     this._earlyOpened = this._readyList = null;
-    const focus = !want && !open; // never take focus from the document the URL asked for
-    let added = null;
+    const urlChose = !!(want || open); // never take focus from the document the URL asked for
     for (const d of early) {
-      if (!d.docId || this.docs.some((x) => x.wb.docId === d.docId)) continue;
-      added = (await this.attachQuiet(d.docId, { activate: focus })) || added;
+      if (!d.docId) continue;
+      const doc = await this.attachQuiet(d.docId, { activate: false });
+      if (doc && d.by === 'agent' && !urlChose) this.showDoc(doc);
     }
-    // the blank Book1 created above is replaced, like openFile() does
-    if (added && blank && this.isUntouchedBlank(blank)) {
-      api.closeDoc(blank.wb.docId).catch(() => {});
-      this.detachDoc(blank);
-      if (focus) this.activateDoc(this.docs.indexOf(added));
-    }
+    if (!this.docs.length) this.renderEmpty();
   }
 
   /** 401: tell the user how to open the page with its token (once). Returns true if it was an auth error. */
@@ -1492,11 +1503,58 @@ class App {
     return this.docs.includes(doc) && !wb.path && !wb.dirty && wb.sheets.length === 1 && !wb.sheet.cells.size;
   }
 
-  /** Documents opened by the agent (or another window) appear here automatically. */
+  /** A document was opened somewhere. Every window gets a tab; a document the agent opened is also
+   * shown (one a user opened in another window stays a background tab). */
   onDocOpened(d) {
     if (!this.started) { (this._earlyOpened ||= []).push(d); return; } // replayed at the end of start()
-    if (this.docs.some((x) => x.wb.docId === d.docId)) return;
-    this.attachQuiet(d.docId, { activate: true }).then((doc) => doc && this.setStatus(`'${d.name}' 문서가 열렸습니다.`));
+    this.attachQuiet(d.docId, { activate: false }).then((doc) => {
+      if (!doc) return;
+      if (d.by === 'agent') this.showDoc(doc, `에이전트가 '${d.name}'을(를) 열었습니다.`);
+      else if (doc !== this.doc) this.setStatus(`'${d.name}' 문서가 다른 창에서 열렸습니다.`);
+    });
+  }
+
+  /** The agent opened an already open document again (`xl.py open`): show it. */
+  onDocFocus(d) {
+    if (!this.started) { (this._earlyOpened ||= []).push({ ...d, by: 'agent' }); return; }
+    if (d.by !== 'agent') return;
+    this.attachQuiet(d.docId, { activate: false }).then((doc) => doc && this.showDoc(doc, `에이전트가 '${d.name}'을(를) 보여 줍니다.`));
+  }
+
+  /** Bring a document to the front, unless the user is typing in a cell: then only mark its tab. */
+  showDoc(doc, msg) {
+    const i = this.docs.indexOf(doc);
+    if (i < 0) return;
+    if (this.editor.active) {
+      if (doc !== this.doc) { doc.unseen = true; this.renderTabs(); }
+      if (msg) this.setStatus(`${msg} (입력을 마친 뒤 탭을 누르세요)`);
+      return;
+    }
+    if (i !== this.di) this.activateDoc(i);
+    if (msg) this.setStatus(msg);
+  }
+
+  /** No document open: an empty start screen instead of creating a workbook on the server (which
+   * every other window would then receive). */
+  renderEmpty() {
+    this.di = -1;
+    this.renderTabs();
+    this.$('#sheet-tabs').innerHTML = '';
+    this.$('#name-box').value = '';
+    this.$('#fx-input').value = '';
+    document.title = 'Web Excel';
+    let el = document.getElementById('empty-state');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'empty-state';
+      el.innerHTML = `<div class="empty-box">
+        <h2>열린 파일이 없습니다</h2>
+        <p>에이전트가 파일을 열면 여기에 자동으로 표시됩니다.</p>
+        <div class="empty-btns"><button class="btn primary" data-act="new">새 통합 문서</button><button class="btn" data-act="open">열기…</button></div></div>`;
+      el.addEventListener('click', (e) => { const a = e.target.closest('[data-act]')?.dataset.act; if (a === 'new') this.newDoc(); else if (a === 'open') this.openFile(); });
+      this.$('#grid-host').append(el);
+    }
+    el.hidden = false;
   }
 
   /** The stream's 'ready' event: on first connect while starting, remember it; after a reconnect,
