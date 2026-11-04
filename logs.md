@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-04: 2차 코드 리뷰 10건 반영 — 미리보기 시작·재연결 처리 재작성(이벤트 대기열, 닫힌 문서 탭 제거, ?doc 포커스 유지, 빈 통합 문서 교체), xls 경고·메시지 정리, 테스트 정리 (→ docs/skill-implementation.md)
 - 2026-11-04: 코드 리뷰 8건 반영(xls 저장 대상 이름·형식, 409에 덮어쓸 파일 이름, 값 변환 경고 등), 미리보기 시작 중 에이전트가 연 문서가 탭으로 안 뜨던 버그 수정 (→ docs/skill-implementation.md)
 - 2026-11-04: Python 패키지 동봉 중단 — `scripts/_vendor` 삭제, `scripts/requirements.txt`로 설치 안내(없으면 종료 코드 6과 설치 명령), 라이선스 고지는 Chart.js만 남음 (→ docs/skill-implementation.md)
 - 2026-11-04: xls 읽기 전용화·xlwt 제거 — xls 저장은 같은 이름의 .xlsx로(원본 유지), LGPL 의존성 제거, xlrd 고지 문구 누락 보완 (→ docs/skill-implementation.md)

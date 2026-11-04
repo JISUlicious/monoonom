@@ -130,6 +130,10 @@ try:
     check("xls saved next to it, original untouched",
           load_workbook(os.path.join(ws, "legacy.xlsx"))["데이터"]["A6"].value == "추가" and os.path.isfile(os.path.join(ws, "legacy.xls")))
     xl(ws, "close", "--doc", "legacy.xlsx", "--force")
+    xl(ws, "open", "legacy.xls")
+    p = xl(ws, "save", "--doc", "legacy.xls", "--as", "legacy-copy.xlsx")
+    check("xls --as name.xlsx also warns about values", p.returncode == 0 and "계산된 값으로만" in p.stdout and "xls 형식으로는" not in p.stdout, p.stdout.strip())
+    xl(ws, "close", "--doc", "legacy-copy.xlsx", "--force")
 
     check("bad sheet -> exit 5", xl(ws, "read", "없음!A1", ok=False).returncode == 5)
     check("bad doc -> exit 2", xl(ws, "read", "A1", "--doc", "zzz", ok=False).returncode == 2)

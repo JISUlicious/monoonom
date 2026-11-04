@@ -142,5 +142,7 @@ if __name__ == "__main__":
     make_xlsx(os.path.join(out, "sample.xlsx"))
     if "--xls" in sys.argv:
         generate_xls(os.path.join(out, "sample.xls"))
+    else:
+        make_xls(os.path.join(out, "sample.xls"))  # copies the committed fixture (no-op for ./samples)
     make_offset_xlsx(os.path.join(out, "offset.xlsx"))
     print("written to", out)

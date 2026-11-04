@@ -892,7 +892,7 @@ class App {
     try {
       const res = await api.openDoc(path);
       // replace an untouched blank workbook (Excel behaviour)
-      const blank = this.docs.length === 1 && !this.doc.wb.path && !this.doc.wb.dirty && this.doc.wb.sheets.length === 1 && !this.doc.wb.sheet.cells.size && this.doc.wb.docId !== res.docId ? this.doc : null;
+      const blank = this.docs.length === 1 && this.isUntouchedBlank(this.doc) && this.doc.wb.docId !== res.docId ? this.doc : null;
       const doc = await this.attachDoc(res.docId);
       if (blank && doc) { api.closeDoc(blank.wb.docId).catch(() => {}); this.detachDoc(blank); this.activateDoc(this.docs.indexOf(doc)); }
       D.addRecent(path);
@@ -935,7 +935,7 @@ class App {
           const changed = /디스크/.test(e.message);
           const target = e.data?.targetName || path.split(/[\\/]/).pop();
           const msg = changed ? `${e.message}\n그래도 덮어쓰시겠습니까?`
-            : e.data?.converted ? `xls는 xlsx로 저장됩니다. '${target}'이(가) 이미 있습니다. 바꾸시겠습니까?`
+            : e.data?.converted ? `xls 파일은 ${e.data.format || 'xlsx'}로 저장됩니다. '${target}'이(가) 이미 있습니다. 바꾸시겠습니까?`
               : `'${target}'이(가) 이미 있습니다. 바꾸시겠습니까?`;
           const ans = await D.confirmBox(msg, { yes: '바꾸기', no: '아니요' });
           if (ans !== 'yes') return false;
@@ -1428,29 +1428,66 @@ class App {
       this.toast(`서버에 연결할 수 없습니다: ${e.message}. 페이지를 새로 고치세요.`, 'error', 15000);
       return;
     }
-    for (const d of docs) await this.attachDoc(d.docId, { activate: d.docId === want });
-    if (!this.docs.length) await this.newDoc();
+    for (const d of docs) await this.attachQuiet(d.docId, { activate: d.docId === want });
+    let blank = null;
+    if (!this.docs.length) { await this.newDoc(); blank = this.doc; }
     if (want && !this.docs.some((d) => d.wb.docId === want)) this.toast('요청한 문서가 서버에 없습니다.', 'warn');
     if (want) history.replaceState(null, '', location.pathname);
     if (open) await this.openFile(open);
+    // documents opened while this page was starting: their 'opened' events were queued, and the
+    // stream's 'ready' list covers documents opened before the stream connected
     this.started = true;
-    // documents the agent opened while this page was starting (their 'opened' event came too early)
-    try {
-      for (const d of (await api.docs()).docs) if (!this.docs.some((x) => x.wb.docId === d.docId)) await this.attachDoc(d.docId, { activate: true });
-    } catch { /* the stream's 'ready' list catches up later */ }
+    const early = [...(this._earlyOpened || []), ...(this._readyList || [])];
+    this._earlyOpened = this._readyList = null;
+    const focus = !want && !open; // never take focus from the document the URL asked for
+    let added = null;
+    for (const d of early) {
+      if (!d.docId || this.docs.some((x) => x.wb.docId === d.docId)) continue;
+      added = (await this.attachQuiet(d.docId, { activate: focus })) || added;
+    }
+    // the blank Book1 created above is replaced, like openFile() does
+    if (added && blank && this.isUntouchedBlank(blank)) {
+      api.closeDoc(blank.wb.docId).catch(() => {});
+      this.detachDoc(blank);
+      if (focus) this.activateDoc(this.docs.indexOf(added));
+    }
+  }
+
+  /** attachDoc() that never throws: a document can be closed between being listed and being loaded. */
+  async attachQuiet(docId, opts) {
+    try { return await this.attachDoc(docId, opts); } catch (e) {
+      if (e.status !== 404) console.warn('attach failed', docId, e);
+      return null;
+    }
+  }
+
+  isUntouchedBlank(doc) {
+    const wb = doc.wb;
+    return this.docs.includes(doc) && !wb.path && !wb.dirty && wb.sheets.length === 1 && !wb.sheet.cells.size;
   }
 
   /** Documents opened by the agent (or another window) appear here automatically. */
   onDocOpened(d) {
-    // before start() finishes, start() itself re-reads the document list
-    // attachDoc() shares one in-flight attach per docId, so repeated events do not duplicate a tab
-    if (!this.started || this.docs.some((x) => x.wb.docId === d.docId)) return;
-    this.attachDoc(d.docId, { activate: true }).then((doc) => doc && this.setStatus(`'${d.name}' 문서가 열렸습니다.`));
+    if (!this.started) { (this._earlyOpened ||= []).push(d); return; } // replayed at the end of start()
+    if (this.docs.some((x) => x.wb.docId === d.docId)) return;
+    this.attachQuiet(d.docId, { activate: true }).then((doc) => doc && this.setStatus(`'${d.name}' 문서가 열렸습니다.`));
   }
+
+  /** The stream's 'ready' event: on first connect while starting, remember it; after a reconnect,
+   * catch up with documents opened or closed while the stream was down (their events were missed). */
   onDocsList(docs) {
     this.onWindowsChanged(docs);
-    // after a reconnect: attach documents opened while the stream was down
-    if (this.started) for (const d of docs || []) if (d.docId && !this.docs.some((x) => x.wb.docId === d.docId)) this.attachDoc(d.docId, { activate: false });
+    if (!this.started) { this._readyList = docs || []; return; }
+    const listed = new Set((docs || []).map((d) => d.docId));
+    for (const d of docs || []) if (!this.docs.some((x) => x.wb.docId === d.docId)) this.attachQuiet(d.docId, { activate: false });
+    const gone = this.docs.filter((x) => !listed.has(x.wb.docId));
+    if (gone.length) {
+      // a document created in this window right after the list was made is not in it: re-check first
+      api.docs().then(({ docs: now }) => {
+        const still = new Set(now.map((d) => d.docId));
+        for (const doc of gone) if (!still.has(doc.wb.docId)) this.onDocClosedRemotely(doc);
+      }).catch(() => {});
+    }
   }
   /** the agent asked to show a sheet/range in the preview */
   onGoto(d) {

@@ -140,18 +140,18 @@ def read_workbook(path: str) -> dict:
 def xlsx_target(path: str, fmt: str | None) -> tuple[str, str, bool]:
     """Saving never writes .xls. Returns (path, format, converted).
 
-    report.xls -> report.xlsx (or report.xlsm when format 'xlsm' was asked for). A path that already
-    has an .xlsx/.xlsm extension keeps it and its format, whatever format was passed (e.g. a stale
-    client sending 'xls')."""
+    report.xls -> report.xlsx (or report.xlsm when format 'xlsm' was asked for); converted=True.
+    A path that already has an .xlsx/.xlsm extension keeps it and its format, whatever format was
+    passed (e.g. a stale client sending 'xls'); that is not a conversion."""
     fmt = (fmt or "").lower() or None
     root, ext = os.path.splitext(path)
     ext = ext.lower()
     if ext == ".xls":
         new = fmt if fmt in ("xlsx", "xlsm") else "xlsx"
         return root + "." + new, new, True
+    if ext in (".xlsx", ".xlsm"):
+        return path, ext[1:], False  # the extension decides; a stale client may still send 'xls'
     if fmt == "xls":
-        if ext in (".xlsx", ".xlsm"):
-            return path, ext[1:], True
         return path + ".xlsx", "xlsx", True
     return path, fmt, False
 

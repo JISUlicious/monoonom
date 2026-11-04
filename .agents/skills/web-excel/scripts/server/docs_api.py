@@ -151,8 +151,8 @@ def r_save_doc(h, m, q, body):
         if not same and not body.get("overwrite"):
             name = os.path.basename(path)
             err = ApiError(409, f"'{name}' 파일이 이미 있습니다." + (
-                " xls는 xlsx로 저장하므로 이 파일을 덮어쓰게 됩니다. 다른 이름으로 저장하려면 --as를 쓰세요." if converted else ""))
-            err.extra = {"target": path, "targetName": name, "converted": converted}
+                f" xls 파일은 {fmt}로 저장하므로 이 파일을 덮어쓰게 됩니다. 바꾸지 않으려면 다른 이름으로 저장하세요." if converted else ""))
+            err.extra = {"target": path, "targetName": name, "converted": converted, "format": fmt}
             raise err
         if same and doc.file_sig and doc.file_sig != _sig(path) and not body.get("force"):
             raise ApiError(409, "파일이 열린 뒤 디스크에서 바뀌었습니다(다른 프로그램이 저장). 덮어쓰려면 force가 필요합니다.")
@@ -166,12 +166,13 @@ def r_save_doc(h, m, q, body):
     from .agent_api import ensure_calc
     calc = ensure_calc(doc, wait=2.0)
     warns = write_workbook(path, fmt, doc.file_model(), doc.base_path)
+    note = []
     if converted:
-        note = [f"xls 형식으로는 저장하지 않으므로 '{os.path.basename(path)}'({fmt})로 저장했습니다. 원본 .xls는 그대로입니다."]
-        if from_xls:
-            note.append("xls에서 읽은 수식은 계산된 값으로만 저장됐습니다(xlrd는 xls의 수식 텍스트를 읽지 못함). "
-                        "다시 계산되어야 하는 셀은 수식을 다시 입력하세요.")
-        warns = note + list(warns or [])
+        note.append(f"xls 형식으로는 저장하지 않으므로 '{os.path.basename(path)}'({fmt})로 저장했습니다. 원본 .xls는 그대로입니다.")
+    if from_xls:  # also for an explicit `--as new.xlsx` / Save As from a document read from .xls
+        note.append("xls에서 읽은 수식은 계산된 값으로만 저장됐습니다(xlrd는 xls의 수식 텍스트를 읽지 못함). "
+                    "다시 계산되어야 하는 셀은 수식을 다시 입력하세요.")
+    warns = note + list(warns or [])
     if calc.get("status") == "stale":
         warns = list(warns or []) + ["수식 결과가 최신이 아닐 수 있어 파일의 캐시 값이 이전 결과일 수 있습니다(Excel은 열 때 다시 계산)."]
     with doc.lock:

@@ -80,8 +80,8 @@ class RoundTrip(unittest.TestCase):
         self.assertEqual(xlsx_target("/w/report.xls", "xls"), ("/w/report.xlsx", "xlsx", True))
         self.assertEqual(xlsx_target("/w/report.xlsx", "xlsx"), ("/w/report.xlsx", "xlsx", False))
         # a stale client asking for 'xls' on an xlsx/xlsm path: keep the path, no double extension
-        self.assertEqual(xlsx_target("/w/report.xlsx", "xls"), ("/w/report.xlsx", "xlsx", True))
-        self.assertEqual(xlsx_target("/w/report.xlsm", "xls"), ("/w/report.xlsm", "xlsm", True))
+        self.assertEqual(xlsx_target("/w/report.xlsx", "xls"), ("/w/report.xlsx", "xlsx", False))
+        self.assertEqual(xlsx_target("/w/report.xlsm", "xls"), ("/w/report.xlsm", "xlsm", False))
         # an explicit xlsm for an .xls path is kept
         self.assertEqual(xlsx_target("/w/out.xls", "xlsm"), ("/w/out.xlsm", "xlsm", True))
         self.assertEqual(xlsx_target("/w/out.XLS", None), ("/w/out.xlsx", "xlsx", True))
