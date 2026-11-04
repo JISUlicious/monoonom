@@ -1,9 +1,13 @@
-"""Generate sample workbooks into ./samples (xlsx with styles/formulas/chart/filter + xls)."""
+"""Generate sample workbooks into ./samples (xlsx with styles/formulas/chart/filter).
+
+samples/sample.xls is a committed fixture: web-excel no longer bundles an .xls writer (xlwt),
+and make_xls() copies it.
+"""
 import datetime as dt
 import os
+import shutil
 import sys
 
-import xlwt
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, PieChart, Reference
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -97,20 +101,9 @@ def make_offset_xlsx(path):
 
 
 def make_xls(path):
-    wb = xlwt.Workbook(encoding="utf-8")
-    ws = wb.add_sheet("데이터")
-    bold = xlwt.easyxf("font: bold on; pattern: pattern solid, fore_colour light_yellow")
-    for c, h in enumerate(["이름", "수량", "단가", "금액"]):
-        ws.write(0, c, h, bold)
-    rows = [("사과", 3, 1200), ("배", 2, 2500), ("포도", 5, 3000)]
-    for r, (n, q, p) in enumerate(rows, start=1):
-        ws.write(r, 0, n)
-        ws.write(r, 1, q)
-        ws.write(r, 2, p)
-        ws.write(r, 3, xlwt.Formula(f"B{r + 1}*C{r + 1}"))
-    ws.col(0).width = 256 * 12
-    wb.save(path)
-
+    """Legacy .xls fixture (sheet 데이터: 이름/수량/단가/금액, D2:D4 = B*C formulas)."""
+    if os.path.abspath(path) != os.path.abspath(os.path.join(OUT, "sample.xls")):
+        shutil.copyfile(os.path.join(OUT, "sample.xls"), path)
 
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else OUT

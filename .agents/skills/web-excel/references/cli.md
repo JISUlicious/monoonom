@@ -30,11 +30,12 @@ and most accept `--json`.
 | `open PATH` | Opens (or reuses) a workbook; it appears as a tab in every preview window. |
 | `new [--name N]` | New blank workbook (needs `save --as` later). |
 | `docs` | Open workbooks: id, version, unsaved flag, number of preview windows. |
-| `save [--as PATH] [--format xlsx\|xlsm\|xls] [--overwrite] [--force] [--no-backup]` | Python writes the file. `--overwrite`: replace another existing file. `--force`: overwrite although the file changed on disk since it was opened. Backup goes to `.web-excel/backups/` unless `--no-backup` (for DRM policies that forbid copies). |
+| `save [--as PATH] [--format xlsx\|xlsm] [--overwrite] [--force] [--no-backup]` | Python writes the file. `--overwrite`: replace another existing file. `--force`: overwrite although the file changed on disk since it was opened. Backup goes to `.web-excel/backups/` unless `--no-backup` (for DRM policies that forbid copies). |
 | `close [--force]` | Closes for everyone; refuses with unsaved changes unless `--force`. |
 
 xlsx saving keeps parts the editor does not show (conditional formatting, data validation, images,
-VBA in .xlsm). `.xls` cannot store charts or autofilter (warnings are printed).
+VBA in .xlsm). `.xls` files are read-only: `save` writes `NAME.xlsx` next to the `.xls` (which stays
+unchanged) and the document then points to the `.xlsx`; `--as x.xls` is also saved as `x.xlsx`.
 
 ## Reading
 

@@ -95,7 +95,7 @@ export async function fileDialog({ mode = 'open', name = '', format = 'xlsx', st
     <div class="fd-main"><div class="fd-side"><div class="fd-side-title">최근 파일</div>${recentFiles().map((p) => `<div class="fd-recent" data-path="${esc(p)}" title="${esc(p)}">${esc(p.split(/[\\/]/).pop())}</div>`).join('') || '<div class="muted">없음</div>'}</div>
       <div class="fd-list" tabindex="0"></div></div>
     ${saving ? `<div class="fd-save"><label>파일 이름 <input class="inp" data-fd="name" value="${esc(name)}"></label>
-      <label>형식 <select class="inp" data-fd="fmt"><option value="xlsx">Excel 통합 문서 (*.xlsx)</option><option value="xlsm">Excel 매크로 사용 통합 문서 (*.xlsm)</option><option value="xls">Excel 97-2003 통합 문서 (*.xls)</option></select></label></div>`
+      <label>형식 <select class="inp" data-fd="fmt"><option value="xlsx">Excel 통합 문서 (*.xlsx)</option><option value="xlsm">Excel 매크로 사용 통합 문서 (*.xlsm)</option></select></label></div>`
       : `<div class="fd-save"><label>파일 경로 <input class="inp" data-fd="name" placeholder="파일을 선택하거나 전체 경로를 입력"></label></div>`}
     <p class="muted small">파일 읽기/쓰기는 로컬 Python 서버가 수행합니다 (브라우저는 파일 내용에 직접 접근하지 않음).</p>`;
   let current = dir;
@@ -120,7 +120,7 @@ export async function fileDialog({ mode = 'open', name = '', format = 'xlsx', st
     },
   });
   const el = dlg.el;
-  if (saving) el.querySelector('[data-fd=fmt]').value = format === 'xls' ? 'xls' : format === 'xlsm' ? 'xlsm' : 'xlsx';
+  if (saving) el.querySelector('[data-fd=fmt]').value = format === 'xlsm' ? 'xlsm' : 'xlsx';
   const list = el.querySelector('.fd-list');
   const load = async (path) => {
     list.innerHTML = '<div class="muted pad">불러오는 중…</div>';

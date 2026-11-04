@@ -63,19 +63,21 @@ class RoundTrip(unittest.TestCase):
         c = read_workbook(out)["sheets"][0]["charts"][0]
         self.assertEqual((c["type"], c["title"], c["anchor"]["w"]), ("pie", "T", 300))
 
-    def test_xls_read_write(self):
+    def test_xls_read_only(self):
         m = read_workbook(self.xls)
-        self.assertEqual(self.cells(m["sheets"][0])[(1, 0)]["v"], "사과")
-        # xlsx model -> xls: formulas keep computed (cached) values
-        x = read_workbook(self.xlsx)
-        for r, c, it in x["sheets"][0]["cells"]:
-            if (r, c) == (7, 1):
-                it["cv"] = 951  # value computed by the browser engine
-        out = os.path.join(self.tmp, "o.xls")
-        write_workbook(out, "xls", x, None)
-        cells = self.cells(read_workbook(out)["sheets"][0])
-        self.assertEqual(cells[(7, 1)]["v"], 951)
-        self.assertEqual(cells[(0, 0)]["v"], "월")
+        cells = self.cells(m["sheets"][0])
+        self.assertEqual(cells[(1, 0)]["v"], "사과")
+        self.assertEqual(cells[(1, 2)]["v"], 1200)
+        self.assertTrue(any(".xlsx" in w for w in m["warnings"]))
+        # .xls is never written; targets are converted to .xlsx
+        from server.app import ApiError, xlsx_target
+        with self.assertRaises(ApiError):
+            write_workbook(os.path.join(self.tmp, "o.xls"), "xls", m, None)
+        self.assertEqual(xlsx_target("/w/report.xls", "xls"), ("/w/report.xlsx", "xlsx", True))
+        self.assertEqual(xlsx_target("/w/report.xlsx", "xlsx"), ("/w/report.xlsx", "xlsx", False))
+        out = os.path.join(self.tmp, "from-xls.xlsx")
+        write_workbook(out, "xlsx", m, self.xls)  # base .xls is ignored, xlsx written from the model
+        self.assertEqual(self.cells(read_workbook(out)["sheets"][0])[(0, 3)]["v"], "금액")
 
     def test_prefixes(self):
         self.assertEqual(add_prefixes('=XLOOKUP(A1,B:B,C:C)+SUM(1)'), '=_xlfn.XLOOKUP(A1,B:B,C:C)+SUM(1)')

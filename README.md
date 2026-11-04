@@ -1,12 +1,12 @@
 # web-excel
 
 로컬 Python 서버 + 브라우저 UI로 동작하는 **엑셀 호환 웹 스프레드시트**입니다.
-에이전트 SW(Claude Code 데스크톱, VS Code/Cursor Simple Browser 등)의 미리보기 창에서 `http://127.0.0.1:8765`로 접속해 xlsx/xls 파일을 읽고 쓸 수 있습니다.
+에이전트 SW(Claude Code 데스크톱, VS Code/Cursor Simple Browser 등)의 미리보기 창에서 `http://127.0.0.1:8765`로 접속해 xlsx 파일을 읽고 쓰고, xls 파일을 읽을 수 있습니다(xls는 xlsx로 저장).
 
 ## 실행
 
 이 프로젝트는 **Agent Skill** 형태로 패키징되어 있습니다: `.agents/skills/web-excel/` (Claude Code용 링크: `.claude/skills/web-excel`).
-필요한 Python 라이브러리(openpyxl, xlrd, xlwt)는 skill 안 `scripts/_vendor/`에 들어 있어 `pip install`이 필요 없습니다.
+필요한 Python 라이브러리(openpyxl, xlrd)는 skill 안 `scripts/_vendor/`에 들어 있어 `pip install`이 필요 없습니다.
 
 ```bash
 XL=.agents/skills/web-excel/scripts/xl.py
@@ -15,7 +15,7 @@ python3 $XL status                # 상태·열린 문서
 python3 $XL launch-config         # Claude Code 데스크톱: .claude/launch.json에 미리보기 구성 기록
 python3 $XL stop                  # 종료 (저장 안 된 문서가 있으면 거부, --force)
 python3 run.py --port 8765 --root .   # 개발용: 포그라운드 실행
-python3 tests/make_samples.py     # 예제 파일(samples/sample.xlsx, sample.xls) 생성
+python3 tests/make_samples.py     # 예제 xlsx 생성 (samples/sample.xls는 저장소에 있는 고정 파일)
 ```
 
 ### 에이전트가 쓰는 명령 (요약)
@@ -52,7 +52,7 @@ API는 토큰이 필요합니다: CLI는 `X-WebExcel-Token` 헤더, 브라우저
 
 | # | 요구사항 | 구현 |
 |---|---|---|
-| 1 | 로컬 서버 + 미리보기 창에서 xlsx/xls 읽기·쓰기 | `run.py` → `server/app.py` (stdlib `ThreadingHTTPServer`). xlsx/xlsm: openpyxl, xls: xlrd(읽기)/xlwt(쓰기) |
+| 1 | 로컬 서버 + 미리보기 창에서 xlsx 읽기·쓰기, xls 읽기 | `run.py` → `server/app.py` (stdlib `ThreadingHTTPServer`). xlsx/xlsm: openpyxl, xls: xlrd(읽기 전용 — 저장하면 같은 이름의 .xlsx) |
 | 2 | **DRM: 파일 읽기는 반드시 Python 함수** | 브라우저는 파일 바이트에 접근하지 않고 **경로만** 전송. 모든 디스크 I/O는 `server/fileio.py`의 `read_bytes()/write_bytes()` 한 곳을 통과. 드래그&드롭 업로드는 의도적으로 차단. DRM SDK 호출이 필요하면 `WEBEXCEL_READ_HOOK=pkg.mod:func`, `WEBEXCEL_WRITE_HOOK=...`로 교체 |
 | 3 | 웹에서 조작 가능한 스프레드시트 | Canvas 가상화 그리드(1,048,576×16,384), 틀 고정, 병합, 행/열 크기 조절·숨기기·자동 맞춤, 채우기 핸들(선형 추세/요일·월 목록/숫자 접미사), 복사·붙여넣기(Excel과 TSV/HTML 상호 운용), 실행 취소/다시 실행 |
 | 4 | 여러 탭/윈도우 | 상단 통합 문서 탭(다중 파일), 하단 시트 탭(추가·삭제·이름 변경·복사·이동·드래그·탭 색·숨기기). **서버가 문서를 소유**: 브라우저 창·에이전트 CLI가 모두 서버에 변경(op)을 보내고, 서버가 순서를 정해 각 창에 실시간 전달(SSE). 같은 문서를 여러 창·외부 브라우저에서 열어도 동기화되고, 에이전트가 연 파일은 미리보기에 탭으로 자동 표시 |
@@ -77,7 +77,7 @@ API는 토큰이 필요합니다: CLI는 `X-WebExcel-Token` 헤더, 브라우저
     xl.py                          ★ 단일 진입점 CLI: serve/status/stop/launch-config
     cli_docs.py                    문서 명령: open/describe/read/write/fill/format/chart/sheet/apply/changes/undo/save …
     calc/worker.mjs                브라우저가 없을 때 같은 JS 엔진으로 수식 계산(Node 18+)
-    _vendor/                       openpyxl, et_xmlfile, xlrd, xlwt + 라이선스
+    _vendor/                       openpyxl, et_xmlfile, xlrd + 라이선스
     server/
       fileio.py                    ★ 파일 바이트 I/O 단일 진입점 (DRM 훅)
       app.py                       HTTP 라우팅·인증·정적 파일
@@ -88,7 +88,7 @@ API는 토큰이 필요합니다: CLI는 `X-WebExcel-Token` 헤더, 브라우저
       agent_more.py                필터 조건·차트 편집·시트 관리·연속 채우기·복사/이동·찾기/바꾸기 등 나머지 편집
       region.py                    표 영역 판정(붙어 있는 데이터, 합계 행 제외) — filter.js와 같은 규칙
       refs.py                      수식 참조 재작성(브라우저 formula.js 이식: 채우기·행/열 이동·시트 이름)
-      xlsx_io.py / xls_io.py       openpyxl·xlrd/xlwt ↔ JSON 모델
+      xlsx_io.py / xls_io.py       openpyxl ↔ JSON 모델, xlrd → JSON 모델(읽기만)
       colors.py, units.py, formula_compat.py
   assets/web/                      브라우저 UI
     index.html, css/app.css, vendor/chart.umd.min.js (Chart.js 4.4.6, MIT)
@@ -112,7 +112,7 @@ docs/                              project-setup.md, skill-spec.md, skill-implem
 ### 설계 결정과 근거
 
 1. **경로 기반 I/O (DRM)**: 국내 문서 DRM은 대개 허가된 프로세스에만 투명 복호화를 제공하므로, 브라우저(`<input type=file>`/드롭)가 아닌 Python 프로세스가 직접 파일을 열어야 합니다. 서버는 zip 시그니처(`PK`)가 아니면 "DRM 훅을 지정하라"는 오류를 반환합니다. 쓰기도 임시 파일+rename 없이 같은 경로에 직접 기록합니다(파일 식별자를 추적하는 DRM 대비).
-2. **원본 패치 저장**: xlsx 저장 시 원본을 다시 로드해 시트 내용만 교체하므로 UI가 모델링하지 않는 조건부 서식·데이터 유효성·이미지·인쇄 설정·정의된 이름·VBA(xlsm)가 보존됩니다. 수식의 캐시 값은 기록하지 않고 `fullCalcOnLoad`를 설정해 Excel이 열 때 재계산합니다.
+2. **원본 패치 저장**: xlsx 저장 시 원본을 다시 로드해 시트 내용만 교체하므로 UI가 모델링하지 않는 조건부 서식·데이터 유효성·이미지·인쇄 설정·정의된 이름·VBA(xlsm)가 보존됩니다. 수식 결과는 캐시 값으로 함께 기록하고(계산하지 않는 프로그램도 값을 봄), `fullCalcOnLoad`를 설정해 Excel이 열 때 다시 계산합니다.
 3. **재계산**: 매 변경 시 전체 재계산(메모이제이션)을 수행하되, 재귀 깊이를 제한하고 가장 깊은 미계산 셀부터 다시 시작하는 반복 심화 방식으로 20,000단계 체인도 스택 오버플로 없이 계산합니다(Sestoft의 Corecalc 보고서가 다루는 스프레드시트 재계산·의존 그래프 문제 참고 [4]).
 4. **Excel 호환 세부 규칙**: 1900 윤년 버그를 포함한 날짜 일련번호 [3], 15자리 유효숫자 비교, 단항 `-`가 `^`보다 우선(`=-2^2`=4), 숫자<텍스트<논리값 비교 순서, `_xlfn.` 미래 함수 접두사 [2].
 5. **보안**: 기본 127.0.0.1 바인딩, Host 헤더 검사(DNS 리바인딩 방지), 변경 API는 커스텀 헤더 `X-WebExcel` 필수(교차 출처 요청은 CORS 프리플라이트에서 차단됨 [8]), 선택적 `--root` 샌드박스.
@@ -121,7 +121,7 @@ docs/                              project-setup.md, skill-spec.md, skill-implem
 ## 테스트
 
 ```bash
-python -m unittest tests.test_roundtrip   # Python 읽기/쓰기 왕복 (xlsx 패치, 차트, xls, _xlfn)
+python -m unittest tests.test_roundtrip   # Python 읽기/쓰기 왕복 (xlsx 패치, 차트, xls 읽기 전용, _xlfn)
 node tests/engine.test.mjs                # 수식 엔진 70개 검사
 python3 run.py --port 8765 --root . & node tests/e2e.cjs   # 브라우저 E2E 37개 (npm i playwright 필요)
 node tests/sync.e2e.cjs                   # 서버 동기화 17개 (에이전트↔브라우저, 동시 편집, 다중 창, 되돌리기)
@@ -137,7 +137,7 @@ python3 tests/excel_compat.test.py        # 저장한 수식 229개: _xlfn. 접�
 
 ## 알려진 제한
 
-- **xls 읽기**: xlrd는 BIFF 수식 텍스트를 제공하지 않아 계산된 값만 읽습니다(수식을 유지하려면 xlsx로 저장). xls 쓰기는 65,536행×256열, 56색 팔레트, 차트/자동 필터 미저장.
+- **xls는 읽기 전용**: xlrd는 BIFF 수식 텍스트를 제공하지 않아 계산된 값만 읽습니다. 저장하면 같은 이름의 .xlsx를 새로 만들고 원본 .xls는 그대로 둡니다(xls로 다시 쓰면 원본 수식이 값으로 바뀌므로).
 - 조건부 서식·이미지·피벗·스파크라인은 **표시하지 않지만 xlsx 저장 시 보존**됩니다. 행 삽입 시 이들의 범위는 이동하지 않습니다.
 - 동적 배열 수식은 결과를 분산(spill)하지 않고 왼쪽 위 값만 표시합니다.
 - 차트 세부 서식(개별 색, 데이터 레이블, 보조 축)은 수정 시 기본 스타일로 다시 생성됩니다.
@@ -149,7 +149,7 @@ python3 tests/excel_compat.test.py        # 저장한 수식 229개: _xlfn. 접�
 2. Microsoft, *[MS-XLSX] Excel Extensions to the Office Open XML SpreadsheetML File Format*, §2.2.3 Functions(미래 함수 `_xlfn.`/`_xlws.`). https://learn.microsoft.com/en-us/openspecs/office_standards/ms-xlsx/5d1b6d44-6fc1-4ecd-8fef-0b27406cc2bf
 3. Microsoft Support, *Excel incorrectly assumes that the year 1900 is a leap year* (KB214326). https://support.microsoft.com/kb/214326
 4. P. Sestoft, *A Spreadsheet Core Implementation in C#*, IT University of Copenhagen, Technical Report TR-2006-91, 2006. https://www.itu.dk/~sestoft/funcalc/ITU-TR-2006-91.pdf
-5. Microsoft, *[MS-XLS] Excel Binary File Format (.xls) Structure* (BIFF8 FORMULA 레코드의 캐시 결과값 형식). https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-xls/cd03cb5f-ca02-4934-a391-bb674cb8aa06
+5. Microsoft, *[MS-XLS] Excel Binary File Format (.xls) Structure* (xls 읽기). https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-xls/cd03cb5f-ca02-4934-a391-bb674cb8aa06
 6. Microsoft Support, *Keyboard shortcuts in Excel*. https://support.microsoft.com/en-us/office/keyboard-shortcuts-in-excel-1798d9d5-842a-42b8-9c99-9b7213f0040f
 7. WHATWG, *HTML Living Standard — Broadcasting to other browsing contexts (BroadcastChannel)*. https://html.spec.whatwg.org/multipage/web-messaging.html#broadcasting-to-other-browsing-contexts
 8. WHATWG, *Fetch Standard — CORS-preflight fetch*. https://fetch.spec.whatwg.org/#cors-preflight-fetch
@@ -158,5 +158,5 @@ python3 tests/excel_compat.test.py        # 저장한 수식 229개: _xlfn. 접�
 
 ## 라이선스
 
-MIT (`LICENSE`). 동봉한 openpyxl·et_xmlfile(MIT), xlrd·xlwt(BSD 계열, xlwt.Utils 일부 LGPL-2.1+), Chart.js(MIT)는
+MIT (`LICENSE`). 동봉한 openpyxl·et_xmlfile(MIT), xlrd(BSD 계열, 고지 문구 의무 있음), Chart.js(MIT)는
 각자의 라이선스를 따른다. 고지와 원문: `.agents/skills/web-excel/THIRD_PARTY_NOTICES.md`.

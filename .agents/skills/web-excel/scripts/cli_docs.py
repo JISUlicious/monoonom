@@ -581,6 +581,6 @@ def register(sub):
     add("selection", cmd_selection, "사용자가 미리보기에서 선택 중인 범위")
     p = add("undo", cmd_undo, "에이전트 batch 되돌리기", json_=False); p.add_argument("batch"); p.add_argument("--force", action="store_true")
     p = add("save", cmd_save, "저장 (Python이 파일 기록, 덮어쓰기 전 백업)", json_=False); p.add_argument("--as", dest="as_path")
-    p.add_argument("--format", choices=["xlsx", "xlsm", "xls"]); p.add_argument("--overwrite", action="store_true")
+    p.add_argument("--format", choices=["xlsx", "xlsm"]); p.add_argument("--overwrite", action="store_true")
     p.add_argument("--force", action="store_true", help="디스크에서 바뀐 파일도 덮어쓰기"); p.add_argument("--no-backup", action="store_true")
     p = add("close", cmd_close, "문서 닫기", json_=False); p.add_argument("--force", action="store_true")

@@ -125,22 +125,30 @@ const check = (name, cond, extra = '') => { console.log(`${cond ? 'PASS' : 'FAIL
   check('quick chart inserted', await page.evaluate(() => window.webExcel.doc.wb.sheet.charts.length === 2));
   await page.screenshot({ path: path.join(OUT, 'charts.png') });
 
-  // ---- save as (xlsx + xls) through Python, then reopen
-  const outX = path.join(OUT, 'e2e_saved.xlsx'), outL = path.join(OUT, 'e2e_saved.xls');
-  for (const f of [outX, outL]) try { fs.unlinkSync(f); } catch {}
+  // ---- save as xlsx through Python, then reopen
+  const outX = path.join(OUT, 'e2e_saved.xlsx');
+  try { fs.unlinkSync(outX); } catch {}
   const ok1 = await page.evaluate((p) => window.webExcel.writeTo(p, 'xlsx', true), outX);
   check('save xlsx', ok1 && fs.existsSync(outX));
-  const ok2 = await page.evaluate((p) => window.webExcel.writeTo(p, 'xls', true), outL);
-  check('save xls', ok2 && fs.existsSync(outL));
   await page.evaluate((p) => window.webExcel.openFile(p), outX);
   await page.waitForFunction(() => window.webExcel.doc.wb.name === 'e2e_saved.xlsx');
   check('reopen: charts persisted', await page.evaluate(() => window.webExcel.doc.wb.sheet.charts.length === 2));
   check('reopen: formulas persisted', (await cell(11, 1)).f === '=XLOOKUP("3월",A2:A7,C2:C7)', (await cell(11, 1)).f);
   check('reopen: autofilter persisted', await page.evaluate(() => !!window.webExcel.doc.wb.sheet.autoFilter));
   check('reopen: freeze persisted', await page.evaluate(() => JSON.stringify(window.webExcel.doc.wb.sheet.freeze) === '{"r":1,"c":1}'));
-  await page.evaluate((p) => window.webExcel.openFile(p), outL);
-  await page.waitForFunction(() => window.webExcel.doc.wb.name === 'e2e_saved.xls');
-  check('reopen xls values', (await val(7, 1)) === 951, String(await val(7, 1)));
+  // ---- .xls is read-only: Ctrl+S saves a new .xlsx next to it, the .xls stays as it was
+  const inL = path.join(OUT, 'e2e_legacy.xls'), outL = path.join(OUT, 'e2e_legacy.xlsx');
+  fs.copyFileSync(path.join(__dirname, '..', 'samples', 'sample.xls'), inL);
+  try { fs.unlinkSync(outL); } catch {}
+  const before = fs.readFileSync(inL);
+  await page.evaluate((p) => window.webExcel.openFile(p), inL);
+  await page.waitForFunction(() => window.webExcel.doc.wb.name === 'e2e_legacy.xls');
+  check('xls opens', (await val(1, 0)) === '사과', String(await val(1, 0)));
+  await page.evaluate(() => { const a = window.webExcel; a.select(5, 0); a.focusGrid(); });
+  await page.keyboard.type('추가'); await page.keyboard.press('Enter');
+  check('xls saved as xlsx next to it', await page.evaluate(() => window.webExcel.save()) && fs.existsSync(outL));
+  check('original xls untouched', Buffer.compare(before, fs.readFileSync(inL)) === 0);
+  check('document now points to the xlsx', await page.evaluate(() => window.webExcel.doc.wb.name) === 'e2e_legacy.xlsx');
 
   // ---- multi-window sync
   await page.evaluate(() => window.webExcel.activateDoc(0));

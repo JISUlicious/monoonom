@@ -6,7 +6,7 @@ import os
 import queue
 import time
 
-from .app import ApiError, Config, EXTS, _fmt_of, _norm, blank_workbook, read_workbook, route, write_workbook
+from .app import ApiError, Config, EXTS, _fmt_of, _norm, blank_workbook, read_workbook, route, write_workbook, xlsx_target
 from .session import DocSession, Registry, SessionError, backup_file
 
 REGISTRY = Registry()
@@ -142,6 +142,7 @@ def r_save_doc(h, m, q, body):
     fmt = body.get("format") or _fmt_of(path)
     if os.path.splitext(path)[1].lower() not in EXTS:
         path += "." + fmt
+    path, fmt, converted = xlsx_target(path, fmt)
     if not os.path.isdir(os.path.dirname(path)):
         raise ApiError(404, "저장할 폴더가 없습니다.")
     same = doc.path and os.path.normcase(path) == os.path.normcase(doc.path)
@@ -160,6 +161,8 @@ def r_save_doc(h, m, q, body):
     from .agent_api import ensure_calc
     calc = ensure_calc(doc, wait=2.0)
     warns = write_workbook(path, fmt, doc.file_model(), doc.base_path)
+    if converted:
+        warns = [f"xls 형식으로는 저장하지 않으므로 '{os.path.basename(path)}'(xlsx)로 저장했습니다. 원본 .xls는 그대로입니다."] + list(warns or [])
     if calc.get("status") == "stale":
         warns = list(warns or []) + ["수식 결과가 최신이 아닐 수 있어 파일의 캐시 값이 이전 결과일 수 있습니다(Excel은 열 때 다시 계산)."]
     with doc.lock:
@@ -171,7 +174,7 @@ def r_save_doc(h, m, q, body):
             charts = []
             for i, ch in enumerate(sh["charts"]):
                 ch = dict(ch)
-                ch["orig"], ch["dirty"] = (i, False) if fmt != "xls" else (None, True)
+                ch["orig"], ch["dirty"] = i, False
                 charts.append(ch)
             meta_ops.append({"op": "setSheetMeta", "sheet": sh["id"], "meta": {"origName": sh["name"], "charts": charts}})
         doc.apply(meta_ops, actor="system", label="저장")

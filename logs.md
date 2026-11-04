@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-04: xls 읽기 전용화·xlwt 제거 — xls 저장은 같은 이름의 .xlsx로(원본 유지), LGPL 의존성 제거, xlrd 고지 문구 누락 보완 (→ docs/skill-implementation.md)
 - 2026-11-04: 공개 준비 — MIT `LICENSE`, 동봉 라이브러리 고지(`THIRD_PARTY_NOTICES.md`, xlwt 라이선스 원문·LGPL-2.1 원문 추가), 로컬 경로 제거 (→ README.md)
 - 2026-11-04: 계산할 수 없는 함수가 있는 파일 — 열 때 경고(CLI·미리보기·describe), 고치지 않은 수식은 원래 텍스트·결과 그대로 저장, 고친 수식도 파일의 `_xlfn.` 접두사 유지, 파서가 못 읽는 수식에서 Enter가 막히던 버그 수정 (→ docs/skill-implementation.md)
 - 2026-11-04: Excel 호환 저장 점검·수정 — 수식 결과를 캐시 값으로 저장(저장 전 계산 갱신), LET 인자 `_xlpm.` 접두사, `_xlfn.` 누락 함수 26개 추가, NORM.DIST 정밀도(1e-7→1e-15), YEARFRAC 5개 기준·DAYS360 US/EU 방식, LibreOffice 대조 테스트 229개 (→ docs/skill-implementation.md)

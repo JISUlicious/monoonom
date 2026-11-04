@@ -42,7 +42,8 @@ file paths are resolved against the workspace (the current project folder).
    user is working on, run `xl.py changes --since VERSION --actor user` and `xl.py selection`
    ("this part" usually means the user's current selection).
 6. **Save only when the user asks** (or agreed): `xl.py save` or `xl.py save --as new.xlsx`.
-   The previous file is backed up to `.web-excel/backups/` first.
+   The previous file is backed up to `.web-excel/backups/` first. `.xls` files are read-only: saving
+   one writes `NAME.xlsx` next to it, so tell the user the new file name.
 
 Leave the server running when done so the user can keep working; it stops itself after an hour
 without clients. Use `xl.py stop` only on request (it refuses while there are unsaved changes).

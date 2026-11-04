@@ -906,6 +906,8 @@ class App {
     if (this.editor.active && !this.editor.commit()) return false;
     const wb = this.doc.wb;
     if (!wb.path) return this.saveAs();
+    // .xls is read-only: save next to it as .xlsx (the server does the same; this names it in prompts)
+    if (wb.format === 'xls') return this.writeTo(wb.path.replace(/\.xls$/i, '') + '.xlsx', 'xlsx', false);
     return this.writeTo(wb.path, wb.format, true);
   }
 
@@ -915,11 +917,6 @@ class App {
     const startDir = wb.path ? wb.path.replace(/[\\/][^\\/]*$/, '') : null;
     const res = await D.fileDialog({ mode: 'save', name: wb.name.replace(/\.(xlsx|xlsm|xls)$/i, ''), format: wb.format, startDir });
     if (!res) return false;
-    if (res.format === 'xls' && wb.format !== 'xls') {
-      const hasCharts = wb.sheets.some((s) => s.charts.length);
-      const ok = await D.confirmBox(`xls(Excel 97-2003) 형식은 65,536행 x 256열, 56색 팔레트로 제한되며${hasCharts ? ' 차트와' : ''} 자동 필터는 저장되지 않습니다. 계속하시겠습니까?`, { yes: '계속', no: '취소' });
-      if (ok !== 'yes') return false;
-    }
     return this.writeTo(res.path, res.format, false);
   }
 
@@ -929,7 +926,7 @@ class App {
     this.showBusy('저장 중…');
     try {
       for (let i = 0; i < 50 && doc.sync.pending.size; i++) await new Promise((r) => setTimeout(r, 100));
-      await doc.sync.reportCalc(); // formulas' computed values are stored as cached results (xls)
+      await doc.sync.reportCalc(); // formulas' computed values are stored as cached results
       const opts = { path, format, overwrite };
       let res;
       for (;;) {

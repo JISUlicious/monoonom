@@ -133,21 +133,28 @@ def read_workbook(path: str) -> dict:
     return model
 
 
+def xlsx_target(path: str, fmt: str | None) -> tuple[str, str, bool]:
+    """Saving never writes .xls: report.xls -> report.xlsx. Returns (path, format, converted)."""
+    if (fmt or "").lower() == "xls" or path.lower().endswith(".xls"):
+        root, ext = os.path.splitext(path)
+        return (root if ext.lower() == ".xls" else path) + ".xlsx", "xlsx", True
+    return path, fmt, False
+
+
 def write_workbook(path: str, fmt: str, model: dict, base: str | None) -> list[str]:
     """Python 파일 쓰기 함수: JSON 워크북 모델 -> 파일."""
     warns: list[str] = []
-    if fmt == "xls":
-        from .xls_io import write_xls
-        data, warns = write_xls(model)
-    else:
-        from .xlsx_io import write_xlsx
-        base_bytes = None
-        if base and os.path.isfile(base) and EXTS.get(os.path.splitext(base)[1].lower()) in ("xlsx", "xlsm"):
-            base_bytes = fileio.read_bytes(base)
-            if base_bytes[:2] != b"PK":
-                base_bytes = None
-        keep_vba = fmt == "xlsm" and base_bytes is not None and base.lower().endswith(".xlsm")
-        data = write_xlsx(model, base_bytes, keep_vba=keep_vba)
+    if fmt == "xls" or path.lower().endswith(".xls"):
+        # .xls is read-only (see xls_io); callers convert the target with xlsx_target() first
+        raise ApiError(400, "xls 형식으로는 저장하지 않습니다. .xlsx로 저장하세요.")
+    from .xlsx_io import write_xlsx
+    base_bytes = None
+    if base and os.path.isfile(base) and EXTS.get(os.path.splitext(base)[1].lower()) in ("xlsx", "xlsm"):
+        base_bytes = fileio.read_bytes(base)
+        if base_bytes[:2] != b"PK":
+            base_bytes = None
+    keep_vba = fmt == "xlsm" and base_bytes is not None and base.lower().endswith(".xlsm")
+    data = write_xlsx(model, base_bytes, keep_vba=keep_vba)
     fileio.write_bytes(path, data)
     return warns
 
@@ -157,8 +164,8 @@ def api_open(body):
 
 
 def api_save(body):
-    path = _norm(body.get("path", ""))
-    fmt = _fmt_of(path)
+    path, fmt, _ = xlsx_target(_norm(body.get("path", "")), None)
+    fmt = fmt or _fmt_of(path)
     if os.path.isdir(path):
         raise ApiError(400, "폴더 경로에는 저장할 수 없습니다.")
     if not os.path.isdir(os.path.dirname(path)):

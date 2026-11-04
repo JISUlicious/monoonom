@@ -236,3 +236,22 @@ LibreOffice는 xlsx를 열 때 기본으로 캐시 값을 그대로 쓰므로, �
 - 미지원 셀의 결과는 파일을 연 시점 값으로 고정된다. 그 셀이 참조하는 값을 바꾸면 화면 값은 갱신되지 않고(Excel에서 열면 재계산), 경고 문구에 이를 적었다.
 - xls는 xlrd가 수식 텍스트를 주지 않아 대상이 아니다(열 때 이미 "수식을 값으로 읽는다" 경고가 나온다).
 - openpyxl이 읽지 않는 셀 속성(동적 배열의 `cm`, 데이터 표 `t="dataTable"`)은 이 방식으로도 복원되지 않는다.
+
+## xls는 읽기 전용, xlwt 제거 (2026-11-04)
+
+### 이유
+1. 라이선스: xlwt의 `Utils.py` 일부가 LGPL-2.1+이고 pyExcelerator 부분에 광고 조항이 있다. 제거하면 동봉 코드는 MIT·BSD·PSF만 남는다.
+2. 데이터 보존: xlrd는 xls의 수식 텍스트를 주지 않는다. 열린 xls를 xls로 다시 저장하면 원본의 수식이 모두 값으로 바뀌었다(차트·자동 필터도 사라짐). xlsx로 따로 저장하면 원본이 그대로 남는다.
+3. 코드·테스트 단순화(xls 쓰기 경로, BIFF 수식 캐시 패치 제거).
+
+### 동작
+- xls를 열면 "읽기만 하고 저장하면 같은 이름의 .xlsx"라는 경고.
+- 저장: `report.xls` → `report.xlsx`(서버 `xlsx_target`; 브라우저도 미리 이름을 바꿔 확인 창에 실제 이름 표시). `report.xlsx`가 이미 있으면 덮어쓰기 확인(409). 저장 후 문서는 .xlsx를 가리킨다.
+- `--as x.xls`, `--format xls`도 .xlsx로 저장(CLI `--format`에서는 xls 선택지 제거). 저장 대화상자에서 xls 형식 제거.
+- `write_workbook`은 xls 대상을 거부(400) — 안전망.
+
+### 라이선스 점검 중 보완
+xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있어 `THIRD_PARTY_NOTICES.md`에 고지 문구를 넣었다(이전 정리에서 누락).
+
+### 검증
+`test_roundtrip`(xls 읽기, xls 쓰기 거부, 대상 변환), `e2e.cjs`(xls 열기 → 편집 → Ctrl+S → 옆에 .xlsx 생성, 원본 xls 바이트 동일, 문서 이름 .xlsx로 변경).
