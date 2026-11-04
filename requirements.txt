@@ -1,0 +1,2 @@
+# Python packages for the web-excel skill (and its tests): see the skill folder
+-r .agents/skills/web-excel/scripts/requirements.txt

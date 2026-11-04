@@ -1,0 +1,27 @@
+{
+  "note": "Per analysis-docs Agent_Skills_작성표준.md §7: 20 queries (10 should trigger, 10 near-miss should not), run each 3x, split 60/40, pick by the test-split score. Not executed yet.",
+  "should_trigger": [
+    "reports/q3.xlsx 열어서 지역별 합계 시트 하나 만들어줘, 화면으로 같이 볼게",
+    "이 엑셀 파일 2행에 머리글 굵게 하고 틀 고정 좀",
+    "budget.xls 에서 C열 값이 0인 행 숨겨줘",
+    "Open sales.xlsx and add a line chart of monthly revenue next to the data",
+    "엑셀에서 내가 선택한 범위 합계 수식 넣어줘",
+    "sample.xlsx 제품B 기준으로 내림차순 정렬하고 저장",
+    "Can you insert two rows above row 10 in the Inventory sheet of stock.xlsx?",
+    "방금 내가 미리보기에서 바꾼 셀들 뭐였는지 알려줘",
+    "data.xlsx 비중 시트 원형 차트 제목을 '점유율 2026'으로 바꿔줘",
+    "Rename the '매출' sheet to 'Sales' in report.xlsx without breaking formulas"
+  ],
+  "should_not_trigger": [
+    "data.csv 를 pandas로 읽어서 평균만 계산해줘",
+    "Google Sheets 공유 문서에 행 추가하는 Apps Script 짜줘",
+    "엑셀 VLOOKUP과 XLOOKUP 차이가 뭐야?",
+    "Convert all .xlsx files in this folder to CSV with a script",
+    "openpyxl로 xlsx 만드는 파이썬 코드 예시 보여줘",
+    "이 PDF 표를 엑셀로 옮기는 방법 알려줘",
+    "Write a unit test for the parse_invoice function",
+    "엑셀 단축키 Ctrl+Shift+L 이 뭐하는 거야?",
+    "Make a bar chart PNG from results.json with matplotlib",
+    "Word 문서의 표 서식을 바꿔줘"
+  ]
+}
