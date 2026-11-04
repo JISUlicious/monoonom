@@ -3,7 +3,7 @@
 ## 저장소
 
 - GitHub: `JISUlicious/web-excel` (비공개), 기본 브랜치 `main`
-- 로컬: `~/data/workspace/vibe/apps/web-excel`
+- 로컬: 개발자 작업 폴더에 clone
 - Claude GitHub 앱이 "All repositories"로 설치돼 있어 클라우드 세션에서 바로 쓸 수 있다.
 
 ## 결정과 이유

@@ -155,3 +155,8 @@ python3 tests/excel_compat.test.py        # 저장한 수식 229개: _xlfn. 접�
 8. WHATWG, *Fetch Standard — CORS-preflight fetch*. https://fetch.spec.whatwg.org/#cors-preflight-fetch
 9. W3C, *UI Events — Composition Events* (IME 입력 처리). https://www.w3.org/TR/uievents/#events-compositionevents
 10. Microsoft Support, *Number format codes*. https://support.microsoft.com/en-us/office/number-format-codes-5026bbd6-04bc-48cd-bf33-80f18b4eae68
+
+## 라이선스
+
+MIT (`LICENSE`). 동봉한 openpyxl·et_xmlfile(MIT), xlrd·xlwt(BSD 계열, xlwt.Utils 일부 LGPL-2.1+), Chart.js(MIT)는
+각자의 라이선스를 따른다. 고지와 원문: `.agents/skills/web-excel/THIRD_PARTY_NOTICES.md`.

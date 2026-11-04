@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-04: 공개 준비 — MIT `LICENSE`, 동봉 라이브러리 고지(`THIRD_PARTY_NOTICES.md`, xlwt 라이선스 원문·LGPL-2.1 원문 추가), 로컬 경로 제거 (→ README.md)
 - 2026-11-04: 계산할 수 없는 함수가 있는 파일 — 열 때 경고(CLI·미리보기·describe), 고치지 않은 수식은 원래 텍스트·결과 그대로 저장, 고친 수식도 파일의 `_xlfn.` 접두사 유지, 파서가 못 읽는 수식에서 Enter가 막히던 버그 수정 (→ docs/skill-implementation.md)
 - 2026-11-04: Excel 호환 저장 점검·수정 — 수식 결과를 캐시 값으로 저장(저장 전 계산 갱신), LET 인자 `_xlpm.` 접두사, `_xlfn.` 누락 함수 26개 추가, NORM.DIST 정밀도(1e-7→1e-15), YEARFRAC 5개 기준·DAYS360 US/EU 방식, LibreOffice 대조 테스트 229개 (→ docs/skill-implementation.md)
 - 2026-11-04: A1이 아닌 곳에서 시작하는 표 처리 — 합계 행을 필터·정렬 대상에서 제외(정렬 시 #REF! 버그 수정), 200행 넘는 표 영역 잘림 수정, 에이전트 명령의 셀 하나/열 전체 → 표 자동 확장, describe에 표 목록 (→ docs/skill-implementation.md)
@@ -17,4 +18,4 @@
 - 2026-11-04: Agent Skill 포장 조사·계획·spec 작성 — 결론: 구현 가능, 서버가 문서를 소유하는 동기화 구조로 변경 필요, 24–36인일 (→ docs/skill-spec.md)
 - 2026-11-04: 웹 엑셀 1차 구현 — Python 서버(xlsx/xls, DRM 훅), Canvas 그리드, 수식 엔진, 차트, 서식, 필터, 다중 탭·창, 단축키, 테스트 (→ README.md)
 - 2026-11-04: 문서화 규칙 적용 — `index.md`, `logs.md`, `docs/` 추가 (→ docs/project-setup.md)
-- 2026-11-04: 프로젝트 생성 — GitHub 비공개 저장소 `JISUlicious/web-excel`, 로컬 `~/data/workspace/vibe/apps/web-excel` (→ docs/project-setup.md)
+- 2026-11-04: 프로젝트 생성 — GitHub 저장소 `JISUlicious/web-excel` (→ docs/project-setup.md)
