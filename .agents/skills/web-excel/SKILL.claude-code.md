@@ -31,9 +31,9 @@ file paths are resolved against the workspace (the current project folder).
 
 ## Workflow
 
-1. **Start**: in Claude Code desktop run `xl.py launch-config`, then start the "web-excel" preview
-   (the app owns the server and stops it with the session). In a terminal session run `xl.py serve`
-   and tell the user the printed URL (default `http://localhost:8765/`).
+1. **Start**: `xl.py serve` (reuses a running server). If it exits with code 6, a Python package is
+   missing: ask the user before running the printed `pip install -r scripts/requirements.txt` command, then retry. Tell the user to open the printed URL
+   (default `http://localhost:8765/`) in the preview pane.
 2. **Open**: `xl.py open report.xlsx` — the file also appears as a tab in the preview.
    `xl.py ls` lists Excel files in the workspace.
 3. **Understand before editing**: `xl.py describe` (sheets, used range, header row, column types,
@@ -110,4 +110,4 @@ before changing such a formula, since its result can then only be calculated by 
 ## Exit codes and problems
 
 0 ok, 2 usage (e.g. ambiguous `--doc`), 3 server not running, 4 conflict (file changed on disk,
-name exists, unsaved changes), 5 file/DRM/sheet not found. See `${CLAUDE_SKILL_DIR}/references/troubleshooting.md`.
+name exists, unsaved changes), 5 file/DRM/sheet not found, 6 Python package missing. See `${CLAUDE_SKILL_DIR}/references/troubleshooting.md`.

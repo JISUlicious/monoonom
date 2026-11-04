@@ -84,7 +84,7 @@
 
 | 영역 | 필요 기술 | 난이도 | 상태 | 남은 작업 |
 |---|---|---|---|---|
-| 파일 형식 | OOXML(SpreadsheetML·DrawingML 차트), BIFF8, openpyxl/xlrd/xlwt 내부 구조 [6][7] | 상 | 완료 | 연산을 파일 모델에 반영하는 경로 재사용 |
+| 파일 형식 | OOXML(SpreadsheetML·DrawingML 차트), BIFF8(읽기), openpyxl/xlrd 내부 구조 [6][7] | 상 | 완료 | 연산을 파일 모델에 반영하는 경로 재사용 |
 | DRM 대응 | 경로 기반 I/O, 프로세스 기반 투명 복호화 이해, 훅 설계 | 중 | 완료(`fileio.py`) | 분리 실행된 python 프로세스도 DRM 허용 대상인지 **현장 검증** |
 | 수식 엔진 | 파서/평가기, Excel 의미론(형변환·오류 전파·1900 날짜), 의존·재계산 [8] | 상 | 완료(JS, 함수 약 200개) | 서버 측 계산 경로(§5.6) |
 | 참조 재작성 | 행/열 삽입·삭제·정렬 시 수식 참조 조정 | 중~상 | 완료(JS) | **Python 포팅 + JS와 동등성 테스트** |
@@ -92,7 +92,7 @@
 | 동시 편집 | 서버 순서화 + LWW, 구조 연산 충돌 처리(OT 개념) [3][4][5] | **상** | 부분(창 간 BroadcastChannel) | **서버 권한 세션·op 로그·SSE·재동기화** |
 | 실시간 전송 | SSE(서버→클라), HTTP POST(클라→서버) [10] | 중 | 없음 | stdlib 서버에서 SSE 스트리밍 |
 | 프로세스 관리 | 분리 실행, PID/포트/락 파일, 헬스 체크, 유휴 종료, Windows 차이 [9] | 중 | 없음 | `xl serve/stop/status` |
-| 패키징 | Skill 구조, 순수 Python 의존성 동봉(openpyxl·et_xmlfile MIT, xlrd·xlwt BSD) | 하~중 | 없음 | `scripts/_vendor` 동봉으로 `pip` 없이 실행 |
+| 패키징 | Skill 구조, Python 의존성 설치 안내(`scripts/requirements.txt`: openpyxl 필수, xlrd 선택) | 하~중 | 없음 | 없으면 `xl.py serve`가 설치 명령 안내(종료 코드 6). 처음 계획은 `_vendor` 동봉이었으나 라이선스 고지 부담 때문에 변경 |
 | 에이전트 인터페이스 | 토큰 효율적 CLI 출력, 오류 코드, 멱등성, 일괄 처리 | 중 | 없음 | §5.2 CLI |
 | 보안 | 로컬 서버 CSRF/DNS 리바인딩, 토큰, 경로 샌드박스 [11] | 중 | 부분(Host 검사·커스텀 헤더) | 세션 토큰·작업 경로 기본 샌드박스 |
 | 테스트 | Node/Playwright E2E, 동등성 테스트, Skill 트리거 평가 | 중 | 부분 | 동시 편집 시나리오, 교차 OS |
@@ -141,7 +141,7 @@ web-excel/
 │  ├─ xl.py                     # 단일 진입점 CLI (stdlib만 사용)
 │  ├─ server/                   # 현재 server/ 패키지 + session.py, ops.py, refs.py(참조 재작성 포팅)
 │  ├─ calc/worker.mjs           # Node가 있을 때 engine.js로 재계산하는 워커
-│  └─ _vendor/                  # openpyxl, et_xmlfile, xlrd, xlwt (순수 Python, 오프라인 설치 불필요)
+│  └─ requirements.txt          # openpyxl(필수), xlrd(.xls용, 선택) — 동봉하지 않고 pip으로 설치
 ├─ assets/web/                  # 현재 static/ (index.html, js/, css/, vendor/chart.umd.min.js)
 ├─ references/
 │  ├─ cli.md                    # 전체 명령·옵션·출력 형식

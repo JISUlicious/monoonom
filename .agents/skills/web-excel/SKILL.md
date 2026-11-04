@@ -9,7 +9,8 @@ description: >
   conversions where no live view is wanted; a plain spreadsheet library is simpler there.
 license: MIT
 compatibility: >
-  Requires Python 3.9+ and a local agent session on the user's machine with a shell; binds a
+  Requires Python 3.9+ with openpyxl (pip install -r scripts/requirements.txt; xlrd optional for
+  .xls) and a local agent session on the user's machine with a shell; binds a
   port on 127.0.0.1 (sandboxes that block loopback binding, e.g. Codex workspace-write, need
   approval or full access). Optional Node.js 18+ computes formulas when no preview is open.
   Not usable from the Skills API or cloud sessions, which cannot serve the user's localhost.
@@ -29,7 +30,8 @@ file paths are resolved against the workspace (the current project folder).
 
 ## Workflow
 
-1. **Start**: `xl.py serve` (reuses a running server). Tell the user to open the printed URL
+1. **Start**: `xl.py serve` (reuses a running server). If it exits with code 6, a Python package is
+   missing: ask the user before running the printed `pip install -r scripts/requirements.txt` command, then retry. Tell the user to open the printed URL
    (default `http://localhost:8765/`) in the preview pane.
 2. **Open**: `xl.py open report.xlsx` — the file also appears as a tab in the preview.
    `xl.py ls` lists Excel files in the workspace.
@@ -107,4 +109,4 @@ before changing such a formula, since its result can then only be calculated by 
 ## Exit codes and problems
 
 0 ok, 2 usage (e.g. ambiguous `--doc`), 3 server not running, 4 conflict (file changed on disk,
-name exists, unsaved changes), 5 file/DRM/sheet not found. See `references/troubleshooting.md`.
+name exists, unsaved changes), 5 file/DRM/sheet not found, 6 Python package missing. See `references/troubleshooting.md`.

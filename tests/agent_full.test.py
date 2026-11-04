@@ -8,7 +8,6 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XL = os.path.join(ROOT, ".agents", "skills", "web-excel", "scripts", "xl.py")
-sys.path.insert(0, os.path.join(ROOT, ".agents", "skills", "web-excel", "scripts", "_vendor"))
 sys.path.insert(0, ROOT)
 from openpyxl import load_workbook  # noqa: E402
 from tests.make_samples import make_xlsx  # noqa: E402

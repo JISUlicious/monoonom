@@ -121,7 +121,11 @@ def read_workbook(path: str) -> dict:
         raise ApiError(404, f"파일이 없습니다: {path}")
     data = fileio.read_bytes(path)
     if fmt == "xls":
-        from .xls_io import read_xls
+        try:
+            from .xls_io import read_xls
+        except ImportError:
+            raise ApiError(422, ".xls 파일을 열려면 Python 패키지 xlrd가 필요합니다: "
+                                "python -m pip install -r scripts/requirements.txt (skill 폴더 기준)")
         model = read_xls(data)
     else:
         from .xlsx_io import read_xlsx

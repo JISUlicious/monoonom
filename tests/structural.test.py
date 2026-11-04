@@ -3,7 +3,6 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, ".agents", "skills", "web-excel", "scripts", "_vendor"))
 sys.path.insert(0, os.path.join(ROOT, ".agents", "skills", "web-excel", "scripts"))
 sys.path.insert(0, ROOT)
 from server.agent_api import build_ops, structural_batch  # noqa: E402

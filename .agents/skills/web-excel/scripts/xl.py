@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""web-excel skill CLI — single entry point for the agent (stdlib only + bundled _vendor).
+"""web-excel skill CLI — single entry point for the agent (stdlib only; the server needs openpyxl).
 
 Server lifecycle:
   xl.py serve [--port 8765] [--root DIR]      start (detached) or reuse the workspace server
   xl.py serve --foreground [--exit-with-parent]   run in this process (launch.json / dev)
   xl.py status | stop [--force] | launch-config [--port P]
 
-Exit codes: 0 ok, 2 usage, 3 server not running, 4 conflict, 5 file/DRM error, 1 other.
+Exit codes: 0 ok, 2 usage, 3 server not running, 4 conflict, 5 file/DRM error,
+6 Python package missing (see scripts/requirements.txt), 1 other.
 """
 from __future__ import annotations
 
@@ -24,18 +25,43 @@ import urllib.error
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "_vendor"))  # bundled pure-Python deps first
 sys.path.insert(0, HERE)
+REQUIREMENTS = os.path.join(HERE, "requirements.txt")
 
 DEFAULT_PORT = 8765
 STATE_DIR = ".web-excel"
-EXIT_USAGE, EXIT_NOSERVER, EXIT_CONFLICT, EXIT_FILE = 2, 3, 4, 5
+EXIT_USAGE, EXIT_NOSERVER, EXIT_CONFLICT, EXIT_FILE, EXIT_DEPS = 2, 3, 4, 5, 6
 
 
 class CliError(Exception):
     def __init__(self, msg, code=1):
         super().__init__(msg)
         self.code = code
+
+
+# ----------------------------------------------------------------- dependencies
+
+def install_hint() -> str:
+    return f'"{sys.executable}" -m pip install -r "{REQUIREMENTS}"'
+
+
+def check_deps(quiet=False) -> dict:
+    """openpyxl is required (xlsx/xlsm); xlrd is optional (.xls). Raises CliError(EXIT_DEPS) if openpyxl is missing."""
+    found = {}
+    for name in ("openpyxl", "xlrd"):
+        try:
+            mod = __import__(name)
+            found[name] = getattr(mod, "__version__", "?")
+        except ImportError:
+            found[name] = None
+    if not found["openpyxl"]:
+        raise CliError("Python 패키지 openpyxl이 없습니다. 설치한 뒤 다시 실행하세요:\n  " + install_hint(), EXIT_DEPS)
+    if not quiet:
+        if not found["openpyxl"].startswith("3.1."):
+            print(f"주의: openpyxl {found['openpyxl']}은 검증된 3.1.x가 아닙니다. 문제가 있으면: {install_hint()}")
+        if not found["xlrd"]:
+            print(f"참고: xlrd가 없어 .xls 파일은 열 수 없습니다(.xlsx/.xlsm은 가능). 필요하면: {install_hint()}")
+    return found
 
 
 # ----------------------------------------------------------------- workspace state
@@ -205,7 +231,9 @@ def run_foreground(args):
 
 def cmd_serve(args):
     if args.foreground:
+        check_deps(quiet=True)
         return run_foreground(args)
+    check_deps()
     root = workspace_root(args.root)
     st = read_state(root)
     if alive(st):

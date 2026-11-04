@@ -19,7 +19,6 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SK = os.path.join(ROOT, ".agents", "skills", "web-excel")
 XL = os.path.join(SK, "scripts", "xl.py")
-sys.path.insert(0, os.path.join(SK, "scripts", "_vendor"))
 sys.path.insert(0, os.path.join(SK, "scripts"))
 from openpyxl import Workbook, load_workbook  # noqa: E402
 from server.xlsx_io import inject_cached_values  # noqa: E402

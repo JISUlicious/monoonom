@@ -7,7 +7,7 @@
 ### 한 일
 - 코드를 skill 폴더로 이동: `server/` → `.agents/skills/web-excel/scripts/server/`, `static/` → `.agents/skills/web-excel/assets/web/`.
 - `.claude/skills/web-excel` → `../../.agents/skills/web-excel` 심볼릭 링크(이 저장소를 연 Claude Code가 프로젝트 skill로 인식).
-- 의존성 동봉: `scripts/_vendor/`에 openpyxl 3.1.5, et_xmlfile 2.0.0(MIT), xlrd 2.0.2, xlwt 1.3.0(BSD)과 라이선스. 약 2.3MB.
+- 의존성 동봉: `scripts/_vendor/`에 openpyxl 3.1.5, et_xmlfile 2.0.0(MIT), xlrd 2.0.2, xlwt 1.3.0(BSD)과 라이선스. 약 2.3MB. (이후 변경: xlwt 제거, 이어서 Python 패키지 동봉 자체를 그만두고 `scripts/requirements.txt`로 설치 안내 — 맨 아래 항목 참고)
 - `scripts/xl.py`: `serve`(분리 실행·재사용), `serve --foreground [--exit-with-parent]`, `status [--brief]`, `stop [--force]`, `launch-config`.
 - 서버(`server/app.py`): 라우트 표 방식으로 재작성, 토큰 인증, `/api/health`, `/api/shutdown`, 활동 시각 기록.
 - `SKILL.md`(이식판), `SKILL.claude-code.md`(Claude Code판), `references/troubleshooting.md`.
@@ -255,3 +255,19 @@ xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있�
 
 ### 검증
 `test_roundtrip`(xls 읽기, xls 쓰기 거부, 대상 변환), `e2e.cjs`(xls 열기 → 편집 → Ctrl+S → 옆에 .xlsx 생성, 원본 xls 바이트 동일, 문서 이름 .xlsx로 변경).
+
+## Python 패키지 동봉 중단 (2026-11-04)
+
+### 이유
+`scripts/_vendor`에 openpyxl·et_xmlfile·xlrd를 넣어 두면 재배포자로서 고지 의무(특히 xlrd의 광고 조항)와 보안 업데이트 책임이 생긴다. 설치 안내로 바꾸면 사용자가 PyPI에서 직접 받으므로 이 저장소에는 각 패키지의 라이선스 고지가 필요 없다.
+
+### 변경
+- `scripts/_vendor/` 삭제(약 3.6MB). `scripts/requirements.txt`: `openpyxl>=3.1.2,<3.2`(서버가 openpyxl 내부 속성을 써서 검증된 3.1.x로 제한), `xlrd>=2.0.1,<3`(선택).
+- `xl.py serve`: 시작 전에 확인. openpyxl이 없으면 설치 명령(실행 중인 Python 기준 절대 경로)을 출력하고 종료 코드 6. 3.1.x가 아니면 주의, xlrd가 없으면 ".xls는 열 수 없음" 안내.
+- 서버: xlrd 없이 .xls를 열면 422와 설치 안내(CLI 종료 코드 5).
+- 저장소 루트 `requirements.txt`는 skill의 파일을 `-r`로 참조. 테스트는 설치된 패키지를 쓴다.
+- `THIRD_PARTY_NOTICES.md`: Chart.js만 남음(브라우저 파일이라 pip으로 설치할 수 없고, 사내망에서 CDN이 막힐 수 있어 계속 동봉).
+- SKILL.md: 종료 코드 6이면 사용자에게 묻고 설치. troubleshooting: 오프라인 PC용 `pip download` / `--no-index` 절차.
+
+### 한계
+- 사내 PC에서 pip 설치가 막혀 있으면 실행할 수 없다(이전에는 동봉 덕분에 가능). 오프라인 설치 절차로 대응.

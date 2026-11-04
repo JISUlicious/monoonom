@@ -6,8 +6,6 @@ writing back to .xls would also have replaced the file's formulas with values.
 """
 from __future__ import annotations
 
-import io
-
 import xlrd
 
 from .formula_compat import strip_prefixes

@@ -6,7 +6,7 @@
 ## 실행
 
 이 프로젝트는 **Agent Skill** 형태로 패키징되어 있습니다: `.agents/skills/web-excel/` (Claude Code용 링크: `.claude/skills/web-excel`).
-필요한 Python 라이브러리(openpyxl, xlrd)는 skill 안 `scripts/_vendor/`에 들어 있어 `pip install`이 필요 없습니다.
+Python 패키지는 함께 넣지 않으므로 처음 한 번 설치합니다: `python -m pip install -r requirements.txt` (openpyxl 필수, xlrd는 .xls를 열 때만). 설치되어 있지 않으면 `xl.py serve`가 설치 명령을 안내하고 종료 코드 6으로 끝납니다.
 
 ```bash
 XL=.agents/skills/web-excel/scripts/xl.py
@@ -77,7 +77,7 @@ API는 토큰이 필요합니다: CLI는 `X-WebExcel-Token` 헤더, 브라우저
     xl.py                          ★ 단일 진입점 CLI: serve/status/stop/launch-config
     cli_docs.py                    문서 명령: open/describe/read/write/fill/format/chart/sheet/apply/changes/undo/save …
     calc/worker.mjs                브라우저가 없을 때 같은 JS 엔진으로 수식 계산(Node 18+)
-    _vendor/                       openpyxl, et_xmlfile, xlrd + 라이선스
+    requirements.txt               openpyxl(필수), xlrd(.xls용, 선택)
     server/
       fileio.py                    ★ 파일 바이트 I/O 단일 진입점 (DRM 훅)
       app.py                       HTTP 라우팅·인증·정적 파일
@@ -124,6 +124,7 @@ docs/                              project-setup.md, skill-spec.md, skill-implem
 python -m unittest tests.test_roundtrip   # Python 읽기/쓰기 왕복 (xlsx 패치, 차트, xls 읽기 전용, _xlfn)
 node tests/engine.test.mjs                # 수식 엔진 70개 검사
 python3 run.py --port 8765 --root . & node tests/e2e.cjs   # 브라우저 E2E 37개 (npm i playwright 필요)
+# 브라우저 테스트 3개(e2e → sync → preserve)는 새로 띄운 서버에서 한 번씩 실행 (e2e는 열린 문서 수 등 초기 상태를 가정)
 node tests/sync.e2e.cjs                   # 서버 동기화 17개 (에이전트↔브라우저, 동시 편집, 다중 창, 되돌리기)
 python3 tests/agent_cli.test.py           # 에이전트 CLI 시나리오 39개 (브라우저 없이, 저장 파일을 openpyxl로 확인)
 python3 tests/structural.test.py          # 행/열 삽입·삭제·정렬·충돌 좌표 변환 20개
@@ -158,5 +159,5 @@ python3 tests/excel_compat.test.py        # 저장한 수식 229개: _xlfn. 접�
 
 ## 라이선스
 
-MIT (`LICENSE`). 동봉한 openpyxl·et_xmlfile(MIT), xlrd(BSD 계열, 고지 문구 의무 있음), Chart.js(MIT)는
-각자의 라이선스를 따른다. 고지와 원문: `.agents/skills/web-excel/THIRD_PARTY_NOTICES.md`.
+MIT (`LICENSE`). 함께 넣은 외부 코드는 Chart.js(MIT, `assets/web/vendor/`) 하나이고 고지는
+`.agents/skills/web-excel/THIRD_PARTY_NOTICES.md`에 있다. Python 패키지(openpyxl, xlrd)는 사용자가 PyPI에서 설치한다.
