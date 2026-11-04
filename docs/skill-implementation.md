@@ -59,3 +59,32 @@
 ### spec과 달라진 점
 - 문서별 SSE(`/api/docs/{id}/events`) 대신 창당 스트림을 기본으로 했다(문서별 엔드포인트는 CLI용으로 남김).
 - 다른 클라이언트의 선택 영역 표시는 아직 하지 않음(서버에 presence는 저장, CLI `selection`에서 사용 예정).
+
+## P2. 에이전트 CLI (2026-11-04)
+
+### 한 일
+- `server/agent_api.py`: `POST /api/docs/{id}/edit`(사람 수준의 편집 → 상태 op 변환, 한 batch), `GET /range`, `/describe`, `/changes`, `/selection`, 수식 결과 최신화(`ensure_calc`).
+- `server/a1.py`: A1 참조 파싱, 시트 이름 변경 시 다른 시트 수식·차트 범위·정의된 이름 재작성.
+- `scripts/calc/worker.mjs`: 브라우저가 쓰는 엔진(`model.js`)을 Node에서 그대로 돌려 수식 결과 계산.
+- `scripts/cli_docs.py`: `ls, open, new, docs, describe, read, write, fill, clear, format, merge, unmerge, width, height, hide, unhide, freeze, filter, sheet, chart, apply, changes, selection, undo, save, close` (+ 기존 서버 명령).
+- `SKILL.md` 본문 완성(작업 순서·명령표·값 해석 규칙·계산·종료 코드, 85줄·약 1.7k 토큰), `references/cli.md`·`edits.md`, `tools/build_claude_code_skill.py`로 `SKILL.claude-code.md` 생성.
+
+### 결정과 이유
+- **편집은 서버에서 op로 변환**: CLI는 얇게 두고(stdlib만), 범위 해석·값 해석·서식 병합은 서버가 한다. 결과는 P1과 같은 상태 op라서 브라우저에 그대로 실시간 반영되고 batch 단위로 되돌릴 수 있다.
+- **값은 Excel 입력처럼 해석**: `=`는 수식, `2026-03-15`는 날짜(일련번호 + yyyy-mm-dd 서식), `15%`, `1,234`, `₩1,000`, `TRUE`. `'`로 시작하거나 `--raw`면 문자열 그대로. 에이전트가 날짜를 문자열로 넣는 실수를 막기 위함.
+- **읽기 결과는 사람이 읽는 형태**: 날짜 서식 숫자는 ISO 문자열, 실수는 15자리 유효숫자(`110.39999999999999` → `110.4`), 전체 열 범위는 사용 범위로 자르고 기본 200행에서 끊어 다음 범위를 알려 준다(토큰 절약).
+- **채우기(fill)는 상대 참조 이동**: 한 수식을 범위에 채우면 행/열마다 상대 참조를 옮긴다(Python 정규식 구현, 문자열·따옴표 시트 이름은 건드리지 않음). 전체 참조 재작성(행 삽입 등)은 여전히 P3.
+- **수식 결과의 출처 3단계**: ① 미리보기 창이 보고한 값(최대 2초 대기) ② 없으면 Node로 같은 엔진 실행 ③ 둘 다 없으면 `stale`로 표시하고 파일의 마지막 계산값 사용. 응답에 `calc.status/source`를 함께 준다.
+- **문서 지정**: 문서가 하나면 `--doc` 생략. 여러 개면 id·이름·경로로 지정하고, 모호하면 목록과 함께 exit 2.
+- **상대 경로는 작업 경로 기준**: 에이전트의 셸 위치와 서버 root가 다를 수 있어서 `open`, `save --as`, `ls`, `apply`, `--tsv` 모두 root 기준으로 해석.
+- **종료 코드**: 0 성공, 2 사용법, 3 서버 없음, 4 충돌(409), 5 파일·DRM·시트 오류 — 에이전트가 다음 행동을 고르기 쉽게.
+
+### 검증
+- `tests/agent_cli.test.py` 34개 통과: 기동·재사용, 열기, describe, 읽기(날짜 ISO), fill의 상대 참조 이동, 브라우저 없이 Node 계산, Excel식 값 해석, 서식·되돌리기, 열 너비, 차트, 시트 이름 변경 시 다른 시트 수식 갱신, 교차 시트 수식, `edits.md` 예제 그대로 적용, 변경 이력, 백업 저장 후 openpyxl로 시트 이름·수식·차트·열 너비·날짜 확인, 오류 종료 코드, 저장 안 된 상태의 stop 거부.
+- 기존 스위트 모두 통과: Python 왕복 5, 엔진 70, 브라우저 E2E 34, 동기화 11.
+- 테스트로 찾아 고친 버그: (1) 상대 경로를 CLI 위치 기준으로 해석, (2) 빈 시트에 한 batch로 값을 쓰고 서식·차트를 만들면 앞서 쓴 셀을 못 보고 범위를 A1로 잘라 버림, (3) 포트 검사에 `SO_REUSEADDR`가 없어 TIME_WAIT 포트를 사용 중으로 판단.
+- `validate_skill.py --portable` 통과(경고 1: `SKILL.claude-code.md` 미링크, 의도된 것).
+
+### spec과 달라진 점·남은 것
+- 행/열 삽입·삭제와 정렬은 에이전트 CLI에 아직 없음(P3: 참조 재작성 Python 포팅 필요). 미리보기에서 사용자는 할 수 있음.
+- 미리보기에 다른 클라이언트의 선택 영역 표시, Windows 실기기 검증, `skills-ref validate`, 트리거 평가(P6)는 남음.

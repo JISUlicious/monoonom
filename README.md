@@ -18,6 +18,22 @@ python3 run.py --port 8765 --root .   # 개발용: 포그라운드 실행
 python3 tests/make_samples.py     # 예제 파일(samples/sample.xlsx, sample.xls) 생성
 ```
 
+### 에이전트가 쓰는 명령 (요약)
+
+```bash
+python3 $XL open report.xlsx            # 열기 → 미리보기에 탭으로 표시
+python3 $XL describe                    # 시트·사용 범위·머리글·열 유형·차트
+python3 $XL read '매출!A1:F20'           # 필요한 범위만 (날짜는 YYYY-MM-DD)
+python3 $XL fill 'G2:G7' '=E2*0.3'      # 수식 채우기(상대 참조 이동)
+python3 $XL format G1:G7 b=true nf='#,##0' --border outline
+python3 $XL chart add A1:D7 --type line --title 추이 --at H20
+python3 $XL changes --since 0 --actor user   # 사용자가 미리보기에서 바꾼 것
+python3 $XL undo BATCH                  # 에이전트 변경 되돌리기
+python3 $XL save                        # 저장(이전 파일은 .web-excel/backups/)
+```
+
+전체 명령은 `.agents/skills/web-excel/references/cli.md`, 일괄 편집 형식은 `references/edits.md`.
+
 | `serve` 옵션 | 설명 |
 |---|---|
 | `--root DIR` | 작업 경로(기본: `$WEBEXCEL_ROOT`, `$CLAUDE_PROJECT_DIR`, 현재 폴더). 이 밖의 파일은 접근 차단 |
@@ -56,13 +72,17 @@ API는 토큰이 필요합니다: CLI는 `X-WebExcel-Token` 헤더, 브라우저
   SKILL.md                         이식 가능판 (명세 필드만)
   SKILL.claude-code.md             Claude Code판 (allowed-tools, 상태 주입, launch.json 안내)
   scripts/
-    xl.py                          ★ 단일 진입점 CLI: serve/status/stop/launch-config (+문서 명령)
+    xl.py                          ★ 단일 진입점 CLI: serve/status/stop/launch-config
+    cli_docs.py                    문서 명령: open/describe/read/write/fill/format/chart/sheet/apply/changes/undo/save …
+    calc/worker.mjs                브라우저가 없을 때 같은 JS 엔진으로 수식 계산(Node 18+)
     _vendor/                       openpyxl, et_xmlfile, xlrd, xlwt + 라이선스
     server/
       fileio.py                    ★ 파일 바이트 I/O 단일 진입점 (DRM 훅)
       app.py                       HTTP 라우팅·인증·정적 파일
       session.py                   서버 문서 세션: op 적용·버전·로그·충돌 규칙·되돌리기
       docs_api.py                  /api/docs·/api/stream(SSE)·저장(백업·디스크 변경 감지)
+      agent_api.py                 에이전트 편집(/edit → op 변환)·읽기(/range, /describe, /changes, /selection)·계산 최신화
+      a1.py                        A1 참조·시트 이름 변경 시 수식 재작성
       xlsx_io.py / xls_io.py       openpyxl·xlrd/xlwt ↔ JSON 모델
       colors.py, units.py, formula_compat.py
   assets/web/                      브라우저 UI
@@ -74,10 +94,11 @@ API는 토큰이 필요합니다: CLI는 `X-WebExcel-Token` 헤더, 브라우저
     js/model.js                    통합 문서 모델, 트랜잭션 실행 취소
     js/docsync.js                  서버 문서 동기화: 낙관적 적용, 대기 중 변경 추적, 창당 이벤트 스트림 1개, 계산값 보고
     js/numfmt.js, charts.js, filter.js, clipboard.js, dialogs.js, api.js
-  references/troubleshooting.md
+  references/cli.md, edits.md, troubleshooting.md
 .claude/skills/web-excel -> ../../.agents/skills/web-excel
 run.py                             개발용 포그라운드 실행
-tests/                             make_samples.py, test_roundtrip.py, engine.test.mjs, e2e.cjs, sync.e2e.cjs
+tools/build_claude_code_skill.py   SKILL.md에서 SKILL.claude-code.md 생성
+tests/                             make_samples.py, test_roundtrip.py, engine.test.mjs, e2e.cjs, sync.e2e.cjs, agent_cli.test.py
 docs/                              project-setup.md, skill-spec.md, skill-implementation.md
 ```
 
@@ -97,6 +118,7 @@ python -m unittest tests.test_roundtrip   # Python 읽기/쓰기 왕복 (xlsx �
 node tests/engine.test.mjs                # 수식 엔진 70개 검사
 python3 run.py --port 8765 --root . & node tests/e2e.cjs   # 브라우저 E2E 34개 (npm i playwright 필요)
 node tests/sync.e2e.cjs                   # 서버 동기화 11개 (에이전트↔브라우저, 동시 편집, 다중 창, 되돌리기)
+python3 tests/agent_cli.test.py           # 에이전트 CLI 시나리오 34개 (브라우저 없이, 저장 파일을 openpyxl로 확인)
 ```
 
 ## 알려진 제한

@@ -358,3 +358,4 @@ def serve(host="127.0.0.1", port=8765):
     return httpd
 
 from . import docs_api  # noqa: E402,F401  (registers /api/docs routes)
+from . import agent_api  # noqa: E402,F401  (registers agent edit/read routes)

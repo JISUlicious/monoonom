@@ -129,6 +129,8 @@ def connect(root):
 
 def port_free(port) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if os.name != "nt":  # match the server (allow_reuse_address): TIME_WAIT is not "in use"
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind(("127.0.0.1", port))
             return True
@@ -351,6 +353,7 @@ def build_parser():
     p.add_argument("--port", type=int, default=0)
     p.set_defaults(fn=cmd_launch_config)
 
+    sys.modules.setdefault("xl", sys.modules[__name__])  # cli_docs imports helpers from this module
     try:
         from cli_docs import register  # document commands (P2)
         register(sub)
