@@ -309,3 +309,16 @@ xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있�
 - `make_samples.py OUTDIR`이 sample.xls도 다시 복사.
 - e2e의 409 콘솔 오류 무시는 덮어쓰기 확인 단계에서만.
 - 새 `tests/startup.e2e.cjs`(11개): 첫 `/api/docs` 응답을 붙잡아 두는 동안 에이전트가 문서를 열고 닫게 해서 시점을 고정하고, 스트림을 직접 끊어 재연결을 재현. 이전 `app.js`로 돌리면 빈 통합 문서 잔존, `?doc` 포커스 상실, 404 뒤 시작 중단으로 실패하는 것을 확인.
+
+## xl.py는 작업 폴더에서 실행 (2026-11-04)
+
+### 문제
+작업 폴더는 `--root` → `$WEBEXCEL_ROOT` → `$CLAUDE_PROJECT_DIR` → 현재 폴더 순으로 정한다. 에이전트가 skill 폴더로 `cd`한 뒤 `python scripts/xl.py`를 실행하면 skill 폴더가 작업 폴더가 되어, 서버 상태(`.web-excel/`)가 skill 폴더에 생기고 사용자 파일은 열 수 없는 범위가 되며 상대 경로도 skill 기준으로 풀린다.
+
+### 변경
+- SKILL.md(및 생성되는 SKILL.claude-code.md), `references/cli.md`, README: "skill의 절대 경로로, 작업 폴더를 현재 폴더로 두고 실행. skill 폴더로 `cd`하지 말 것. 다른 곳이면 `cd` 또는 `--root`".
+- `xl.py`의 `workspace_root()`: 정해진 작업 폴더가 skill 폴더이거나 그 안이면(심볼릭 링크 `.claude/skills/web-excel` 경유 포함, `realpath`로 비교) 안내와 함께 종료 코드 2.
+- `tools/build_claude_code_skill.py`: SKILL.md의 실행 안내 문장이 바뀌면 치환이 조용히 빠지지 않도록 `assert`.
+
+### 검증
+`agent_cli.test.py`에 3개 추가: skill 폴더에서 실행 → 2, `--root`가 skill 안 → 2, 작업 폴더에서 `--root` 없이 → 정상. 수동으로 `scripts/` 하위 폴더, 심볼릭 링크 경유, `CLAUDE_PROJECT_DIR`이 설정된 경우(정상 동작)도 확인.

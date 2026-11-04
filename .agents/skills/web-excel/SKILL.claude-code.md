@@ -26,8 +26,11 @@ open workbook: the agent edits it with `scripts/xl.py`, the user edits it in the
 both see each other's changes immediately. All file reads and writes are done by Python, never by
 the browser, which keeps DRM-protected files working.
 
-Run commands as `python3 ${CLAUDE_SKILL_DIR}/scripts/xl.py <command>` (written `xl.py` below). Relative
-file paths are resolved against the workspace (the current project folder).
+Run commands as `python3 ${CLAUDE_SKILL_DIR}/scripts/xl.py <command>` (written `xl.py` below), **from the
+user's workspace (project folder) as the current directory — never `cd` into the skill folder**. The
+workspace is where the server keeps its state (`.web-excel/`), which files it may open, and what
+relative file paths are resolved against. If the shell is elsewhere, `cd` to the workspace first or
+pass `--root <workspace>`; xl.py refuses to run with the skill folder as its workspace (exit code 2).
 
 ## Workflow
 

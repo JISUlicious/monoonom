@@ -8,8 +8,9 @@
 - View: goto, view
 - Common options and exit codes
 
-Every command accepts `--root DIR` (workspace; default `$WEBEXCEL_ROOT`, `$CLAUDE_PROJECT_DIR` or the
-current folder). Document commands accept `--doc ID|NAME|PATH` (optional when one workbook is open)
+Run xl.py with the user's workspace as the current folder (call it by the skill's absolute path; do not
+`cd` into the skill folder). Every command accepts `--root DIR` (workspace; default `$WEBEXCEL_ROOT`,
+`$CLAUDE_PROJECT_DIR` or the current folder); a workspace inside the skill folder is refused (exit 2). Document commands accept `--doc ID|NAME|PATH` (optional when one workbook is open)
 and most accept `--json`.
 
 ## Server

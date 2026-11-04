@@ -20,7 +20,12 @@ python3 tests/make_samples.py     # 예제 xlsx 생성 (samples/sample.xls는 �
 
 ### 에이전트가 쓰는 명령 (요약)
 
+작업 폴더(사용자 프로젝트 폴더)를 현재 폴더로 두고, skill의 `xl.py`는 절대 경로로 부릅니다. skill 폴더로
+`cd`해서 실행하면 거부됩니다(종료 코드 2). 다른 곳에서 부를 때는 `--root <작업 폴더>`.
+
 ```bash
+cd ~/my-project                          # 작업 폴더
+XL=/path/to/.agents/skills/web-excel/scripts/xl.py
 python3 $XL open report.xlsx            # 열기 → 미리보기에 탭으로 표시
 python3 $XL describe                    # 시트·사용 범위·머리글·열 유형·차트
 python3 $XL read '매출!A1:F20'           # 필요한 범위만 (날짜는 YYYY-MM-DD)
