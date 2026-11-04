@@ -130,7 +130,7 @@ docs/                              project-setup.md, skill-spec.md, skill-implem
 python -m unittest tests.test_roundtrip   # Python 읽기/쓰기 왕복 (xlsx 패치, 차트, xls 읽기 전용, _xlfn)
 node tests/engine.test.mjs                # 수식 엔진 70개 검사
 python3 run.py --port 8765 --root . & node tests/e2e.cjs   # 브라우저 E2E 37개 (npm i playwright 필요)
-# 브라우저 테스트 4개(e2e → sync → preserve → startup)는 새로 띄운 서버에서 한 번씩 실행 (e2e는 열린 문서 수 등 초기 상태를 가정)
+# 브라우저 테스트(e2e → sync → preserve → startup; auth·focus는 서버를 스스로 띄움)는 새로 띄운 서버에서 한 번씩 실행 (e2e는 열린 문서 수 등 초기 상태를 가정)
 node tests/sync.e2e.cjs                   # 서버 동기화 17개 (에이전트↔브라우저, 동시 편집, 다중 창, 되돌리기)
 python3 tests/agent_cli.test.py           # 에이전트 CLI 시나리오 39개 (브라우저 없이, 저장 파일을 openpyxl로 확인)
 python3 tests/structural.test.py          # 행/열 삽입·삭제·정렬·충돌 좌표 변환 20개
@@ -140,6 +140,7 @@ python3 tests/refs_parity.test.py         # 수식 참조 재작성 JS↔Python 
 python3 tests/preserve_formulas.test.py    # 계산할 수 없는 함수: 열 때 경고, 고치지 않은 수식은 원래대로 저장
 node tests/preserve.e2e.cjs               # 같은 내용을 미리보기에서 (경고 표시, F2+Enter, 수식 수정 경고)
 node tests/startup.e2e.cjs                # 미리보기 시작·재연결 중 에이전트가 열고 닫은 문서 (탭 추가·제거, ?doc 포커스, 빈 통합 문서 교체)
+node tests/focus.e2e.cjs                  # 어떤 문서를 보여 주나: 에이전트 open/재open, 새로 고침, 새 창, 배경 변경 표시, 시작 화면 (서버를 스스로 띄움)
 node tests/auth.e2e.cjs                   # 인증: 다른 사이트 iframe + #t 토큰, 토큰 없을 때 안내, 서버 2개, 재시작 (서버를 스스로 띄움)
 python3 tests/excel_compat.test.py        # 저장한 수식 229개: _xlfn. 접두사·캐시 값·LibreOffice 재계산 대조 (soffice 필요)
 ```

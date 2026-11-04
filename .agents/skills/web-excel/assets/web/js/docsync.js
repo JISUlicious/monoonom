@@ -219,6 +219,7 @@ export class EventStream {
     on('goto', (d) => this.app.onGoto?.(d));
     on('view', (d) => this.app.onView?.(d));
     on('opened', (d) => this.app.onDocOpened?.(d));
+    on('focus', (d) => this.app.onDocFocus?.(d));
     on('closed', (d) => {
       const sync = this.syncs.get(d.docId);
       if (sync) { sync.close(); this.app.onDocClosedRemotely(sync.doc); }

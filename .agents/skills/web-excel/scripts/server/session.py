@@ -88,6 +88,7 @@ class DocSession:
         self.calc_version = -1
         self.calc_source = None
         self.dirty = False
+        self.focused_at = time.time()   # last open/goto/user activity: which document a fresh window shows
         self.audit_path = None          # set by the API layer: <root>/.web-excel/audit.log
         self.path = path
         self.base_path = path
@@ -169,7 +170,7 @@ class DocSession:
             return {"docId": self.id, "name": self.name, "path": self.path, "format": self.format,
                     "version": self.version, "dirty": self.dirty, "clients": len(self.hub),
                     "sheets": [sh["name"] for sh in self.sheets],
-                    "calcVersion": self.calc_version}
+                    "calcVersion": self.calc_version, "focusedAt": self.focused_at}
 
     def file_model(self) -> dict:
         """Model in the shape server.xlsx_io / xls_io expect (style table, hidden rows merged)."""
@@ -422,11 +423,18 @@ class Registry:
                     return d
         return None
 
-    def add(self, doc: DocSession):
+    def add(self, doc: DocSession, by=None, client=None):
+        """by: 'agent' (CLI) or 'user'; client: the opening window. Windows show a document the agent
+        opened; one a user opened in another window is added as a background tab."""
         with self.lock:
             self.docs[doc.id] = doc
-        self.hub.publish("opened", doc.summary())
+        self.hub.publish("opened", {**doc.summary(), "by": by, "client": client})
         return doc
+
+    def focus(self, doc: DocSession, by=None, client=None):
+        """The agent opened an already open document again: every window should show it."""
+        doc.focused_at = time.time()
+        self.hub.publish("focus", {"docId": doc.id, "name": doc.name, "by": by, "client": client})
 
     def remove(self, doc_id):
         with self.lock:
