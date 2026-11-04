@@ -21,6 +21,10 @@ FUTURE_FUNCTIONS = {
     "T.INV", "TEXTJOIN", "VAR.P", "VAR.S", "WEIBULL.DIST", "WORKDAY.INTL", "XLOOKUP",
     "XMATCH", "XOR", "SEQUENCE", "RANDARRAY", "TEXTBEFORE", "TEXTAFTER", "TEXTSPLIT",
     "VSTACK", "HSTACK", "TOCOL", "TOROW", "CHOOSECOLS", "CHOOSEROWS", "TAKE", "DROP",
+    # Excel 2013 additions
+    "FORMULATEXT", "ISFORMULA", "SHEET", "SHEETS", "UNICHAR", "UNICODE", "ACOT", "ACOTH", "ARABIC", "BASE",
+    "COMBINA", "COT", "COTH", "CSC", "CSCH", "DECIMAL", "GAMMA", "GAUSS", "PDURATION", "PERMUTATIONA", "PHI",
+    "RRI", "SEC", "SECH", "SKEW.P", "LAMBDA",
 }
 # dynamic-array functions additionally carry the _xlws. namespace
 XLWS_FUNCTIONS = {"FILTER", "SORT", "SORTBY", "UNIQUE"}
@@ -35,10 +39,47 @@ def _map_outside_literals(formula: str, fn) -> str:
 
 
 def strip_prefixes(formula: str) -> str:
-    return _map_outside_literals(formula, lambda s: re.sub(r"_xlfn\.(?:_xlws\.)?|_xlws\.", "", s))
+    return _map_outside_literals(formula, lambda s: re.sub(r"_xlfn\.(?:_xlws\.)?|_xlws\.|_xlpm\.", "", s))
+
+
+def _let_names(formula: str):
+    """Parameter names declared by LET(name1, value1, ..., calc) calls (outside string literals)."""
+    names = set()
+    code = _map_outside_literals(formula, lambda s: s)
+    for m in re.finditer(r"(?<![A-Za-z0-9_.])LET\s*\(", code, re.I):
+        depth, arg, i, start = 0, 0, m.end(), m.end()
+        args = []
+        in_str = False
+        while i < len(code):
+            ch = code[i]
+            if ch == '"':
+                in_str = not in_str
+            elif not in_str:
+                if ch in "({":
+                    depth += 1
+                elif ch in ")}":
+                    if depth == 0:
+                        args.append(code[start:i])
+                        break
+                    depth -= 1
+                elif ch == "," and depth == 0:
+                    args.append(code[start:i])
+                    start = i + 1
+            i += 1
+        for a in args[:-1][::2]:
+            a = a.strip()
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", a):
+                names.add(a.lower())
+    return names
 
 
 def add_prefixes(formula: str) -> str:
+    """Future functions get _xlfn./_xlws.; LET parameter names get _xlpm. (OOXML storage form)."""
+    params = _let_names(formula)
+    if params:
+        pat = re.compile(r"(?<![A-Za-z0-9_.$!'])([A-Za-z_][A-Za-z0-9_.]*)(?![A-Za-z0-9_.(!])")
+        formula = _map_outside_literals(formula, lambda s: pat.sub(lambda m: "_xlpm." + m.group(1) if m.group(1).lower() in params else m.group(1), s))
+
     def repl(m: re.Match) -> str:
         name = m.group(1).upper()
         if name in XLWS_FUNCTIONS:

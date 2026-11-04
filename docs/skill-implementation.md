@@ -177,3 +177,31 @@ P2–P3까지는 값·수식·서식·병합·크기·필터 켜기·행/열·�
 - `tests/region.test.py` 14개(영역·합계 판정, 표 목록, 셀 하나/열 전체로 필터, 조건이 표의 첫 열 기준인지, 정렬 시 합계 유지, 다시 적용, 중복 제거, 차트, 명시 범위 존중).
 - `tests/e2e.cjs` 37개(+3): UI에서 셀 하나로 필터 → C5:F12, 정렬해도 합계·SUM 유지, Ctrl+A는 합계 포함.
 - 나머지 스위트 모두 통과.
+
+## 저장한 수식이 Excel에서 그대로 열리는지 (2026-11-04)
+
+### 확인 방법
+`tests/excel_compat.test.py`: 수식 229개(함수 약 170종, 날짜 기준 경계 45개 포함)를 앱과 같은 저장 경로(`write_workbook`)로 xlsx에 쓰고
+1. 저장된 수식 텍스트에 OOXML 접두사(`_xlfn.`, `_xlpm.`)가 붙었는지,
+2. 계산하지 않는 읽기 도구(openpyxl `data_only`)가 결과를 보는지,
+3. 캐시 값을 뺀 사본을 LibreOffice 24.2로 열어 다시 계산한 값이 우리 엔진과 같은지(상대오차 1e-12) 본다.
+LibreOffice는 xlsx를 열 때 기본으로 캐시 값을 그대로 쓰므로, 캐시가 있는 파일로는 재계산 비교가 되지 않는다.
+
+### 발견한 문제와 수정
+| 문제 | 영향 | 수정 |
+|---|---|---|
+| 수식 셀이 `<v></v>`(빈 캐시)로 저장됨(openpyxl 동작) | Excel 제한된 보기, 미리보기, pandas/openpyxl 등 계산하지 않는 도구에서 빈칸 | 저장 직후 zip 안 시트 XML의 빈 `<v>`만 계산 결과로 채움(`xlsx_io.inject_cached_values`; 문자열 `t="str"`, 논리 `t="b"`, 오류 `t="e"`). 저장 전에 계산을 최신으로(`ensure_calc`), 최신이 아니면 경고 |
+| LET 인자 이름에 `_xlpm.` 없음 | Excel이 LET을 잘못 읽을 수 있음 | `formula_compat`가 LET 인자에 `_xlpm.`을 붙이고 읽을 때 뗌 |
+| `_xlfn.` 목록에 Excel 2013+ 함수 26개 누락(SHEET, UNICHAR, FORMULATEXT, GAMMA 등) | 해당 함수가 #NAME? | 목록 보강 |
+| NORM.DIST/NORM.S.DIST 오차 ~1.5e-7(A&S 7.1.26 근사식) | 소수 7자리부터 Excel과 다름 | erfc를 급수(\|x\|<3) + 연분수로 계산, 오차 ~1e-15 |
+| YEARFRAC 기준 1이 일수/365.25, 기준 0이 DAYS360 재사용 | 결과 다름(예: 1년 → 0.9993) | Excel 규칙대로 5개 기준 구현(기준 0의 2월 말 처리, 기준 1의 1년 이내 365/366·여러 해 평균) |
+| DAYS360에 method 인자 없음, 2월 말 처리 누락 | US/EU 방식 결과 다름 | US(NASD)·EU 방식 구현 |
+
+### 결과
+- 접두사 30/30, 캐시 값 229/229, 계산 없는 읽기 229/229.
+- LibreOffice 재계산 225/229 일치. 나머지 4개(XLOOKUP 2, XMATCH, LET)는 LibreOffice 24.2에 없는 함수라 비교 불가(24.8부터 지원).
+- `"a"&1&TRUE`는 Excel이 `a1TRUE`, LibreOffice가 `a11`로 서로 달라 대조에서 뺐다(우리는 Excel과 같음).
+
+### 남은 한계
+- 동적 배열(FILTER, SORT, UNIQUE, SEQUENCE의 넘침)은 Excel의 동적 배열 메타데이터(`metadata.xml`, `cm` 속성)를 쓰지 않아 Excel에서 `@`가 붙은 단일 값 수식으로 보일 수 있다.
+- 실제 Microsoft Excel로는 확인하지 않았다(이 환경에 없음). LibreOffice와 파일 구조 검사로 대신했다.

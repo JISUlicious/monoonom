@@ -156,7 +156,12 @@ def r_save_doc(h, m, q, body):
             backup = backup_file(path, state_dir())
         except OSError as e:
             raise ApiError(403, f"백업을 만들 수 없습니다({e}). backup=false로 다시 시도하세요.")
+    # formula results are written into the file as cached values, so make them current first
+    from .agent_api import ensure_calc
+    calc = ensure_calc(doc, wait=2.0)
     warns = write_workbook(path, fmt, doc.file_model(), doc.base_path)
+    if calc.get("status") == "stale":
+        warns = list(warns or []) + ["수식 결과가 최신이 아닐 수 있어 파일의 캐시 값이 이전 결과일 수 있습니다(Excel은 열 때 다시 계산)."]
     with doc.lock:
         doc.path, doc.base_path, doc.format = path, path, fmt
         doc.name = os.path.basename(path)

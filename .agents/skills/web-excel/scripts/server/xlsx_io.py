@@ -662,8 +662,84 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
         wb.active = max(0, min(active, len(wb.worksheets) - 1))
         for ws in wb.worksheets:
             ws.sheet_view.tabSelected = ws is wb.active
-    wb.calculation.fullCalcOnLoad = True  # no cached values are written; let Excel recalc
+    wb.calculation.fullCalcOnLoad = True  # Excel still recalculates on open
 
     out = io.BytesIO()
     wb.save(out)
+    cached = {}
+    for ws, sm in ordered:
+        vals = {}
+        for r, c, item in sm.get("cells", []):
+            if item.get("f") and item.get("cv") is not None:
+                vals[f"{get_column_letter(c + 1)}{r + 1}"] = item["cv"]
+        if vals:
+            cached[ws.title] = vals
+    data = out.getvalue()
+    return inject_cached_values(data, cached) if cached else data
+
+
+_ERRORS = {"#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A", "#GETTING_DATA", "#SPILL!", "#CALC!"}
+
+
+def _xml_escape(s):
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def inject_cached_values(data: bytes, cached: dict) -> bytes:
+    """Write formula results (computed by the browser/Node engine) as cached <v> values.
+
+    openpyxl writes every formula with an empty <v/>, so other tools (pandas/openpyxl data_only,
+    file previews, Excel's Protected View, which does not recalculate) would show blanks.
+    Only the empty <v></v> right after a formula is filled; everything else is left byte-identical.
+    """
+    import re
+    import zipfile
+
+    zin = zipfile.ZipFile(io.BytesIO(data))
+    wbxml = zin.read("xl/workbook.xml").decode("utf-8")
+    rels = zin.read("xl/_rels/workbook.xml.rels").decode("utf-8")
+    targets = {m.group(1): m.group(2) for m in re.finditer(r'<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"', rels)}
+    targets.update({m.group(2): m.group(1) for m in re.finditer(r'<Relationship[^>]*Target="([^"]+)"[^>]*Id="([^"]+)"', rels)})
+    parts = {}
+    for m in re.finditer(r"<sheet\b[^>]*>", wbxml):
+        tag = m.group(0)
+        name = re.search(r'name="([^"]*)"', tag)
+        rid = re.search(r'r:id="([^"]+)"', tag) or re.search(r'\bid="([^"]+)"', tag)
+        if not name or not rid or rid.group(1) not in targets:
+            continue
+        t = targets[rid.group(1)].lstrip("/")
+        part = t if t.startswith("xl/") else "xl/" + t
+        sheet_name = name.group(1).replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&apos;", "'")
+        parts[part] = cached.get(sheet_name)
+    cell_re = re.compile(r'<c r="([A-Z]+[0-9]+)"((?:\s[^>]*?)?)><f([^>]*)>(.*?)</f><v\s*/?>(?:</v>)?</c>', re.S)
+
+    def fill(m, vals):
+        ref, attrs, fattrs, ftext = m.groups()
+        if ref not in vals:
+            return m.group(0)
+        v = vals[ref]
+        attrs = re.sub(r'\st="[^"]*"', "", attrs)
+        if isinstance(v, bool):
+            t, text = "b", "1" if v else "0"
+        elif isinstance(v, (int, float)):
+            if v != v or v in (float("inf"), float("-inf")):
+                return m.group(0)
+            t, text = None, repr(float(v)) if isinstance(v, float) and not float(v).is_integer() else str(int(v))
+        elif isinstance(v, str) and v in _ERRORS:
+            t, text = "e", v
+        elif isinstance(v, str):
+            t, text = "str", _xml_escape(v)
+        else:
+            return m.group(0)
+        tattr = f' t="{t}"' if t else ""
+        return f'<c r="{ref}"{attrs}{tattr}><f{fattrs}>{ftext}</f><v>{text}</v></c>'
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
+        for info in zin.infolist():
+            raw = zin.read(info.filename)
+            vals = parts.get(info.filename)
+            if vals:
+                raw = cell_re.sub(lambda m: fill(m, vals), raw.decode("utf-8")).encode("utf-8")
+            zout.writestr(info, raw)
     return out.getvalue()

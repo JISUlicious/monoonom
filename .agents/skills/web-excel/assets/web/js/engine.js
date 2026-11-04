@@ -626,9 +626,25 @@ def('COVARIANCE.P COVAR', wrap((a, _c, e) => { const [x, y] = pairedNums(e, a[0]
 def('COVARIANCE.S', wrap((a, _c, e) => { const [x, y] = pairedNums(e, a[0], a[1]); if (x.length < 2) return E.DIV0; const mx = mean(x), my = mean(y); return sum(x.map((v, i) => (v - mx) * (y[i] - my))) / (x.length - 1); }));
 def('GEOMEAN', wrap((a, _c, e) => { const v = nums(e, a); if (!v.length || v.some((x) => x <= 0)) return E.NUM; return Math.exp(sum(v.map(Math.log)) / v.length); }));
 def('AVEDEV', wrap((a, _c, e) => { const v = nums(e, a); const m = mean(v); return sum(v.map((x) => Math.abs(x - m))) / v.length; }));
-const erf = (x) => { const t = 1 / (1 + 0.3275911 * Math.abs(x)); const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return x >= 0 ? y : -y; };
-def('NORM.S.DIST', wrap((a, _c, e) => { const z = e.num(a[0]); return e.bool(a[1] ?? true) ? 0.5 * (1 + erf(z / Math.SQRT2)) : Math.exp(-z * z / 2) / Math.sqrt(2 * Math.PI); }));
-def('NORM.DIST NORMDIST', wrap((a, _c, e) => { const x = e.num(a[0]), m = e.num(a[1]), s = e.num(a[2]); if (s <= 0) return E.NUM; const z = (x - m) / s; return e.bool(a[3]) ? 0.5 * (1 + erf(z / Math.SQRT2)) : Math.exp(-z * z / 2) / (s * Math.sqrt(2 * Math.PI)); }));
+// erf/erfc to ~1e-15: positive-term Taylor series below 3, Lentz continued fraction for the tail
+// (Abramowitz & Stegun 7.1.6 and 7.1.14). The previous A&S 7.1.26 polynomial was only ~1.5e-7.
+const erfc = (x) => {
+  if (x < 0) return 2 - erfc(-x);
+  if (x < 3) {
+    let term = x, sum = x;
+    for (let n = 1; n < 200 && Math.abs(term) > 1e-17 * sum; n++) { term *= 2 * x * x / (2 * n + 1); sum += term; }
+    return 1 - 2 / Math.sqrt(Math.PI) * Math.exp(-x * x) * sum;
+  }
+  const tiny = 1e-300; let f = x, C = x, D = 0;
+  for (let n = 1; n < 300; n++) {
+    const an = n / 2; D = x + an * D; D = D === 0 ? tiny : 1 / D; C = x + an / C; if (C === 0) C = tiny;
+    const delta = C * D; f *= delta; if (Math.abs(delta - 1) < 1e-16) break;
+  }
+  return Math.exp(-x * x) / (Math.sqrt(Math.PI) * f);
+};
+const normCdf = (z) => 0.5 * erfc(-z / Math.SQRT2);
+def('NORM.S.DIST', wrap((a, _c, e) => { const z = e.num(a[0]); return e.bool(a[1] ?? true) ? normCdf(z) : Math.exp(-z * z / 2) / Math.sqrt(2 * Math.PI); }));
+def('NORM.DIST NORMDIST', wrap((a, _c, e) => { const x = e.num(a[0]), m = e.num(a[1]), s = e.num(a[2]); if (s <= 0) return E.NUM; const z = (x - m) / s; return e.bool(a[3]) ? normCdf(z) : Math.exp(-z * z / 2) / (s * Math.sqrt(2 * Math.PI)); }));
 def('SUBTOTAL', wrap((a, ctx, eng) => {
   const code = eng.int(a[0]) % 100;
   const map = { 1: 'AVERAGE', 2: 'COUNT', 3: 'COUNTA', 4: 'MAX', 5: 'MIN', 6: 'PRODUCT', 7: 'STDEV', 8: 'STDEVP', 9: 'SUM', 10: 'VAR', 11: 'VARP' };
@@ -906,7 +922,15 @@ def('ISOWEEKNUM', wrap((a, _c, e) => { const s = Math.floor(dnum(e, a[0])); cons
 def('EDATE', wrap((a, _c, e) => { const p = serialToParts(dnum(e, a[0])); const m = p.m + e.int(a[1]); const last = serialToParts(dateToSerial(p.y, m + 1, 0)).d; return Math.round(dateToSerial(p.y, m, Math.min(p.d, last))); }));
 def('EOMONTH', wrap((a, _c, e) => { const p = serialToParts(dnum(e, a[0])); return Math.round(dateToSerial(p.y, p.m + e.int(a[1]) + 1, 0)); }));
 def('DAYS', wrap((a, _c, e) => Math.floor(dnum(e, a[0])) - Math.floor(dnum(e, a[1]))));
-def('DAYS360', wrap((a, _c, e) => { const s = serialToParts(dnum(e, a[0])), t = serialToParts(dnum(e, a[1])); let d1 = s.d === 31 ? 30 : s.d; let d2 = t.d === 31 && d1 >= 30 ? 30 : t.d; return (t.y - s.y) * 360 + (t.m - s.m) * 30 + (d2 - d1); }));
+const lastOfFeb = (p) => p.m === 2 && serialToParts(dateToSerial(p.y, 3, 1) - 1).d === p.d;
+// DAYS360: US (NASD) method by default, European when method is TRUE; same rules as Excel/LibreOffice.
+def('DAYS360', wrap((a, _c, e) => {
+  const s = serialToParts(dnum(e, a[0])), t = serialToParts(dnum(e, a[1])); const eu = e.bool(a[2] ?? false);
+  let d1 = s.d, d2 = t.d, m2 = t.m, y2 = t.y;
+  if (d1 === 31) d1 = 30; else if (!eu && lastOfFeb(s)) d1 = 30;
+  if (d2 === 31) { if (!eu && d1 !== 30) { d2 = 1; m2 += 1; } else d2 = 30; }
+  return (y2 - s.y) * 360 + (m2 - s.m) * 30 + (d2 - d1);
+}));
 def('DATEDIF', wrap((a, _c, e) => {
   const s = Math.floor(dnum(e, a[0])), t = Math.floor(dnum(e, a[1])); if (s > t) return E.NUM;
   const u = e.str(a[2]).toUpperCase(); const p = serialToParts(s), q = serialToParts(t);
@@ -925,7 +949,40 @@ def('NETWORKDAYS', wrap((a, _c, e) => { let s = Math.floor(dnum(e, a[0])), t = M
 def('WORKDAY', wrap((a, _c, e) => { let d = Math.floor(dnum(e, a[0])); let n = e.int(a[1]); const hol = holidays(e, a[2]); const st = Math.sign(n); while (n !== 0) { d += st; if (isWorkday(d, hol)) n -= st; } return d; }));
 def('DATEVALUE', wrap((a, _c, e) => { const p = parseInput(e.str(a[0])); return typeof p.v === 'number' && p.nf && /y|d/.test(p.nf) ? Math.floor(p.v) : E.VALUE; }));
 def('TIMEVALUE', wrap((a, _c, e) => { const p = parseInput(e.str(a[0])); return typeof p.v === 'number' && p.nf ? p.v - Math.floor(p.v) : E.VALUE; }));
-def('YEARFRAC', wrap((a, _c, e) => { const s = dnum(e, a[0]), t = dnum(e, a[1]); const b = optNum(e, a[2], 0); const d = Math.abs(t - s); if (b === 1) return d / 365.25; if (b === 2) return d / 360; if (b === 3) return d / 365; return FUNCTIONS.DAYS360.fn([Math.min(s, t), Math.max(s, t)], null, e) / 360; }));
+const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+// YEARFRAC per Excel's day-count bases (0 US 30/360, 1 actual/actual, 2 actual/360, 3 actual/365, 4 EU 30/360).
+def('YEARFRAC', wrap((a, _c, e) => {
+  let s = Math.floor(dnum(e, a[0])), t = Math.floor(dnum(e, a[1])); const b = Math.trunc(optNum(e, a[2], 0));
+  if (b < 0 || b > 4) return E.NUM;
+  if (s > t) [s, t] = [t, s];
+  const p = serialToParts(s), q = serialToParts(t);
+  if (b === 0 || b === 4) {
+    let d1 = p.d, d2 = q.d;
+    if (b === 0) {
+      if (lastOfFeb(p) && lastOfFeb(q)) d2 = 30;
+      if (lastOfFeb(p)) d1 = 30;
+      if (d2 === 31 && d1 >= 30) d2 = 30;
+      if (d1 === 31) d1 = 30;
+    } else { if (d1 === 31) d1 = 30; if (d2 === 31) d2 = 30; }
+    return ((q.y - p.y) * 360 + (q.m - p.m) * 30 + (d2 - d1)) / 360;
+  }
+  const days = t - s;
+  if (b === 2) return days / 360;
+  if (b === 3) return days / 365;
+  // basis 1: within one year -> 365 or 366 (366 if a Feb 29 falls in the span); otherwise the average year length
+  const withinYear = p.y === q.y || (q.y === p.y + 1 && (p.m > q.m || (p.m === q.m && p.d >= q.d)));
+  if (withinYear) {
+    let leap = false;
+    if (p.y === q.y) leap = isLeap(p.y);
+    else {
+      if (isLeap(p.y) && p.m <= 2) leap = true;
+      if (isLeap(q.y) && (q.m > 2 || (q.m === 2 && q.d === 29))) leap = true;
+    }
+    return days / (leap ? 366 : 365);
+  }
+  const span = dateToSerial(q.y + 1, 1, 1) - dateToSerial(p.y, 1, 1);
+  return days / (span / (q.y - p.y + 1));
+}));
 
 // --- financial
 def('PMT', wrap((a, _c, e) => { const r = e.num(a[0]), n = e.num(a[1]), pv = e.num(a[2]), fv = optNum(e, a[3], 0), t = optNum(e, a[4], 0); if (r === 0) return -(pv + fv) / n; const f = Math.pow(1 + r, n); return -(r * (pv * f + fv)) / ((1 + r * t) * (f - 1)); }));
