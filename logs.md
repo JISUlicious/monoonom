@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-04: xl.py는 작업 폴더에서 실행하도록 명시(SKILL.md·cli.md·README), skill 폴더를 작업 폴더로 잡으면 종료 코드 2로 거부 (→ docs/skill-implementation.md)
 - 2026-11-04: PR #1 squash 병합, 저장소 공개 전환·이름 변경(`JISUlicious/web-excel-agent-skills`) (→ docs/project-setup.md)
 - 2026-11-04: 2차 코드 리뷰 10건 반영 — 미리보기 시작·재연결 처리 재작성(이벤트 대기열, 닫힌 문서 탭 제거, ?doc 포커스 유지, 빈 통합 문서 교체), xls 경고·메시지 정리, 테스트 정리 (→ docs/skill-implementation.md)
 - 2026-11-04: 코드 리뷰 8건 반영(xls 저장 대상 이름·형식, 409에 덮어쓸 파일 이름, 값 변환 경고 등), 미리보기 시작 중 에이전트가 연 문서가 탭으로 안 뜨던 버그 수정 (→ docs/skill-implementation.md)

@@ -135,6 +135,16 @@ try:
     check("xls --as name.xlsx also warns about values", p.returncode == 0 and "계산된 값으로만" in p.stdout and "xls 형식으로는" not in p.stdout, p.stdout.strip())
     xl(ws, "close", "--doc", "legacy-copy.xlsx", "--force")
 
+    # xl.py runs from the workspace; the skill folder as workspace is refused
+    skill = os.path.dirname(os.path.dirname(XL))
+    env = {k: v for k, v in os.environ.items() if k not in ("WEBEXCEL_ROOT", "CLAUDE_PROJECT_DIR")}
+    p = subprocess.run([sys.executable, XL, "status"], cwd=skill, env=env, capture_output=True, text=True, encoding="utf-8")
+    check("run from the skill folder -> exit 2 with a hint", p.returncode == 2 and "작업 폴더" in p.stderr, p.stderr.strip()[:80])
+    p = subprocess.run([sys.executable, XL, "status", "--root", os.path.join(skill, "scripts")], env=env, capture_output=True, text=True, encoding="utf-8")
+    check("--root inside the skill folder -> exit 2", p.returncode == 2)
+    p = subprocess.run([sys.executable, XL, "status", "--brief"], cwd=ws, env=env, capture_output=True, text=True, encoding="utf-8")
+    check("run from the workspace (cwd, no --root) works", p.returncode == 0 and "8811" in p.stdout, p.stdout.strip())
+
     check("bad sheet -> exit 5", xl(ws, "read", "없음!A1", ok=False).returncode == 5)
     check("bad doc -> exit 2", xl(ws, "read", "A1", "--doc", "zzz", ok=False).returncode == 2)
     xl(ws, "write", "A30", "미저장")

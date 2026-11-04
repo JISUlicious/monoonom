@@ -25,6 +25,7 @@ import urllib.error
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+SKILL_DIR = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 REQUIREMENTS = os.path.join(HERE, "requirements.txt")
 
@@ -67,8 +68,20 @@ def check_deps(quiet=False) -> dict:
 # ----------------------------------------------------------------- workspace state
 
 def workspace_root(arg=None) -> str:
+    """The user's workspace: --root, $WEBEXCEL_ROOT, $CLAUDE_PROJECT_DIR, else the current directory.
+
+    Commands must run from the workspace, not from the skill folder: the server state (.web-excel/),
+    the file sandbox and relative file paths all hang off this directory."""
     root = arg or os.environ.get("WEBEXCEL_ROOT") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-    return os.path.abspath(os.path.expanduser(root))
+    root = os.path.abspath(os.path.expanduser(root))
+    skill = os.path.normcase(os.path.realpath(SKILL_DIR))
+    real = os.path.normcase(os.path.realpath(root))
+    if real == skill or real.startswith(skill + os.sep):
+        raise CliError(
+            f"작업 폴더가 skill 폴더 안({root})으로 잡혔습니다. xl.py는 사용자의 작업 폴더(프로젝트 폴더)에서 "
+            f"실행하세요: cd <작업 폴더> && python \"{os.path.join(HERE, 'xl.py')}\" ... "
+            "또는 --root <작업 폴더>를 지정하세요.", EXIT_USAGE)
+    return root
 
 
 def state_path(root) -> str:
