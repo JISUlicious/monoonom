@@ -1,5 +1,5 @@
 // In-cell editor + formula bar: IME-safe typing, Enter/Edit/Point modes, F4, autocomplete.
-import { key, MAX_ROWS, MAX_COLS, rangeA1 } from './address.js';
+import { key, MAX_ROWS, MAX_COLS, rangeA1, parseA1 } from './address.js';
 import { tokenize, cycleAbsolute, refsWithPositions, refToString, quoteSheetName, parse } from './formula.js';
 import { formatValue, isDateFormat, parseInput } from './numfmt.js';
 import { FUNCTION_NAMES } from './engine.js';
@@ -156,6 +156,33 @@ export class Editor {
     this.point = { s, e: s + ref.length, anchor: { r: range.r1, c: range.c1 }, cur: { r: range.r2, c: range.c2 }, sheet };
     el.focus();
     this.onInput(true);
+  }
+
+  /** Shift+click while pointing: extend the reference at the caret (the one just pointed, or one typed
+   * right before the caret such as `=SUM(B2`) from its first cell to the clicked cell. */
+  pointExtend(r, c, sheet) {
+    if (!this.point) {
+      const el = this.source, pos = el.selectionStart;
+      const m = /(\$?[A-Za-z]{1,3}\$?\d+)$/.exec(el.value.slice(0, pos));
+      const a = m && parseA1(m[1].replace(/\$/g, ''));
+      if (!a) return false;
+      this.point = { s: pos - m[1].length, e: pos, anchor: { r: a.r, c: a.c }, cur: { r: a.r, c: a.c }, sheet: this.target.sheet };
+    }
+    const a = this.point.anchor;
+    this.pointRange({ r1: Math.min(a.r, r), c1: Math.min(a.c, c), r2: Math.max(a.r, r), c2: Math.max(a.c, c) }, false, sheet);
+    this.point.anchor = a; this.point.cur = { r, c };
+    return true;
+  }
+
+  /** Ctrl/Cmd+click while pointing: keep the current reference and start another one after a comma. */
+  pointAddSeparator() {
+    const el = this.source, pos = this.point ? this.point.e : el.selectionStart;
+    const before = el.value.slice(0, pos).replace(/\s+$/, '');
+    if (/[=(,;]$/.test(before)) { this.point = null; return; } // nothing to separate from yet
+    const t = el.value;
+    this.setText(t.slice(0, pos) + ',' + t.slice(pos));
+    el.setSelectionRange(pos + 1, pos + 1);
+    this.point = null;
   }
 
   pointMove(dr, dc, extend) {

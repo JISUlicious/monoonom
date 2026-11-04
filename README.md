@@ -141,6 +141,7 @@ python3 tests/preserve_formulas.test.py    # 계산할 수 없는 함수: 열 �
 node tests/preserve.e2e.cjs               # 같은 내용을 미리보기에서 (경고 표시, F2+Enter, 수식 수정 경고)
 node tests/startup.e2e.cjs                # 미리보기 시작·재연결 중 에이전트가 열고 닫은 문서 (탭 추가·제거, ?doc 포커스, 빈 통합 문서 교체)
 node tests/focus.e2e.cjs                  # 어떤 문서를 보여 주나: 에이전트 open/재open, 새로 고침, 새 창, 배경 변경 표시, 시작 화면 (서버를 스스로 띄움)
+node tests/input.e2e.cjs                  # 클릭 후 바로 입력(탭·iframe), 첫 열 고정 가로 스크롤, 수식 참조 Shift/Ctrl+클릭 (서버를 스스로 띄움)
 node tests/auth.e2e.cjs                   # 인증: 다른 사이트 iframe + #t 토큰, 토큰 없을 때 안내, 서버 2개, 재시작 (서버를 스스로 띄움)
 python3 tests/excel_compat.test.py        # 저장한 수식 229개: _xlfn. 접두사·캐시 값·LibreOffice 재계산 대조 (soffice 필요)
 ```

@@ -32,6 +32,11 @@ class App {
     this.gridHost = this.$('#grid-host');
     this.grid = new Grid(this, this.gridHost);
     this.editor = new Editor(this, this.gridHost, this.$('#fx-input'));
+    // A click on the grid runs our pointerdown handler (which focuses the input textarea) and then the
+    // browser's default action, which moves focus to the focusable grid host. Typing would then go
+    // nowhere until a second click. Hand focus straight back to the textarea; preventing the default
+    // instead would keep an embedded (iframe) preview from receiving focus at all.
+    this.gridHost.addEventListener('focus', () => { if (!this.editor.active) this.focusGrid(); });
     this.clipboard = new Clipboard(this);
     this.filters = new Filters(this);
     this.charts = new ChartLayer(this, this.grid);

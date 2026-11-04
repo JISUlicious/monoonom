@@ -237,7 +237,14 @@ export class Grid {
     // 3) text
     ctx.textBaseline = 'alphabetic';
     const OVER = 12;
-    const cStart = Math.max(0, rg.c0 - OVER), cEnd = Math.min(MAX_COLS - 1, rg.c1 + OVER);
+    // look a few columns beyond the region for text overflowing into it, but never across the frozen
+    // column line: those cells belong to the other pane, where they sit at a different (scrolled) x,
+    // so drawing them here put scrolled content on top of the frozen columns
+    let cStart = Math.max(0, rg.c0 - OVER), cEnd = Math.min(MAX_COLS - 1, rg.c1 + OVER);
+    if (m.fc) {
+      if (rg.c1 < m.fc) cEnd = Math.min(cEnd, m.fc - 1);
+      else cStart = Math.max(cStart, m.fc);
+    }
     for (const r of rows) {
       const y = Y(r), h = g.rows.size(r);
       for (let c = cStart; c <= cEnd; c++) {
@@ -628,6 +635,17 @@ export class Grid {
     this.app.charts?.deselect();
     const ed = this.app.editor;
     // pointing mode: clicking cells while editing a formula inserts references
+    // (Shift+click extends the reference at the caret, Ctrl/Cmd+click adds another one after a comma)
+    const additive = ed.active && ed.isFormula() && (e.ctrlKey || e.metaKey) && h.type !== 'corner';
+    if (ed.active && ed.isFormula() && e.shiftKey && h.type === 'cell' && (ed.point || !ed.isFormulaPointable())) {
+      if (ed.pointExtend(h.r, h.c, this.sheet)) {
+        e.preventDefault();
+        const anchor = ed.point.anchor;
+        this.dragLoop(e, (hh) => { if (hh.r !== undefined && hh.c !== undefined) ed.pointExtend(hh.r, hh.c, this.sheet); ed.point.anchor = anchor; });
+        return;
+      }
+    }
+    if (additive) ed.pointAddSeparator();
     if (ed.active && ed.isFormulaPointable() && (h.type === 'cell' || h.type === 'colhdr' || h.type === 'rowhdr')) {
       e.preventDefault();
       const start = h.type === 'cell' ? { r: h.r, c: h.c } : h.type === 'colhdr' ? { r: 0, c: h.c } : { r: h.r, c: 0 };
