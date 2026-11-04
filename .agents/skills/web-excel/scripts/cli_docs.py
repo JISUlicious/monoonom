@@ -141,6 +141,13 @@ def cmd_describe(args):
               f"  사용 범위 {sh['used'] or '없음'}  셀 {sh['cells']}  수식 {sh['formulas']}"
               f"{'  틀 고정 ' + sh['freeze'] if sh['freeze'] else ''}{'  필터 ' + sh['autoFilter'] if sh['autoFilter'] else ''}"
               f"{'  병합 ' + str(sh['merges']) if sh['merges'] else ''}")
+        if sh.get("unsupported"):
+            u = sh["unsupported"]
+            names = sorted({n for x in u for n in x["functions"]})
+            kept = sum(1 for x in u if x["kept"])
+            print(f"  주의: 계산할 수 없는 함수 {', '.join(names)} — {len(u)}개 셀 "
+                  f"({', '.join(x['cell'] for x in u[:8])}{' …' if len(u) > 8 else ''}). "
+                  f"값은 파일의 마지막 결과, {kept}개는 원래 수식 그대로 저장됨. 고치면 결과는 Excel에서만 계산됩니다.")
         for t in sh.get("tables", [])[:5]:
             print(f"  표 {t['range']}: 머리글 행 {t['headerRow']}" + (f", 합계 행 {t['totalRows']}" if t.get("totalRows") else "")
                   + "  [" + " | ".join(fmt_cell(v) for v in t["header"][:12]) + "]")

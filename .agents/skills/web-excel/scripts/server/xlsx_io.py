@@ -33,7 +33,7 @@ from openpyxl.worksheet.cell_range import MultiCellRange
 from openpyxl.worksheet.formula import ArrayFormula
 
 from . import colors
-from .formula_compat import add_prefixes, strip_prefixes
+from .formula_compat import add_prefixes, prefix_map, strip_prefixes, unsupported_functions
 from .units import (DEFAULT_COL_PX, DEFAULT_ROW_PX, EMU_PER_PX, colw_to_px, pt_to_px,
                     px_to_colw, px_to_pt)
 
@@ -287,6 +287,7 @@ def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
 
     styles, style_index = [], {}
     warn: list[str] = []
+    unsupported = []
     sheets = []
     for ws in wb.worksheets:
         wsv = wbv[ws.title] if wbv is not None else None
@@ -327,12 +328,20 @@ def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
                 continue
             v = cell.value
             item = {}
+            raw = None
             if isinstance(v, ArrayFormula):
-                item["f"] = strip_prefixes(v.text if v.text.startswith("=") else "=" + v.text)
+                raw = v.text if v.text.startswith("=") else "=" + v.text
                 item["a"] = v.ref
-                v = wsv._cells[(r, c)].value if wsv is not None and (r, c) in wsv._cells else None
             elif cell.data_type == "f" and isinstance(v, str):
-                item["f"] = strip_prefixes(v)
+                raw = v
+            if raw is not None:
+                item["f"] = strip_prefixes(raw)
+                bad = unsupported_functions(item["f"])
+                if bad:
+                    unsupported.append((ws.title, f"{get_column_letter(c)}{r}", bad))
+                if bad or add_prefixes(item["f"], prefix_map(raw)) != raw:
+                    # keep the file's exact text; written back unchanged while the formula is not edited
+                    item["fo"] = raw
                 v = wsv._cells[(r, c)].value if wsv is not None and (r, c) in wsv._cells else None
             elif not isinstance(v, (str, int, float, bool, type(None), dt.date, dt.time, dt.timedelta)):
                 v = None  # DataTableFormula etc.
@@ -398,12 +407,27 @@ def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
                 names[name] = strip_prefixes(dn.attr_text)
     except Exception:
         pass
+    if unsupported:
+        warn.insert(0, unsupported_warning(unsupported))
     if wb.chartsheets:
         warn.append("차트 시트는 화면에 표시되지 않지만 저장 시 보존됩니다.")
     active = wb.worksheets.index(wb.active) if wb.active in wb.worksheets else 0
     return {"sheets": sheets, "styles": styles, "activeSheet": active,
             "definedNames": names, "warnings": warn,
             "defaultFont": {"name": default_font[0], "size": default_font[1]}}
+
+
+def unsupported_warning(found) -> str:
+    """found: [(sheet, 'B3', ('LAMBDA', ...)), ...] -> one user-facing warning."""
+    names = []
+    for _s, _ref, bad in found:
+        for n in bad:
+            if n not in names:
+                names.append(n)
+    cells = ", ".join(f"'{s}'!{ref}" for s, ref, _ in found[:5]) + (f" 외 {len(found) - 5}개" if len(found) > 5 else "")
+    return (f"이 앱이 계산할 수 없는 함수가 있습니다: {', '.join(names)} ({len(found)}개 셀: {cells}). "
+            "해당 셀은 파일에 저장돼 있던 결과를 보여 주고, 수식을 고치지 않으면 저장할 때 원래 수식 그대로 저장됩니다. "
+            "이 셀을 참조하는 다른 수식의 결과는 Excel에서 다시 계산하면 달라질 수 있습니다.")
 
 
 # --------------------------------------------------------------------------- write
@@ -585,6 +609,13 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
         ordered.append((ws, sm))
     wb._sheets = [ws for ws, _ in ordered] + list(wb.chartsheets)
 
+    # prefixes the opened file used (also for functions this app does not know), kept for edited formulas
+    file_prefixes = {}
+    for _ws, sm in ordered:
+        for _r, _c, item in sm.get("cells", []):
+            if item.get("fo"):
+                file_prefixes.update(prefix_map(item["fo"]))
+
     for ws, sm in ordered:
         orig_charts = list(getattr(ws, "_charts", []))
         ws._cells.clear()
@@ -619,7 +650,9 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
             cell = ws.cell(row=r + 1, column=c + 1)
             f = item.get("f")
             if f:
-                text = add_prefixes(f if f.startswith("=") else "=" + f)
+                f = f if f.startswith("=") else "=" + f
+                fo = item.get("fo")
+                text = fo if fo and strip_prefixes(fo) == f else add_prefixes(f, file_prefixes)
                 cell.value = ArrayFormula(item["a"], text) if item.get("a") else text
             else:
                 v = item.get("v")
@@ -671,6 +704,8 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
         vals = {}
         for r, c, item in sm.get("cells", []):
             if item.get("f") and item.get("cv") is not None:
+                if item["cv"] == "#NAME?" and unsupported_functions(item["f"] if item["f"].startswith("=") else "=" + item["f"]):
+                    continue  # we could not calculate it; leave the result for Excel instead of storing #NAME?
                 vals[f"{get_column_letter(c + 1)}{r + 1}"] = item["cv"]
         if vals:
             cached[ws.title] = vals

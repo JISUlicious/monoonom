@@ -105,7 +105,7 @@ run.py                             개발용 포그라운드 실행
 tools/build_claude_code_skill.py   SKILL.md에서 SKILL.claude-code.md 생성
 tests/                             make_samples.py, test_roundtrip.py, engine.test.mjs, e2e.cjs, sync.e2e.cjs, agent_cli.test.py,
                                    agent_full.test.py, structural.test.py, refs_parity.test.py(+.mjs),
-                                   excel_compat.test.py
+                                   excel_compat.test.py, preserve_formulas.test.py, preserve.e2e.cjs
 docs/                              project-setup.md, skill-spec.md, skill-implementation.md
 ```
 
@@ -130,6 +130,8 @@ python3 tests/structural.test.py          # 행/열 삽입·삭제·정렬·충�
 python3 tests/region.test.py              # A1이 아닌 곳에서 시작하는 표(제목·빈 행·합계 행)
 python3 tests/agent_full.test.py          # UI 기능 전부를 에이전트 명령으로 (대응표: docs/agent-coverage.md)
 python3 tests/refs_parity.test.py         # 수식 참조 재작성 JS↔Python 동등성 (무작위 1만 건)
+python3 tests/preserve_formulas.test.py    # 계산할 수 없는 함수: 열 때 경고, 고치지 않은 수식은 원래대로 저장
+node tests/preserve.e2e.cjs               # 같은 내용을 미리보기에서 (경고 표시, F2+Enter, 수식 수정 경고)
 python3 tests/excel_compat.test.py        # 저장한 수식 229개: _xlfn. 접두사·캐시 값·LibreOffice 재계산 대조 (soffice 필요)
 ```
 

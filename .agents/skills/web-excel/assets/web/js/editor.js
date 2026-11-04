@@ -175,7 +175,9 @@ export class Editor {
   commit({ move = null, fillSelection = false } = {}) {
     if (!this.active) return true;
     let text = this.text;
-    if (text.startsWith('=') && text.length > 1) {
+    // unchanged text is committed as is: a formula from the file may use syntax this parser cannot
+    // read (e.g. LAMBDA(x,x*2)(A1)) and must not trap the user in the editor
+    if (text.startsWith('=') && text.length > 1 && text !== this.original) {
       // auto-close parentheses like Excel
       let depth = 0, inStr = false;
       for (const ch of text) { if (ch === '"') inStr = !inStr; else if (!inStr) { if (ch === '(') depth++; else if (ch === ')') depth--; } }

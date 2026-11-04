@@ -857,6 +857,23 @@ def r_range(h, m, q, body):
                 "rows": rows, "calc": calc, "truncated": truncated, "version": doc.version}
 
 
+def unsupported_cells(sh):
+    """Formula cells using functions the engine cannot calculate, and whether the file's original
+    formula is still kept (it is written back unchanged on save while the formula is not edited)."""
+    from .formula_compat import strip_prefixes, unsupported_functions
+    out = []
+    for (r, c), cell in sorted(sh["cells"].items()):
+        f = cell.get("f")
+        if not f:
+            continue
+        f = f if f.startswith("=") else "=" + f
+        bad = unsupported_functions(f)
+        if bad:
+            fo = cell.get("fo")
+            out.append({"cell": A.a1(r, c), "functions": list(bad), "kept": bool(fo and strip_prefixes(fo) == f)})
+    return out
+
+
 @route("GET", r"/api/docs/([\w-]+)/describe")
 @_wrap
 def r_describe(h, m, q, body):
@@ -871,6 +888,7 @@ def r_describe(h, m, q, body):
                     "used": A.range_a1(0, 0, mr, mc) if mr >= 0 else None, "cells": len(sh["cells"]),
                     "formulas": sum(1 for c in sh["cells"].values() if c.get("f")),
                     "merges": len(sh["merges"]), "freeze": sh["freeze"],
+                    "unsupported": unsupported_cells(sh),
                     "autoFilter": (sh["autoFilter"] or {}).get("ref"),
                     "charts": [{"id": ch.get("id"), "type": ch.get("type"), "title": ch.get("title"),
                                 "at": A.a1(ch["anchor"].get("r", 0), ch["anchor"].get("c", 0)),

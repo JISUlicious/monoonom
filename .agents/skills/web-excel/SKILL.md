@@ -98,6 +98,11 @@ Formula values come from the open preview (the browser calculates). If no previe
 computes them; without Node, `read` marks values as stale and they may be the file's last saved
 results — then ask the user to open the preview.
 
+Functions the engine cannot calculate (LAMBDA, VBA user functions, newer Excel functions) are
+reported when the file opens and in `describe`. Those cells show the file's last result and are
+saved with their original formula unchanged as long as the formula is not edited; tell the user
+before changing such a formula, since its result can then only be calculated by Excel.
+
 ## Exit codes and problems
 
 0 ok, 2 usage (e.g. ambiguous `--doc`), 3 server not running, 4 conflict (file changed on disk,

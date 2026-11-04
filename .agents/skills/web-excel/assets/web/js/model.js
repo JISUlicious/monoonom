@@ -28,7 +28,7 @@ export class Sheet {
     this.id = newId('s');
     this.name = name;
     this.origName = null;
-    this.cells = new Map();      // key -> {v, f, t, s, h, cm, a, cached}
+    this.cells = new Map();      // key -> {v, f, t, s, h, cm, a, cached, fo}; fo = formula text as stored in the file
     this.colW = new Map();       // c -> px
     this.rowH = new Map();       // r -> px
     this.hiddenCols = new Set();
@@ -126,7 +126,7 @@ export class Workbook {
     if (!rec.has(k)) rec.set(k, cloneCell(sheet.cells.get(k)));
     if (cell && (cell.v !== undefined && cell.v !== null && cell.v !== '' || cell.f || cell.s || cell.h || cell.cm)) {
       const n = {};
-      for (const p of ['v', 'f', 't', 's', 'h', 'cm', 'a', 'cached']) if (cell[p] !== undefined && cell[p] !== null && cell[p] !== '') n[p] = cell[p];
+      for (const p of ['v', 'f', 't', 's', 'h', 'cm', 'a', 'cached', 'fo']) if (cell[p] !== undefined && cell[p] !== null && cell[p] !== '') n[p] = cell[p];
       if (cell.v === '') delete n.v;
       sheet.cells.set(k, n);
       if (r > sheet.maxRow) sheet.maxRow = r;
@@ -465,6 +465,7 @@ export class Workbook {
         if (it.h) cell.h = it.h;
         if (it.cm) cell.cm = it.cm;
         if (it.a) cell.a = it.a;
+        if (it.fo) cell.fo = it.fo;
         if (Object.keys(cell).length) s.cells.set(key(r, c), cell);
       }
       s.merges = (sj.merges || []).map((m) => (typeof m === 'string' ? parseRange(m) : m)).filter(Boolean);
@@ -520,6 +521,7 @@ export class Workbook {
             if (cv !== undefined && cv !== null) it.cv = cv && cv.err ? cv.err : cv;
           } else if (cell.cached !== undefined) it.v = cell.cached && cell.cached.err ? cell.cached.err : cell.cached;
           if (cell.a) it.a = cell.a;
+          if (cell.fo) it.fo = cell.fo;
         } else if (cell.v !== undefined) { it.v = cell.v; if (cell.t === 'e') it.t = 'e'; }
         const si = styleId(cell.s);
         if (si !== undefined) it.s = si;
@@ -590,7 +592,7 @@ export function applySheetMetaJSON(s, m) {
 export function cellJSON(cell) {
   if (!cell) return null;
   const o = {};
-  for (const k of ['v', 'f', 't', 's', 'h', 'cm', 'a']) if (cell[k] !== undefined && cell[k] !== null) o[k] = cell[k];
+  for (const k of ['v', 'f', 't', 's', 'h', 'cm', 'a', 'fo']) if (cell[k] !== undefined && cell[k] !== null) o[k] = cell[k];
   if (cell.f && cell.cached !== undefined && cell.cached !== null) o.v = cell.cached && cell.cached.err ? cell.cached.err : cell.cached;
   return o;
 }
@@ -606,7 +608,7 @@ function cellFromJSON(it) {
   if (it.f) { cell.f = it.f.startsWith('=') ? it.f : '=' + it.f; if (it.v !== undefined) cell.cached = it.t === 'e' ? { err: it.v } : it.v; }
   else if (it.v !== undefined && it.v !== null) { cell.v = it.v; if (it.t === 'e') cell.t = 'e'; }
   if (it.s && typeof it.s === 'object') cell.s = internStyle(it.s);
-  for (const k of ['h', 'cm', 'a']) if (it[k]) cell[k] = it[k];
+  for (const k of ['h', 'cm', 'a', 'fo']) if (it[k]) cell[k] = it[k];
   return Object.keys(cell).length ? cell : null;
 }
 

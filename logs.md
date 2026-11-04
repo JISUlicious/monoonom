@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-04: 계산할 수 없는 함수가 있는 파일 — 열 때 경고(CLI·미리보기·describe), 고치지 않은 수식은 원래 텍스트·결과 그대로 저장, 고친 수식도 파일의 `_xlfn.` 접두사 유지, 파서가 못 읽는 수식에서 Enter가 막히던 버그 수정 (→ docs/skill-implementation.md)
 - 2026-11-04: Excel 호환 저장 점검·수정 — 수식 결과를 캐시 값으로 저장(저장 전 계산 갱신), LET 인자 `_xlpm.` 접두사, `_xlfn.` 누락 함수 26개 추가, NORM.DIST 정밀도(1e-7→1e-15), YEARFRAC 5개 기준·DAYS360 US/EU 방식, LibreOffice 대조 테스트 229개 (→ docs/skill-implementation.md)
 - 2026-11-04: A1이 아닌 곳에서 시작하는 표 처리 — 합계 행을 필터·정렬 대상에서 제외(정렬 시 #REF! 버그 수정), 200행 넘는 표 영역 잘림 수정, 에이전트 명령의 셀 하나/열 전체 → 표 자동 확장, describe에 표 목록 (→ docs/skill-implementation.md)
 - 2026-11-04: Skill P7 — UI 기능 전부를 에이전트 명령으로(필터 조건·차트 편집·시트 복사/이동/숨기기·연속 채우기·복사/붙여넣기·셀 밀기·중복 제거·찾기/바꾸기·메모·링크·자동 맞춤·서식 복사·화면 이동 등), 대응표 작성 (→ docs/agent-coverage.md, docs/skill-implementation.md)

@@ -394,7 +394,14 @@ class App {
     const write = (rr, cc, srcText) => {
       const cur = sh.get(rr, cc);
       const base = { s: cur?.s, h: cur?.h, cm: cur?.cm };
-      if (srcText.startsWith('=') && srcText.length > 1) { wb.setCell(sh, rr, cc, { ...base, f: srcText }); return; }
+      if (srcText.startsWith('=') && srcText.length > 1) {
+        if (cur?.fo && cur.f === srcText) { wb.setCell(sh, rr, cc, { ...cur }); return; } // unchanged: keep the file's formula and result
+        if (cur?.fo && !this._foWarned) {
+          this._foWarned = true;
+          this.toast('이 앱이 계산할 수 없는 함수가 있던 셀을 고쳤습니다. 저장하면 새 수식이 저장되고, 결과는 Excel에서 열 때 계산됩니다.', 'warn', 8000);
+        }
+        wb.setCell(sh, rr, cc, { ...base, f: srcText }); return;
+      }
       if (srcText.startsWith("'")) { wb.setCell(sh, rr, cc, { ...base, v: srcText.slice(1) }); return; }
       if (srcText === '') { wb.setCell(sh, rr, cc, base.s || base.cm ? base : null); return; }
       const p = parseInput(srcText);

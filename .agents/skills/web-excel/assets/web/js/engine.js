@@ -117,14 +117,16 @@ export class Engine {
 
   evalFormula(formula, sh, r, c, cell) {
     const ast = this.ast(formula);
-    if (ast.t === 'parseError') return E.NAME;
+    const hasCached = cell && cell.cached !== undefined && cell.cached !== null;
+    // syntax this engine cannot parse (e.g. LAMBDA(x,x)(1)): show what Excel last calculated
+    if (ast.t === 'parseError') return hasCached ? cell.cached : E.NAME;
     const ctx = { sh, r, c, engine: this };
     let v;
     try { v = this.ev(ast, ctx); } catch (e) {
       if (e instanceof Throw) v = e.e; else if (e instanceof RangeError || e instanceof Deep) throw e; else { console.error(e); v = E.VALUE; }
     }
     v = this.finalize(v, ctx);
-    if (v === E.NAME && cell && cell.cached !== undefined && cell.cached !== null) {
+    if (v === E.NAME && hasCached) {
       // unsupported function: fall back to the value Excel last calculated
       return cell.cached;
     }
