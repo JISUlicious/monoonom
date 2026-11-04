@@ -239,6 +239,12 @@ def build_ops(doc, edits):
             m[key] = copy.deepcopy(sh[key])
         return m[key]
 
+    from types import SimpleNamespace
+    from . import agent_more
+    ctx = SimpleNamespace(doc=doc, cur=cur, put=put, meta=meta, meta_of=meta_of, cellbuf=cellbuf, ops=ops,
+                          summary=summary, structural=False, transformable=True,
+                          sheet_of=lambda e: doc.sheet(e["sheet"]) if e.get("sheet") else doc.sheets[min(doc.active_sheet, len(doc.sheets) - 1)])
+
     for e in edits:
         kind = e.get("op")
         sheet = e.get("sheet")
@@ -277,6 +283,8 @@ def build_ops(doc, edits):
                         put(sh, r, c, None)
                     elif what == "formats":
                         put(sh, r, c, {k: v for k, v in cell.items() if k != "s"} or None)
+                    elif what == "comments":
+                        put(sh, r, c, {k: v for k, v in cell.items() if k != "cm"} or None)
                     else:
                         keep = {k: v for k, v in cell.items() if k in ("s", "cm")}
                         put(sh, r, c, keep or None)
@@ -308,7 +316,15 @@ def build_ops(doc, edits):
                 a, b, c_, d = A.parse_range(mref)
                 if not (a <= r2 and r1 <= c_ and b <= c2 and c1 <= d):
                     keep.append(mref)
-            if kind == "merge":
+            regions = [(rr, c1, rr, c2) for rr in range(r1, r2 + 1)] if e.get("across") else [(r1, c1, r2, c2)]
+            if kind == "merge" and e.get("across"):
+                for (a_, b_, c_, d_) in regions:
+                    if b_ != d_:
+                        keep.append(A.range_a1(a_, b_, c_, d_))
+                        for cc in range(b_ + 1, d_ + 1):
+                            if cur(sh, a_, cc):
+                                put(sh, a_, cc, {"s": cur(sh, a_, cc)["s"]} if cur(sh, a_, cc).get("s") else None)
+            elif kind == "merge":
                 keep.append(A.range_a1(r1, c1, r2, c2))
                 for r in range(r1, r2 + 1):
                     for c in range(c1, c2 + 1):
@@ -419,6 +435,7 @@ def build_ops(doc, edits):
                 raise ApiError(400, "마지막 시트는 삭제할 수 없습니다.")
             ops.append({"op": "sheets", "order": [s["id"] for s in doc.sheets if s is not sh], "add": {}})
             structural = True
+            ctx.transformable = False
             summary.append(f"시트 삭제 '{sh['name']}'")
         elif kind == "name":
             names = dict(doc.defined_names)
@@ -428,8 +445,10 @@ def build_ops(doc, edits):
                 names.pop(e["name"], None)
             ops.append({"op": "setWorkbook", "props": {"definedNames": names}})
             summary.append(f"이름 정의 {e['name']}")
+        elif kind in agent_more.HANDLERS:
+            agent_more.HANDLERS[kind](ctx, e)
         else:
-            raise ApiError(400, f"알 수 없는 편집 op: {kind}")
+            raise ApiError(400, f"알 수 없는 편집 op: {kind} (references/edits.md 참고)")
 
     for sid, cells in cellbuf.items():
         ops.append({"op": "setCells", "sheet": sid, "cells": [[r, c, cell] for (r, c), cell in sorted(cells.items())]})
@@ -437,7 +456,8 @@ def build_ops(doc, edits):
         ops.append({"op": "setSheetMeta", "sheet": sid, "meta": m})
     # structure ops last so cell/meta ops still find their sheets (deleted sheets are dropped)
     ops.sort(key=lambda o: o["op"] == "sheets")
-    return ops, structural, summary
+    build_ops.last_transformable = ctx.transformable
+    return ops, structural or ctx.structural, summary
 
 
 def apply_border(st, spec, top, bottom, left, right):
@@ -763,7 +783,7 @@ def r_edit(h, m, q, body):
                 summary, structural = [label], True
             else:
                 ops, structural, summary = build_ops(doc, group)
-                shifts, transformable = [], True
+                shifts, transformable = [], build_ops.last_transformable
             if not ops:
                 results.append({"version": doc.version, "batchId": None, "summary": summary or []})
                 continue
@@ -785,6 +805,12 @@ def r_range(h, m, q, body):
     what = (q.get("what") or ["values"])[0]
     max_rows = int((q.get("max") or ["200"])[0])
     calc = ensure_calc(doc) if what != "formulas" else {"status": "skipped"}
+    texts = None
+    if what == "text":
+        from .agent_more import display_texts
+        sh0, g0 = resolve(doc, ref or "A1:Z50", (q.get("sheet") or [None])[0])
+        a, b, c_, d_ = clamp(sh0, g0)
+        texts = display_texts(doc, [(sh0["id"], a, b, min(c_, a + max_rows), min(d_, b + 99))])
     with doc.lock:
         sh, g = resolve(doc, ref or "A1:Z50", (q.get("sheet") or [None])[0])
         r1, c1, r2, c2 = clamp(sh, g)
@@ -799,7 +825,9 @@ def r_range(h, m, q, body):
             row = []
             for c in range(c1, c2 + 1):
                 cell = sh["cells"].get((r, c)) or {}
-                if what == "values":
+                if what == "text":
+                    row.append(texts.get((sh["id"], r, c), "") if cell else "")
+                elif what == "values":
                     row.append(display_value(doc, sh, r, c, cell))
                 elif what == "raw":
                     row.append(cell_value(doc, sh, r, c, cell))
@@ -897,3 +925,49 @@ def r_selection(h, m, q, body):
     return {"selection": [{"sheet": names.get(p.get("sheet"), p.get("sheet")), "range": p.get("sel"),
                            "active": p.get("active"), "secondsAgo": round(time.time() - p["ts"])} for p in items
                           if p.get("actor") == "user"]}
+
+
+@route("GET", r"/api/docs/([\w-]+)/find")
+@_wrap
+def r_find(h, m, q, body):
+    """Find cells by text (wildcards * ?), in values or formulas, on one sheet or all."""
+    from .agent_more import _matcher
+    doc = _doc(m)
+    text = (q.get("q") or [""])[0]
+    if not text:
+        raise ApiError(400, "찾을 내용(q)이 필요합니다.")
+    where = (q.get("in") or ["values"])[0]
+    rx = _matcher(text, (q.get("case") or ["0"])[0] == "1", (q.get("whole") or ["0"])[0] == "1")
+    sheet = (q.get("sheet") or [None])[0]
+    limit = int((q.get("max") or ["200"])[0])
+    ensure_calc(doc)
+    out = []
+    with doc.lock:
+        for sh in ([doc.sheet(sheet)] if sheet else doc.sheets):
+            for (r, c), cell in sorted(sh["cells"].items()):
+                t = cell.get("f") if where == "formulas" and cell.get("f") else display_value(doc, sh, r, c, cell)
+                if t is not None and rx.search(str(t)):
+                    out.append({"sheet": sh["name"], "cell": A.a1(r, c), "value": t})
+                    if len(out) >= limit:
+                        return {"matches": out, "truncated": True}
+    return {"matches": out, "truncated": False}
+
+
+@route("POST", r"/api/docs/([\w-]+)/goto")
+@_wrap
+def r_goto(h, m, q, body):
+    """Move the user's preview to a sheet/range (not a document change)."""
+    doc = _doc(m)
+    sh, g = resolve(doc, body.get("range") or "A1", body.get("sheet"))
+    doc.hub.publish("goto", {"docId": doc.id, "sheet": sh["id"], "range": A.range_a1(*g)})
+    return {"ok": True, "sheet": sh["name"], "range": A.range_a1(*g), "clients": len(doc.hub)}
+
+
+@route("POST", r"/api/docs/([\w-]+)/view")
+@_wrap
+def r_view(h, m, q, body):
+    """Preview display settings: zoom (0.25-4) and formula display."""
+    doc = _doc(m)
+    data = {k: body[k] for k in ("zoom", "showFormulas") if k in body}
+    doc.hub.publish("view", {"docId": doc.id, **data})
+    return {"ok": True, **data, "clients": len(doc.hub)}

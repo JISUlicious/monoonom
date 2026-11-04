@@ -109,6 +109,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const rd = await agent('GET', `/api/docs/${opened.docId}/range?ref=${encodeURIComponent('매출!B12')}&what=formulas`);
   check('browser row insert reaches agent', rd.rows?.[0]?.[0] === '=SUM(B4:B11)', JSON.stringify(rd.rows));
 
+  // 12) P7: agent moves the user's view and filters rows on screen
+  r = await agent('POST', `/api/docs/${opened.docId}/goto`, { range: '비중!B3' });
+  await page.waitForFunction(() => window.webExcel.doc.wb.sheet.name === '비중', null, { timeout: 4000 }).catch(() => {});
+  check('agent goto moves preview to sheet/range', await page.evaluate(() => window.webExcel.doc.wb.sheet.name === '비중' && window.webExcel.view().active.r === 2 && window.webExcel.view().active.c === 1));
+  await agent('POST', `/api/docs/${opened.docId}/view`, { zoom: 1.5 });
+  await sleep(400);
+  check('agent view sets zoom', await page.evaluate(() => window.webExcel.view().zoom) === 1.5);
+  await page.evaluate(() => window.webExcel.activateSheet(0));
+  r = await agent('POST', `/api/docs/${opened.docId}/edit`, { edits: [{ op: 'filterColumn', sheet: '매출', column: 'B', custom: [{ op: '>', val: '150' }] }] });
+  await sleep(800);
+  const hid = await page.evaluate(() => [...window.webExcel.doc.wb.sheet.filterHidden].length);
+  check('agent filter hides rows in preview', hid > 0, `hidden=${hid} ${JSON.stringify(r.summary)}`);
+
   check('no page errors', errors.length === 0, errors.join(' | '));
   await agent('DELETE', `/api/docs/${opened.docId}`, { force: true });
   await browser.close();

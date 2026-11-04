@@ -53,8 +53,13 @@ def edit(args, edits, label=None):
     res = request(st, "POST", f"/api/docs/{d['docId']}/edit", {"edits": edits, "label": label})
     if getattr(args, "json", False):
         return out_json(res)
-    print(f"v{res['version']}  batch={res.get('batchId')}  " + "; ".join(res.get("summary", [])))
-    print(f"(되돌리기: xl.py undo {res.get('batchId')})")
+    batches = [b for b in res.get("batches", [res]) if b.get("batchId")]
+    if not batches:
+        print(f"v{res['version']}  변경 없음  " + "; ".join(res.get("summary", [])))
+        return 0
+    for b in batches:
+        print(f"v{b['version']}  batch={b['batchId']}  " + "; ".join(b.get("summary", [])))
+    print("(되돌리기: " + ", ".join(f"xl.py undo {b['batchId']}" for b in reversed(batches)) + ")")
     return 0
 
 
@@ -225,7 +230,10 @@ def cmd_format(args):
 
 
 def cmd_merge(args):
-    return edit(args, [{"op": args.cmd, "range": args.range}])
+    e = {"op": args.cmd, "range": args.range}
+    if args.cmd == "merge":
+        e.update(across=args.across, center=not args.no_center)
+    return edit(args, [e])
 
 
 def cmd_width(args):
@@ -245,6 +253,24 @@ def cmd_freeze(args):
 
 
 def cmd_filter(args):
+    if args.range.lower() == "clear":
+        return edit(args, [{"op": "filterClear", "sheet": args.sheet}])
+    if args.range.lower() == "reapply":
+        return edit(args, [{"op": "filterReapply", "sheet": args.sheet}])
+    if args.column:
+        e = {"op": "filterColumn", "sheet": args.sheet, "column": args.column}
+        if args.values is not None:
+            e["values"] = [v for v in args.values.split("|")] if args.values else []
+            e["blank"] = args.blank
+        custom = []
+        for cond in args.where or []:
+            m = __import__("re").match(r"\s*(>=|<=|<>|!=|==|=|>|<|contains|notContains|beginsWith|endsWith)\s*(.*)$", cond)
+            if not m:
+                raise CliError(f"조건 형식: '>150', 'contains 서울' 등: {cond}", EXIT_USAGE)
+            custom.append({"op": m.group(1), "val": m.group(2).strip()})
+        if custom:
+            e["custom"], e["and"] = custom, not args.any
+        return edit(args, [e])
     return edit(args, [{"op": "filter", "sheet": args.sheet, "range": None if args.range.lower() == "off" else args.range}])
 
 
@@ -257,7 +283,17 @@ def cmd_sheet(args):
         return edit(args, [{"op": "renameSheet", "sheet": args.names[0], "name": args.names[1]}])
     if args.action == "rm":
         return edit(args, [{"op": "deleteSheet", "sheet": args.names[0]}])
-    raise CliError("sheet add|rename|rm", EXIT_USAGE)
+    if args.action == "move":
+        return edit(args, [{"op": "moveSheet", "sheet": args.names[0], "to": int(args.names[1]) - 1 if args.names[1].isdigit() else args.names[1]}])
+    if args.action == "copy":
+        return edit(args, [{"op": "duplicateSheet", "sheet": args.names[0], "name": args.names[1] if len(args.names) > 1 else None}])
+    if args.action in ("hide", "unhide"):
+        return edit(args, [{"op": args.action + "Sheet", "sheet": args.names[0]}])
+    if args.action == "color":
+        return edit(args, [{"op": "tabColor", "sheet": args.names[0], "color": None if len(args.names) < 2 or args.names[1] == "none" else args.names[1]}])
+    if args.action == "gridlines":
+        return edit(args, [{"op": "gridlines", "sheet": args.names[0], "show": len(args.names) < 2 or args.names[1] not in ("off", "false", "0")}])
+    raise CliError("sheet add|rename|rm|move|copy|hide|unhide|color|gridlines", EXIT_USAGE)
 
 
 def cmd_chart(args):
@@ -271,6 +307,11 @@ def cmd_chart(args):
         return edit(args, [{k: v for k, v in e.items() if v is not None}])
     if args.action == "rm":
         return edit(args, [{"op": "deleteChart", "id": args.target, "sheet": args.sheet}])
+    if args.action == "set":
+        st = {k: v for k, v in (("type", args.type_set), ("title", args.title), ("at", args.at), ("legend", args.legend),
+                                ("width", args.width), ("height", args.height), ("data", args.data), ("xTitle", args.x_title),
+                                ("yTitle", args.y_title)) if v is not None}
+        return edit(args, [{"op": "chartUpdate", "id": args.target, "sheet": args.sheet, "set": st}])
     st, d = ctx(args)
     res = request(st, "GET", f"/api/docs/{d['docId']}/describe")
     for sh in res["sheets"]:
@@ -293,6 +334,93 @@ def cmd_sort(args):
     if args.header is not None:
         e["header"] = args.header
     return edit(args, [e])
+
+
+def cmd_series(args):
+    return edit(args, [{"op": "fillSeries", "source": args.source, "target": args.target, "sheet": args.sheet}])
+
+
+def cmd_copy(args):
+    e = {"op": "move" if args.cmd == "move" else "copy", "from": args.src, "to": args.dst, "sheet": args.sheet}
+    if args.cmd == "copy":
+        e.update(what=args.what, transpose=args.transpose)
+    return edit(args, [e])
+
+
+def cmd_cells(args):
+    return edit(args, [{"op": "insertCells" if args.action == "insert" else "deleteCells", "range": args.range,
+                        "shift": args.shift, "sheet": args.sheet}])
+
+
+def cmd_dedupe(args):
+    e = {"op": "removeDuplicates", "range": args.range, "sheet": args.sheet}
+    if args.columns:
+        e["columns"] = args.columns.split(",")
+    if args.header is not None:
+        e["header"] = args.header
+    return edit(args, [e])
+
+
+def cmd_find(args):
+    st, d = ctx(args)
+    from urllib.parse import urlencode
+    qs = {"q": args.text, "in": args.where, "case": int(args.match_case), "whole": int(args.whole), "max": args.max}
+    if args.sheet:
+        qs["sheet"] = args.sheet
+    res = request(st, "GET", f"/api/docs/{d['docId']}/find?{urlencode(qs)}")
+    if args.json:
+        return out_json(res)
+    if not res["matches"]:
+        print("찾는 항목이 없습니다.")
+    for mt in res["matches"]:
+        print(f"{mt['sheet']}!{mt['cell']}\t{fmt_cell(mt['value'])}")
+    if res["truncated"]:
+        print(f"... {args.max}개에서 멈춤 (--max로 늘리기)")
+    return 0
+
+
+def cmd_replace(args):
+    return edit(args, [{"op": "replace", "find": args.text, "with": args.replacement, "in": args.where,
+                        "matchCase": args.match_case, "whole": args.whole, "all": args.all, "sheet": args.sheet}])
+
+
+def cmd_comment(args):
+    return edit(args, [{"op": "comment", "cell": args.cell, "text": args.text}])
+
+
+def cmd_link(args):
+    return edit(args, [{"op": "link", "cell": args.cell, "url": args.url, "text": args.text}])
+
+
+def cmd_autofit(args):
+    return edit(args, [{"op": "autofit", "range": args.range, "sheet": args.sheet}])
+
+
+def cmd_copy_format(args):
+    return edit(args, [{"op": "copyFormat", "from": args.src, "to": args.dst, "sheet": args.sheet}])
+
+
+def cmd_decimals(args):
+    return edit(args, [{"op": "decimals", "range": args.range, "delta": args.delta}])
+
+
+def cmd_goto(args):
+    st, d = ctx(args)
+    res = request(st, "POST", f"/api/docs/{d['docId']}/goto", {"range": args.range, "sheet": args.sheet})
+    print(f"미리보기를 {res['sheet']}!{res['range']}로 이동" + ("" if res["clients"] else " (열린 미리보기 창 없음)"))
+    return 0
+
+
+def cmd_view(args):
+    st, d = ctx(args)
+    body = {}
+    if args.zoom:
+        body["zoom"] = args.zoom / 100
+    if args.formulas is not None:
+        body["showFormulas"] = args.formulas
+    res = request(st, "POST", f"/api/docs/{d['docId']}/view", body)
+    print("미리보기 표시 설정 적용" + ("" if res["clients"] else " (열린 미리보기 창 없음)"))
+    return 0
 
 
 def cmd_apply(args):
@@ -376,25 +504,34 @@ def register(sub):
     add("docs", cmd_docs, "열린 문서 목록", doc=False)
     add("describe", cmd_describe, "시트·사용 범위·머리글·열 유형·차트 요약")
     p = add("read", cmd_read, "범위 읽기 (예: 'Sheet1!A1:D20')"); p.add_argument("range")
-    p.add_argument("--what", choices=["values", "raw", "formulas", "all"], default="values", help="values: 날짜는 YYYY-MM-DD로, raw: 일련번호 그대로"); p.add_argument("--max", type=int, default=200)
+    p.add_argument("--what", choices=["values", "text", "raw", "formulas", "all"], default="values", help="values: 날짜는 YYYY-MM-DD, text: 화면에 보이는 그대로(표시 형식 적용), raw: 일련번호, formulas, all"); p.add_argument("--max", type=int, default=200)
     p = add("write", cmd_write, "값/수식 쓰기 (=로 시작하면 수식)"); p.add_argument("range"); p.add_argument("values", nargs="*")
     p.add_argument("--data", dest="json_values", metavar="JSON", help="2차원 배열 JSON, 예: '[[1,2],[3,4]]'"); p.add_argument("--tsv", metavar="FILE|-")
     p.add_argument("--down", action="store_true", help="위치 인자 값을 세로로"); p.add_argument("--raw", action="store_true", help="문자열을 해석하지 않음")
     p = add("fill", cmd_fill, "범위를 한 값/수식으로 채우기(상대 참조 이동)"); p.add_argument("range"); p.add_argument("value"); p.add_argument("--raw", action="store_true")
-    p = add("clear", cmd_clear, "지우기"); p.add_argument("range"); p.add_argument("--what", choices=["contents", "formats", "all"], default="contents")
+    p = add("clear", cmd_clear, "지우기"); p.add_argument("range"); p.add_argument("--what", choices=["contents", "formats", "comments", "all"], default="contents")
     p = add("format", cmd_format, "서식 (예: b=true bg=#FFF2CC nf=#,##0)"); p.add_argument("range"); p.add_argument("set", nargs="*")
     p.add_argument("--unset", action="append"); p.add_argument("--border", help="all|outline|inside|top|bottom|left|right|none[:style[:#color]]")
     for name in ("merge", "unmerge"):
-        p = add(name, cmd_merge, "셀 병합" if name == "merge" else "병합 해제"); p.add_argument("range")
+        p = add(name, cmd_merge, "셀 병합 (--across: 행마다)" if name == "merge" else "병합 해제"); p.add_argument("range")
+        if name == "merge":
+            p.add_argument("--across", action="store_true"); p.add_argument("--no-center", action="store_true")
     p = add("width", cmd_width, "열 너비(문자 수)"); p.add_argument("cols"); p.add_argument("chars", type=float)
     p = add("height", cmd_height, "행 높이(포인트)"); p.add_argument("rows"); p.add_argument("points", type=float)
     for name in ("hide", "unhide"):
         p = add(name, cmd_hide, "행/열 숨기기" if name == "hide" else "숨기기 취소"); p.add_argument("range", help="예: B:C 또는 3:5")
     p = add("freeze", cmd_freeze, "틀 고정 (예: B2, none)"); p.add_argument("cell"); p.add_argument("--sheet")
-    p = add("filter", cmd_filter, "자동 필터 켜기(범위) / off"); p.add_argument("range"); p.add_argument("--sheet")
-    p = add("sheet", cmd_sheet, "시트 add NAME | rename OLD NEW | rm NAME"); p.add_argument("action", choices=["add", "rename", "rm"]); p.add_argument("names", nargs="*")
-    p = add("chart", cmd_chart, "차트 add DATA | rm ID | ls"); p.add_argument("action", choices=["add", "rm", "ls"]); p.add_argument("target", nargs="?")
+    p = add("filter", cmd_filter, "자동 필터: RANGE(켜기) | off | clear | reapply | col C --where '>150' | col C --values 'a|b'")
+    p.add_argument("range", help="범위, off, clear, reapply, 또는 col"); p.add_argument("column", nargs="?", help="col일 때 열 문자")
+    p.add_argument("--values", help="보일 값 목록(| 구분, 화면 표시 텍스트 기준)"); p.add_argument("--blank", action="store_true", help="빈 셀도 보이기")
+    p.add_argument("--where", action="append", help="조건: '>150', '<=10', 'contains 서울', 'beginsWith A' (여러 번)"); p.add_argument("--any", action="store_true", help="조건을 OR로")
+    p.add_argument("--sheet")
+    p = add("sheet", cmd_sheet, "시트 add NAME | rename OLD NEW | rm NAME | move NAME POS | copy NAME [NEW] | hide|unhide NAME | color NAME #RRGGBB|none | gridlines NAME on|off")
+    p.add_argument("action", choices=["add", "rename", "rm", "move", "copy", "hide", "unhide", "color", "gridlines"]); p.add_argument("names", nargs="*")
+    p = add("chart", cmd_chart, "차트 add DATA | set ID --title … | rm ID | ls"); p.add_argument("action", choices=["add", "set", "rm", "ls"]); p.add_argument("target", nargs="?")
     p.add_argument("--type", default="bar", help="bar, barH, barStacked, line, area, pie, doughnut, scatter, radar")
+    p.add_argument("--to-type", dest="type_set", help="set: 차트 종류 변경"); p.add_argument("--data", help="set: 데이터 범위 변경")
+    p.add_argument("--x-title"); p.add_argument("--y-title")
     p.add_argument("--title"); p.add_argument("--at", help="왼쪽 위 셀"); p.add_argument("--sheet"); p.add_argument("--legend")
     p.add_argument("--width", type=int); p.add_argument("--height", type=int)
     for name in ("rows", "cols"):
@@ -404,6 +541,31 @@ def register(sub):
     p = add("sort", cmd_sort, "범위 정렬 (예: sort A1:F50 --by C:desc --by A)"); p.add_argument("range")
     p.add_argument("--by", action="append", help="열[:asc|desc], 여러 번 가능"); p.add_argument("--header", dest="header", action="store_true", default=None)
     p.add_argument("--no-header", dest="header", action="store_false")
+    p = add("series", cmd_series, "연속 데이터 채우기(채우기 핸들): series A2:A3 A2:A20"); p.add_argument("source"); p.add_argument("target"); p.add_argument("--sheet")
+    p = add("copy", cmd_copy, "복사·붙여넣기: copy A1:C5 E1 [--what values|formats|formulas] [--transpose]"); p.add_argument("src"); p.add_argument("dst")
+    p.add_argument("--what", choices=["all", "values", "formats", "formulas"], default="all"); p.add_argument("--transpose", action="store_true"); p.add_argument("--sheet")
+    p = add("move", cmd_copy, "잘라내기·붙여넣기(이동): move A1:C5 E1"); p.add_argument("src"); p.add_argument("dst"); p.add_argument("--sheet")
+    p = add("cells", cmd_cells, "셀 삽입/삭제(밀기): cells insert B2:C3 --shift down"); p.add_argument("action", choices=["insert", "delete"]); p.add_argument("range")
+    p.add_argument("--shift", choices=["right", "down", "left", "up"]); p.add_argument("--sheet")
+    p = add("dedupe", cmd_dedupe, "중복된 항목 제거"); p.add_argument("range"); p.add_argument("--columns", help="기준 열, 예: A,C"); p.add_argument("--sheet")
+    p.add_argument("--header", dest="header", action="store_true", default=None); p.add_argument("--no-header", dest="header", action="store_false")
+    for name in ("find", "replace"):
+        p = add(name, cmd_find if name == "find" else cmd_replace, "찾기 (* ? 와일드카드)" if name == "find" else "바꾸기")
+        p.add_argument("text")
+        if name == "replace":
+            p.add_argument("replacement"); p.add_argument("--all", action="store_true", help="모든 시트")
+        else:
+            p.add_argument("--max", type=int, default=200)
+        p.add_argument("--in", dest="where", choices=["values", "formulas"], default="values"); p.add_argument("--match-case", action="store_true")
+        p.add_argument("--whole", action="store_true", help="셀 전체 일치"); p.add_argument("--sheet")
+    p = add("comment", cmd_comment, "메모: comment B2 '내용' (내용 없으면 삭제)"); p.add_argument("cell"); p.add_argument("text", nargs="?")
+    p = add("link", cmd_link, "하이퍼링크: link B2 https://… [--text 표시]"); p.add_argument("cell"); p.add_argument("url", nargs="?"); p.add_argument("--text")
+    p = add("autofit", cmd_autofit, "열 너비/행 높이 자동 맞춤: autofit A:D | autofit 1:10"); p.add_argument("range"); p.add_argument("--sheet")
+    p = add("format-copy", cmd_copy_format, "서식 복사(서식 복사 도구): format-copy A1:B1 D1:H1"); p.add_argument("src"); p.add_argument("dst"); p.add_argument("--sheet")
+    p = add("decimals", cmd_decimals, "소수 자릿수 늘림/줄임: decimals B2:B9 +1"); p.add_argument("range"); p.add_argument("delta", type=int)
+    p = add("goto", cmd_goto, "사용자 미리보기를 시트/범위로 이동"); p.add_argument("range"); p.add_argument("--sheet")
+    p = add("view", cmd_view, "미리보기 표시: --zoom 150, --formulas/--no-formulas", json_=False); p.add_argument("--zoom", type=int)
+    p.add_argument("--formulas", dest="formulas", action="store_true", default=None); p.add_argument("--no-formulas", dest="formulas", action="store_false")
     p = add("apply", cmd_apply, "편집 목록(JSON 파일/-)을 한 번에 적용"); p.add_argument("file"); p.add_argument("--label")
     p = add("changes", cmd_changes, "변경 이력(사용자/에이전트)"); p.add_argument("--since", type=int, default=0); p.add_argument("--actor", choices=["user", "agent"])
     add("selection", cmd_selection, "사용자가 미리보기에서 선택 중인 범위")

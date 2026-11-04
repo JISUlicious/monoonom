@@ -4,7 +4,8 @@
 - Server: serve, status, stop, launch-config
 - Documents: ls, open, new, docs, close, save
 - Reading: describe, read, changes, selection
-- Editing: write, fill, clear, format, merge, unmerge, width, height, hide, unhide, freeze, filter, rows, cols, sort, sheet, chart, apply, undo
+- Editing: write, fill, series, clear, format, format-copy, decimals, merge, unmerge, width, height, autofit, hide, unhide, freeze, filter, rows, cols, cells, sort, dedupe, copy, move, find, replace, comment, link, sheet, chart, apply, undo
+- View: goto, view
 - Common options and exit codes
 
 Every command accepts `--root DIR` (workspace; default `$WEBEXCEL_ROOT`, `$CLAUDE_PROJECT_DIR` or the
@@ -43,6 +44,8 @@ VBA in .xlsm). `.xls` cannot store charts or autofilter (warnings are printed).
 | `read RANGE [--what values\|raw\|formulas\|all] [--max N]` | `values`: dates as ISO text; `raw`: serial numbers; `formulas`: formula text or value; `all`: value + formula + style. Full-column ranges are cut to the used area; output stops at `--max` rows (default 200) and prints the remaining range. |
 | `changes [--since V] [--actor user\|agent]` | Batches after version V: who, label, batch id, changed ranges. |
 | `selection` | The user's current selection in each preview window (most recent first). |
+| `find TEXT [--in values\|formulas] [--match-case] [--whole] [--sheet S] [--max N]` | `*` and `?` are wildcards. |
+| `read RANGE --what text` | Exactly the text shown in the grid (number formats applied by the same formatter as the browser; approximate without Node.js). |
 
 ## Editing
 
@@ -54,17 +57,36 @@ All edits are one batch per command, applied live and undoable with `undo BATCH`
 | `fill RANGE VALUE` | Same value/formula everywhere; relative references shift (`=B2*C2` → `=B3*C3`). |
 | `clear RANGE [--what contents\|formats\|all]` | `contents` keeps formatting. |
 | `format RANGE k=v ... [--unset k] [--border KIND[:STYLE[:#COLOR]]]` | Border kinds: all, outline, inside, top, bottom, left, right, none. Styles: thin, medium, thick, dashed, dotted, double, hair. |
-| `merge RANGE` / `unmerge RANGE` | Merge keeps the top-left value and centers it. |
+| `merge RANGE [--across] [--no-center]` / `unmerge RANGE` | Merge keeps the top-left value and centers it; `--across` merges each row separately. |
+| `series SOURCE TARGET` | Fill handle: numbers continue the linear trend (one number copies; one date adds a day), lists (요일, 월, 분기, Mon…), trailing numbers (항목1→항목2), formulas shift. TARGET extends SOURCE in one direction. |
+| `copy FROM TO [--what all\|values\|formats\|formulas] [--transpose]` | Paste special. TO is the top-left cell; formulas shift relative references. |
+| `move FROM TO` | Cut and paste: cells keep their formulas unchanged. |
+| `cells insert RANGE --shift right\|down` / `cells delete RANGE --shift left\|up` | Shifts neighbouring cells (other formulas are not rewritten, as in the UI). |
+| `dedupe RANGE [--columns A,C] [--header\|--no-header]` | Remove duplicate rows (case-insensitive). |
+| `replace FIND WITH [--all] [--in values\|formulas] [--match-case] [--whole]` | Constants by default; `--in formulas` edits formula text. |
+| `comment CELL [TEXT]` | Note; without TEXT deletes it. |
+| `link CELL [URL] [--text T]` | Hyperlink (blue underline unless styled); without URL removes it. |
+| `autofit COLS\|ROWS` | e.g. `autofit A:F`, `autofit 1:20` (estimates text width; CJK counts double). |
+| `format-copy FROM TO` | Format painter; the source pattern is tiled over TO. |
+| `decimals RANGE ±N` | Increase/decrease decimal places. |
 | `width COLS CHARS` / `height ROWS POINTS` | e.g. `width B:D 12`, `height 1:3 20`. |
 | `hide RANGE` / `unhide RANGE` | Columns (`B:C`) or rows (`3:5`). |
 | `freeze CELL\|none [--sheet S]` | `B2` freezes row 1 and column A. |
 | `filter RANGE\|off [--sheet S]` | Turns the autofilter on for a header + data range. |
+| `filter col C --where COND [--where COND] [--any]` | Conditions: `>150`, `<=10`, `<>0`, `=서울`, `contains 서`, `notContains x`, `beginsWith A`, `endsWith 구`; AND by default. |
+| `filter col C --values 'a\|b' [--blank]` | Show only these displayed values (see `read --what text`). |
+| `filter clear` / `filter reapply` | Remove all conditions / re-evaluate and include rows added below. |
 | `rows insert AT [--count N] [--sheet S]` / `rows delete 5:7` | Inserts before row AT. Formulas in every sheet, chart ranges, merges, the filter range and hidden rows follow (same rules as Excel and the browser). |
 | `cols insert C [--count N]` / `cols delete C:D` | Same for columns. |
 | `sort RANGE --by COL[:asc\|desc] [--by ...] [--header\|--no-header]` | Header row is detected when omitted; rows hidden by the filter stay put; blanks sort last; formulas move with their row. |
 | `sheet add NAME` / `sheet rename OLD NEW` / `sheet rm NAME` | Rename rewrites formulas, chart ranges and defined names. |
+| `sheet copy NAME [NEW]` / `sheet move NAME POS\|BEFORE_SHEET` | |
+| `sheet hide NAME` / `sheet unhide NAME` / `sheet color NAME #RRGGBB\|none` / `sheet gridlines NAME on\|off` | |
 | `chart add DATA [--type T] [--title] [--at CELL] [--sheet S] [--legend r\|b\|t\|l] [--width PX] [--height PX]` | First row = series names, first text/date column = categories (like Excel). |
+| `chart set ID [--to-type T] [--title] [--data RANGE] [--legend r\|b\|t\|l] [--at CELL] [--width] [--height] [--x-title] [--y-title]` | Edit an existing chart (ids from `chart ls`). |
 | `chart ls` / `chart rm ID [--sheet S]` | |
+| `goto RANGE [--sheet S]` | Moves the user's preview to the sheet/range (does not change the workbook). |
+| `view [--zoom PCT] [--formulas\|--no-formulas]` | Preview zoom and formula display. |
 | `apply FILE\|- [--label TEXT]` | Several edits as one batch; see `edits.md`. |
 | `undo BATCH [--force]` | Refuses if those cells were changed again later, unless `--force`. |
 

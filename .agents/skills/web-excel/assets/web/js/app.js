@@ -1435,6 +1435,22 @@ class App {
     this.attachDoc(d.docId, { activate: true }).then((doc) => doc && this.setStatus(`'${d.name}' 문서가 열렸습니다.`));
   }
   onDocsList(docs) { this.onWindowsChanged(docs); }
+  /** the agent asked to show a sheet/range in the preview */
+  onGoto(d) {
+    const i = this.docs.findIndex((x) => x.wb.docId === d.docId);
+    if (i < 0 || this.editor.active) return;
+    if (i !== this.di) this.activateDoc(i);
+    const si = this.doc.wb.sheets.findIndex((s) => s.id === d.sheet);
+    if (si >= 0 && si !== this.doc.wb.active) this.activateSheet(si);
+    const g = parseRange(d.range);
+    if (g) this.selectRange(g, { r: g.r1, c: g.c1 });
+  }
+  onView(d) {
+    const doc = this.docs.find((x) => x.wb.docId === d.docId);
+    if (!doc || doc !== this.doc) return;
+    if (typeof d.showFormulas === 'boolean' && d.showFormulas !== this.view().showFormulas) this.exec('showFormulas');
+    if (d.zoom) this.setZoom(+d.zoom);
+  }
 }
 
 // ------------------------------------------------------------------ helpers

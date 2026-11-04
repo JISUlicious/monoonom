@@ -54,14 +54,22 @@ without clients. Use `xl.py stop` only on request (it refuses while there are un
 | Write values (a row) | `xl.py write B2 100 200 '=B2+C2'` (`--down` for a column) |
 | Write a block | `xl.py write A1 --data '[["Name","Qty"],["Apple",3]]'` or `--tsv file.tsv` |
 | Fill a range with one formula | `xl.py fill 'D2:D100' '=B2*C2'` (relative refs shift per row) |
-| Clear | `xl.py clear A1:C9 --what contents\|formats\|all` |
+| Clear | `xl.py clear A1:C9 --what contents\|formats\|comments\|all` |
 | Format | `xl.py format A1:F1 b=true bg=#DDEBF7 ha=center nf='#,##0' --border outline` |
 | Column width / row height | `xl.py width A:C 14` (characters), `xl.py height 1 24` (points) |
 | Merge / freeze / filter | `xl.py merge A1:F1`, `xl.py freeze B2`, `xl.py filter A1:F50` (`off`) |
 | Insert / delete rows, columns | `xl.py rows insert 5 --count 2`, `rows delete 5:7`, `cols insert C`, `cols delete C:D` |
-| Sort | `xl.py sort A1:F50 --by C:desc --by A` (header row detected; `--header`/`--no-header`) |
-| Sheets | `xl.py sheet add 요약`, `sheet rename Old New` (formulas follow), `sheet rm Name` |
-| Charts | `xl.py chart add 'A1:C13' --type line --title 'Monthly' --at H2`, `chart ls`, `chart rm ID` |
+| Insert / delete cells (shift) | `xl.py cells insert B2:C3 --shift down`, `cells delete B2 --shift left` |
+| Sort / remove duplicates | `xl.py sort A1:F50 --by C:desc --by A`, `xl.py dedupe A1:F50 --columns A,C` |
+| Filter conditions | `xl.py filter col B --where '>150'`, `filter col A --values '서울\|부산'`, `filter clear`, `filter reapply` |
+| Copy / paste special / move | `xl.py copy A1:C5 E1 [--what values\|formats\|formulas] [--transpose]`, `xl.py move A1:C5 E1` |
+| Series (fill handle) | `xl.py series A2:A3 A2:A50` (1,2→…, 월→화, 항목1→항목2, dates +1) |
+| Find / replace | `xl.py find '*서울*'`, `xl.py replace 구 신 --all [--in formulas]` |
+| Notes, links, autofit | `xl.py comment B2 '확인'`, `xl.py link A1 https://… --text 사이트`, `xl.py autofit A:F` |
+| Format copy, decimals | `xl.py format-copy A1:F1 A20:F20`, `xl.py decimals B2:B9 +1` |
+| Sheets | `xl.py sheet add 요약`, `rename Old New`, `rm`, `copy`, `move Name 1`, `hide`/`unhide`, `color Name #FF0000`, `gridlines Name off` |
+| Charts | `xl.py chart add 'A1:C13' --type line --title 'Monthly' --at H2`, `chart set ID --title … --to-type bar --data A1:D13`, `chart ls`, `chart rm ID` |
+| Show the user something | `xl.py goto 'Sheet2!B10'` (moves the preview), `xl.py view --zoom 150 --formulas` |
 | History / undo | `xl.py changes --since 0`, `xl.py undo BATCH` |
 
 Row/column inserts, deletes and sorts move formulas, chart ranges, merges and the filter range just
@@ -70,7 +78,8 @@ moved to the shifted position automatically.
 
 Values are interpreted like typing into Excel: `=` starts a formula, `2026-03-15` becomes a date,
 `15%` a percentage, `1,234` a number, `'007` stays text. Pass `--raw` to keep strings as text.
-`read` shows dates as `YYYY-MM-DD`; `--what raw|formulas|all` shows serials, formulas or styles.
+`read` shows dates as `YYYY-MM-DD`; `--what text` shows exactly what the grid displays (number
+formats applied, needed for filter `--values`); `--what raw|formulas|all` shows serials, formulas or styles.
 
 Format keys: `b i u st` (bold, italic, underline, strike), `fs` size, `ff` font, `fc` font color,
 `bg` fill, `ha` left/center/right, `va` top/center/bottom, `wrap`, `ind`, `nf` number format.

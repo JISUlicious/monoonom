@@ -354,8 +354,10 @@ class DocSession:
                     raise SessionError(400, f"알 수 없는 시트 id: {sid}")
             if not order:
                 raise SessionError(400, "시트가 하나 이상 있어야 합니다.")
+            active_id = self.sheets[min(self.active_sheet, len(self.sheets) - 1)]["id"] if self.sheets else None
             self.sheets = order
-            self.active_sheet = min(self.active_sheet, len(order) - 1)
+            ids = [sh["id"] for sh in order]  # keep the same sheet active when sheets move or are added
+            self.active_sheet = ids.index(active_id) if active_id in ids else min(self.active_sheet, len(order) - 1)
         elif kind == "setWorkbook":
             props = op.get("props", {})
             if "definedNames" in props:

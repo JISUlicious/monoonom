@@ -208,6 +208,8 @@ export class EventStream {
     on('saved', (d) => this.syncs.get(d.docId)?.onSaved(d));
     on('resync', (d) => this.syncs.get(d.docId)?.resync('서버 기록이 앞서 있어 다시 불러왔습니다.'));
     on('presence', (d) => this.app.onPresence?.(d));
+    on('goto', (d) => this.app.onGoto?.(d));
+    on('view', (d) => this.app.onView?.(d));
     on('opened', (d) => this.app.onDocOpened?.(d));
     on('closed', (d) => {
       const sync = this.syncs.get(d.docId);

@@ -18,7 +18,7 @@ coordinates the following edits refer to (write later edits in post-insert coord
 | `set` | `range`, `values` (2-D array, 1-D row, or one value to fill the range), `parse` (default true). A cell value may also be `{"f": "=..."}`, `{"text": "..."}`, `{"date": "2026-03-15"}` or `{"v": 1, "nf": "0.0%"}`. Filling one formula over a range shifts relative references. |
 | `clear` | `range`, `what`: contents \| formats \| all |
 | `format` | `range`, `set` (style keys), `unset` (list), `border` (`"outline"` or `{"kind","style","color"}`) |
-| `merge` / `unmerge` | `range`, `center` (default true) |
+| `merge` / `unmerge` | `range`, `center` (default true), `across` (merge each row) |
 | `colWidth` | `range` (e.g. `"B:D"`), `width` in characters |
 | `rowHeight` | `range` (e.g. `"1:3"`), `height` in points |
 | `hide` / `unhide` | `range` of columns (`"B:C"`) or rows (`"3:5"`) |
@@ -33,6 +33,19 @@ coordinates the following edits refer to (write later edits in post-insert coord
 | `renameSheet` | `sheet`, `name` |
 | `deleteSheet` | `sheet` |
 | `name` | `name`, `ref` (omit `ref` to delete a defined name) |
+| `filterColumn` | `sheet`, `column`, `values` (displayed texts), `blank`, `custom` (`[{"op": ">", "val": "150"}]`; ops `= <> > >= < <=`, `contains`, `notContains`, `beginsWith`, `endsWith`), `and` |
+| `filterClear` / `filterReapply` | `sheet` |
+| `chartUpdate` | `sheet`, `id`, `set` (`type`, `data`, `title`, `legend`, `xTitle`, `yTitle`, `at`, `width`, `height`, `grouping`, `barDir`) |
+| `moveSheet` / `duplicateSheet` | `sheet`, `to` (0-based index or sheet name) / `name` |
+| `hideSheet` / `unhideSheet` / `tabColor` / `gridlines` | `sheet`, `color` / `show` |
+| `fillSeries` | `source`, `target` |
+| `copy` / `move` | `from`, `to`, `what` (all, values, formats, formulas), `transpose` |
+| `insertCells` / `deleteCells` | `range`, `shift` (right/down, left/up) |
+| `removeDuplicates` | `range`, `columns` (letters), `header` |
+| `replace` | `find`, `with`, `in` (values/formulas), `matchCase`, `whole`, `all` |
+| `comment` / `link` | `cell`, `text` / `url`, `text` |
+| `autofit` | `range` (`"A:F"` or `"1:20"`) |
+| `copyFormat` / `decimals` | `from`, `to` / `range`, `delta` |
 
 Style keys: `b`, `i`, `u` (true or "double"), `st`, `fs`, `ff`, `fc`, `bg`, `ha`, `va`, `wrap`, `ind`,
 `rot`, `nf`, and borders `bt`/`bb`/`bl`/`br` as `{"s": "thin", "c": "#000000"}`. A key set to `null`
