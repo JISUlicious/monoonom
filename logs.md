@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-04: Agent Skill spec 2차 보강 — analysis-docs 세션 회신 반영(name=디렉터리 규칙, allowed-tools 실험적, metadata 문자열 맵, 제품별 경로, Codex loopback 차단 실측, 서버 수명주기 모드 A/B, skills-ref 검증) (→ docs/skill-spec.md)
 - 2026-11-04: Agent Skill spec 보강 — analysis-docs의 작성 표준 반영(description `<>` 금지, P0/P1 두 판, 실행 표면별 지원 범위, 평가 방식) (→ docs/skill-spec.md)
 - 2026-11-04: Agent Skill 포장 조사·계획·spec 작성 — 결론: 구현 가능, 서버가 문서를 소유하는 동기화 구조로 변경 필요, 24–36인일 (→ docs/skill-spec.md)
 - 2026-11-04: 웹 엑셀 1차 구현 — Python 서버(xlsx/xls, DRM 훅), Canvas 그리드, 수식 엔진, 차트, 서식, 필터, 다중 탭·창, 단축키, 테스트 (→ README.md)
