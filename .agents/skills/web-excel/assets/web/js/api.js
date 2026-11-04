@@ -7,16 +7,31 @@
 // token still work through the HttpOnly cookie the page gets when it loads.
 const KEY = 'wx_token';
 let token = null;
+let fromUrl = false; // the token came with this page's URL (not from storage left by an earlier server)
 (function readToken() {
   if (typeof location === 'undefined') return; // imported outside a browser
-  const m = /(?:^#|&)t=([^&]+)/.exec(location.hash);
-  if (m) token = decodeURIComponent(m[1]);
+  const m = /(?:^#|&)t=([^&]*)/.exec(location.hash);
+  if (m) {
+    try { token = decodeURIComponent(m[1]) || null; } catch { token = null; } // mangled URL: no token
+    fromUrl = !!token;
+  }
   try {
     if (token) sessionStorage.setItem(KEY, token); else token = sessionStorage.getItem(KEY);
-    // stored: drop the token from the address bar (only when it survives a reload in storage)
-    if (m && sessionStorage.getItem(KEY) === token) history.replaceState(null, '', location.pathname + location.search);
+    // stored: drop t= from the address bar (only when it survives a reload in storage), keep the rest
+    if (m && token && sessionStorage.getItem(KEY) === token) {
+      const rest = location.hash.slice(1).split('&').filter((p) => !p.startsWith('t=')).join('&');
+      history.replaceState(null, '', location.pathname + location.search + (rest ? '#' + rest : ''));
+    }
   } catch { /* storage blocked: keep the token in memory and in the URL */ }
 })();
+
+/** A stored token the server rejects belongs to another server that used this port: forget it, so
+ * the page falls back to its cookie and the 401 hint says the token is missing. */
+function forgetStaleToken() {
+  if (!token || fromUrl) return;
+  token = null;
+  try { sessionStorage.removeItem(KEY); } catch { /* ignore */ }
+}
 
 /** '#t=TOKEN' for URLs of new windows of this page ('' without a token). */
 export const tokenFragment = () => (token ? `#t=${encodeURIComponent(token)}` : '');
@@ -35,6 +50,7 @@ async function call(method, url, body) {
   let data;
   try { data = await res.json(); } catch { data = {}; }
   if (!res.ok) {
+    if (res.status === 401 && data.reason === 'token-mismatch') forgetStaleToken();
     const e = new Error(data.error || `HTTP ${res.status}`);
     e.status = res.status; e.data = data;
     throw e;

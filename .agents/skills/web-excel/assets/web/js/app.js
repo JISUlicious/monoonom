@@ -959,7 +959,7 @@ class App {
   newWindow(docIdx = this.di) {
     const doc = this.docs[docIdx];
     const w = window.open(`${location.pathname}?doc=${encodeURIComponent(doc.wb.docId)}${tokenFragment()}`, '_blank');
-    if (!w) this.toast(`팝업이 차단되었습니다. 다른 창/브라우저에서 ${location.origin}/?doc=${doc.wb.docId} 를 여세요.`, 'warn', 9000);
+    if (!w) this.toast(`팝업이 차단되었습니다. 다른 창/브라우저에서 ${location.origin}/?doc=${doc.wb.docId}${tokenFragment()} 를 여세요.`, 'warn', 15000);
   }
   async windowsMenu(anchor) {
     let docs = [];

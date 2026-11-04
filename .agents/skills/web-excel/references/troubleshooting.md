@@ -13,6 +13,7 @@ Previews that embed the page in an iframe of another site (VS Code Simple Browse
 Tauri/Electron webviews) do not send cookies, so the token in the URL is the only way in there.
 "토큰이 이 서버와 다릅니다": the URL belongs to another server or workspace; use the current `status` URL.
 `.web-excel/server.log` shows each 401 with `reason=` and `sec-fetch-site=` (`cross-site` = embedded page).
+If a preview URL with the token leaked, `xl.py stop` then `xl.py serve --new-token` and reopen with the new URL.
 
 ## "서버에 연결할 수 없습니다" / exit code 3
 Run `xl.py serve`. State lives in `<workspace>/.web-excel/server.json`; the log is `.web-excel/server.log`.

@@ -135,6 +135,30 @@ try:
     check("xls --as name.xlsx also warns about values", p.returncode == 0 and "계산된 값으로만" in p.stdout and "xls 형식으로는" not in p.stdout, p.stdout.strip())
     xl(ws, "close", "--doc", "legacy-copy.xlsx", "--force")
 
+    # token handling
+    import json as _json, socket
+    stp = os.path.join(ws, ".web-excel", "server.json")
+    st = _json.load(open(stp))
+    p = xl(ws, "status")
+    check("status prints the URL with #t=", f"#t={st['token']}" in p.stdout)
+    p = xl(ws, "status", "--brief")
+    check("status --brief (injected into the skill context) has no token", st["token"] not in p.stdout and "running at" in p.stdout, p.stdout.strip())
+    check("serve --new-token refuses while running", xl(ws, "serve", "--new-token", ok=False).returncode == 4)
+    old = dict(st)
+    st.pop("base_url", None); st["url"] = f"http://localhost:{st['port']}/"
+    _json.dump(st, open(stp, "w"))
+    check("state from an older server: status still prints the token URL", f"#t={st['token']}" in xl(ws, "status").stdout)
+    _json.dump(old, open(stp, "w"))
+    s = socket.create_connection(("127.0.0.1", st["port"]))
+    s.sendall(f"GET /api/docs HTTP/1.1\r\nHost: localhost:{st['port']}\r\nX-WebExcel-Token: tok\xe9\r\nConnection: close\r\n\r\n".encode("latin-1"))
+    raw = b""
+    while True:
+        c = s.recv(4096)
+        if not c:
+            break
+        raw += c
+    check("non-ASCII token header -> 401 with a reason (no crash)", raw.startswith(b"HTTP/1.0 401") or raw.startswith(b"HTTP/1.1 401"), raw[:40])
+
     # xl.py runs from the workspace; the skill folder as workspace is refused
     skill = os.path.dirname(os.path.dirname(XL))
     env = {k: v for k, v in os.environ.items() if k not in ("WEBEXCEL_ROOT", "CLAUDE_PROJECT_DIR")}
@@ -150,6 +174,20 @@ try:
     xl(ws, "write", "A30", "미저장")
     check("stop refuses with unsaved changes", xl(ws, "stop", ok=False).returncode == 4)
     check("stop --force", xl(ws, "stop", "--force").returncode == 0)
+    tok0 = open(os.path.join(ws, ".web-excel", "token")).read()
+    xl(ws, "serve", "--port", "8811")
+    check("restart keeps the workspace token", f"#t={tok0}" in xl(ws, "status").stdout)
+    xl(ws, "stop", "--force")
+    xl(ws, "serve", "--port", "8811", "--new-token")
+    check("serve --new-token (stopped) issues a different token", f"#t={tok0}" not in xl(ws, "status").stdout and "#t=" in xl(ws, "status").stdout)
+    xl(ws, "stop", "--force")
+    # many processes creating the token at once all end up with the same one
+    fresh = tempfile.mkdtemp(prefix="wx-tok-")
+    code = f"import sys; sys.path.insert(0, {os.path.dirname(XL)!r}); import xl; print(xl.workspace_token({fresh!r}))"
+    procs = [subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True) for _ in range(12)]
+    toks = {p_.communicate()[0].strip() for p_ in procs}
+    check("concurrent token creation agrees on one token", len(toks) == 1 and open(os.path.join(fresh, ".web-excel", "token")).read() in toks, str(toks))
+    shutil.rmtree(fresh, ignore_errors=True)
     check("status after stop", xl(ws, "status", ok=False).returncode == 3)
 finally:
     xl(ws, "stop", "--force", ok=False)

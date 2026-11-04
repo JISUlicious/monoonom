@@ -117,20 +117,53 @@ def workspace_token(root) -> str:
     """The workspace's browser/API token, kept in .web-excel/token (0600) across server restarts, so a
     preview opened with #t=TOKEN keeps working after the server stops (idle timeout) and starts again."""
     d = os.path.join(root, STATE_DIR)
-    path = os.path.join(d, "token")
-    try:
-        with open(path, encoding="utf-8") as fh:
-            tok = fh.read().strip()
-        if len(tok) >= 16:
-            return tok
-    except OSError:
-        pass
+    path = token_path(root)
     os.makedirs(d, exist_ok=True)
-    tok = secrets.token_urlsafe(24)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        fh.write(tok)
-    return tok
+    for _ in range(50):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                tok = fh.read().strip()
+            if len(tok) >= 16:
+                return tok
+        except FileNotFoundError:
+            # written to a temp file and linked into place: another process never sees it half-written,
+            # and if two start at once, os.link fails for the loser, which then reads the winner's token
+            tok = secrets.token_urlsafe(24)
+            fd, tmp = tempfile.mkstemp(dir=d, prefix=".token.", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                    fh.write(tok)
+                try:
+                    os.chmod(tmp, 0o600)
+                except OSError:
+                    pass
+                try:
+                    os.link(tmp, path)
+                    return tok
+                except FileExistsError:
+                    pass
+                except OSError:  # file systems without hard links
+                    if not os.path.exists(path):
+                        os.replace(tmp, path)
+                        return tok
+            finally:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+        time.sleep(0.05)  # a token file that is still empty or unreadable: retry
+    raise CliError(f"토큰 파일을 읽을 수 없습니다: {path}")
+
+
+def token_path(root) -> str:
+    return os.path.join(root, STATE_DIR, "token")
+
+
+def page_url(st) -> str:
+    """The URL to give the user: with #t=TOKEN (servers started before tokens were in the URL only
+    stored the bare URL)."""
+    url = st.get("url") or ""
+    if "#t=" in url or not st.get("token"):
+        return url
+    return (st.get("base_url") or url.split("#", 1)[0]) + "#t=" + st["token"]
 
 
 def clear_state(root, pid):
@@ -272,6 +305,14 @@ def cmd_serve(args):
     check_deps()
     root = workspace_root(args.root)
     st = read_state(root)
+    if args.new_token:
+        if alive(st):
+            raise CliError("서버가 실행 중입니다. 토큰을 바꾸려면 먼저 `xl.py stop` 하세요"
+                           "(열린 미리보기는 새 주소로 다시 열어야 합니다).", EXIT_CONFLICT)
+        try:
+            os.remove(token_path(root))
+        except FileNotFoundError:
+            pass
     if alive(st):
         print_status(st, reused=True)
         return 0
@@ -309,7 +350,7 @@ def cmd_serve(args):
 def print_status(st, reused=None, extra=None):
     tag = " (기존 서버 재사용)" if reused else " (새로 시작)" if reused is False else ""
     print(f"web-excel 서버 실행 중{tag}")
-    print(f"  URL : {st['url']}")
+    print(f"  URL : {page_url(st)}")
     print("        ↑ 미리보기 창에서 이 주소를 #t=… 까지 그대로 여세요 (토큰이 없으면 파일이 열리지 않음)")
     print(f"  root: {st['root']}")
     print(f"  pid : {st['pid']}")
@@ -335,7 +376,8 @@ def cmd_status(args):
     except CliError:
         pass
     if args.brief:
-        print(f"web-excel: running at {st['url']} ({len(extra)} doc(s) open)")
+        base = st.get("base_url") or (st.get("url") or "").split("#", 1)[0]
+        print(f"web-excel: running at {base} ({len(extra)} doc(s) open; URL with token: xl.py status)")
         for e in extra:
             print("  " + e)
         return 0
@@ -404,6 +446,8 @@ def build_parser():
     p.add_argument("--allow-host", action="append")
     p.add_argument("--no-auth", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--no-sandbox", action="store_true", help="allow paths outside the workspace root")
+    p.add_argument("--new-token", action="store_true",
+                   help="issue a new workspace token (old preview URLs stop working); server must be stopped")
     p.set_defaults(fn=cmd_serve)
 
     p = sub.add_parser("status", help="server status and open documents")

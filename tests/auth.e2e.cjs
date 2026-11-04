@@ -64,6 +64,23 @@ const toasts = (f) => f.evaluate(() => [...document.querySelectorAll('#toasts .t
     await sleep(600);
     check('…user edits reach the server', xl(wsA, 'read', 'A21').includes('사용자'));
 
+    // popup blocked in the iframe: the fallback URL in the toast carries the token too
+    await f.evaluate(() => { window.open = () => null; window.webExcel.newWindow(); });
+    check('popup-blocked hint URL includes #t=', /\?doc=[^ ]*#t=/.test(await toasts(f)), (await toasts(f)).slice(-120));
+    // other fragment parameters survive; only t= is removed
+    page = await ctx.newPage();
+    await page.goto(`http://127.0.0.1:8779/?src=${encodeURIComponent(urlA + '&keep=1')}`);
+    await sleep(1500);
+    check('only t= is removed from the fragment', (await framed(page).evaluate(() => location.hash)) === '#keep=1', await framed(page).evaluate(() => location.hash));
+    await page.close();
+    // a mangled URL: the app still starts and explains, instead of a blank page
+    page = await ctx.newPage();
+    const errs2 = []; page.on('pageerror', (e) => errs2.push(e.message));
+    await page.goto(`http://127.0.0.1:8779/?src=${encodeURIComponent(state(wsA).base_url + '#t=abc%E')}`);
+    await sleep(1500);
+    check('malformed #t: app starts and shows the token hint', errs2.length === 0 && /#t=/.test(await toasts(framed(page))), errs2.join('; '));
+    await page.close();
+
     // 2) same iframe without the token: clear explanation instead of a silent failure
     page = await ctx.newPage();
     await page.goto(`http://127.0.0.1:8779/?src=${encodeURIComponent(state(wsA).base_url)}`);
@@ -90,6 +107,24 @@ const toasts = (f) => f.evaluate(() => [...document.querySelectorAll('#toasts .t
     xl(wsA, 'write', 'B20', '재시작', '--doc', 'alpha.xlsx');
     const ok = await f.waitForFunction(() => window.webExcel.docs.some((d) => d.wb.sheet.get(19, 1)?.v === '재시작'), null, { timeout: 8000 }).then(() => true).catch(() => false);
     check('…the open iframe reconnects and syncs again (no reload)', ok);
+
+    // 4b) another workspace's server takes over the port: a tab with the old token in storage
+    //     recovers on reload through its cookie (the stale header no longer hides it)
+    const wsC = workspace('gamma');
+    try {
+      const stale = await ctx.newPage();
+      await stale.goto(state(wsA).url); await sleep(1200);             // token A now in sessionStorage
+      xl(wsA, 'stop', '--force'); xl(wsC, 'serve', '--port', '8771'); xl(wsC, 'open', 'gamma.xlsx');
+      await stale.goto(state(wsC).base_url); await sleep(1500);       // reload without #t= (cookie for C)
+      check('stale token from another server does not block the valid cookie', JSON.stringify(await docsIn(stale.mainFrame())) === '["gamma.xlsx"]', JSON.stringify(await docsIn(stale.mainFrame())));
+      // same, inside an iframe (no cookie): the stale token is dropped and the hint says it is missing
+      const pg = await ctx.newPage();
+      await pg.goto(`http://127.0.0.1:8779/?src=${encodeURIComponent(state(wsC).base_url)}`); await sleep(1500);
+      const fr = framed(pg);
+      await fr.evaluate(() => sessionStorage.setItem('wx_token', 'stale-token-of-another-server')); await fr.evaluate(() => location.reload()); await sleep(1500);
+      const fr2 = framed(pg);
+      check('iframe with a stale stored token: forgets it and explains', !(await fr2.evaluate(() => sessionStorage.getItem('wx_token'))) && /#t=/.test(await toasts(fr2)), (await toasts(fr2)).slice(0, 100));
+    } finally { try { xl(wsC, 'stop', '--force'); } catch {} fs.rmSync(wsC, { recursive: true, force: true }); }
 
     // 5) the log never contains the token or a stream ticket
     const log = fs.readFileSync(path.join(wsA, '.web-excel', 'server.log'), 'utf8');

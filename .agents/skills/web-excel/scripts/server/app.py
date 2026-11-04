@@ -5,7 +5,9 @@ Every file read/write goes through server.fileio (Python), never the browser.
 from __future__ import annotations
 
 import gzip
+import hmac
 import json
+import re
 import mimetypes
 import os
 import string
@@ -248,8 +250,7 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt, *args):  # quieter log; never write stream tickets to the log
-        import re
-        sys.stderr.write("[web-excel] " + re.sub(r"ticket=[^&\s\"]+", "ticket=***", fmt % args) + "\n")
+        sys.stderr.write("[web-excel] " + _TICKET_RX.sub("ticket=***", fmt % args) + "\n")
 
     def _host_ok(self) -> bool:
         if not Config.host_check:
@@ -281,20 +282,18 @@ class Handler(BaseHTTPRequestHandler):
         self.auth_reason = ""
         if not Config.token:
             return self.command == "GET" or self.headers.get("X-WebExcel") == "1"
-        import hmac
         hdr = self.headers.get("X-WebExcel-Token")
-        if hdr:
-            if hmac.compare_digest(hdr, Config.token):
-                return True
-            self.auth_reason = "token-mismatch"
-            return False
+        if hdr and same_secret(hdr, Config.token):
+            return True
+        # a wrong header (e.g. a token a tab kept from another server on this port) does not hide a
+        # valid cookie
         ck = self._cookie_token()
-        if ck and hmac.compare_digest(ck, Config.token):
+        if ck and same_secret(ck, Config.token):
             if self.command == "GET" or self.headers.get("X-WebExcel") == "1":
                 return True
         if allow_ticket and q and take_ticket((q.get("ticket") or [""])[0]):
             return True
-        self.auth_reason = "cookie-mismatch" if ck else "no-credentials"
+        self.auth_reason = "token-mismatch" if hdr else "cookie-mismatch" if ck else "no-credentials"
         return False
 
     def auth_error(self):
@@ -401,6 +400,15 @@ class Handler(BaseHTTPRequestHandler):
             extra["Set-Cookie"] = f"{self.cookie_name()}={Config.token}; Path=/; HttpOnly; SameSite=Strict"
         with open(full, "rb") as fh:
             self._send(200, fh.read(), ctype, extra)
+
+
+_TICKET_RX = re.compile(r"ticket=[^&\s\"]+")
+
+
+def same_secret(given: str, expected: str) -> bool:
+    """Constant-time comparison that never raises: header values are latin-1 str and may contain
+    non-ASCII characters, which hmac.compare_digest rejects for str."""
+    return hmac.compare_digest(given.encode("latin-1", "replace"), expected.encode("latin-1", "replace"))
 
 
 _TICKETS: dict = {}
