@@ -980,7 +980,7 @@ class App {
   quickChart(type) {
     const wb = this.doc.wb, sh = wb.sheet;
     let g = this.selection();
-    if (g.r1 === g.r2 && g.c1 === g.c2) g = this.filters.currentRegion(sh, g.r1, g.c1);
+    if (g.r1 === g.r2 && g.c1 === g.c2) g = this.filters.tableAt(sh, g.r1, g.c1);
     if (!sh.cells.size) return this.toast('차트를 만들 데이터를 먼저 선택하세요.', 'warn');
     const preset = { barH: { type: 'bar', barDir: 'bar' }, barStacked: { type: 'bar', grouping: 'stacked' } }[type] || { type };
     const m = ChartLayer.fromRange(wb, sh, g, preset.type);
@@ -1136,7 +1136,7 @@ class App {
   removeDuplicates() {
     const wb = this.doc.wb, sh = wb.sheet;
     let g = this.selection();
-    if (g.r1 === g.r2 && g.c1 === g.c2) g = this.filters.currentRegion(sh, g.r1, g.c1);
+    if (g.r1 === g.r2 && g.c1 === g.c2) g = this.filters.tableAt(sh, g.r1, g.c1);
     g = { ...g, r2: Math.min(g.r2, sh.maxRow), c2: Math.min(g.c2, sh.maxCol) };
     const header = this.filters.guessHeader(sh, g);
     const seen = new Set(); const keep = [];

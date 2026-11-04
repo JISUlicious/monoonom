@@ -154,6 +154,19 @@ const check = (name, cond, extra = '') => { console.log(`${cond ? 'PASS' : 'FAIL
   check('edit in window B appears in window A', (await val(9, 0, 0)) === '창에서 입력', String(await val(9, 0, 0)));
   await popup.close();
 
+  // ---- a table that does not start at A1 (title, blank rows, note, totals row)
+  await page.evaluate((p) => window.webExcel.openFile(p), path.join(__dirname, '..', 'samples', 'offset.xlsx'));
+  await page.waitForFunction(() => window.webExcel.doc.wb.name === 'offset.xlsx');
+  await sel(6, 3);
+  await page.keyboard.press('Control+Shift+L');
+  check('UI filter from a cell in an offset table excludes title and totals', await page.evaluate(() => JSON.stringify(window.webExcel.doc.wb.sheet.autoFilter.range)) === '{"r1":4,"c1":2,"r2":11,"c2":5}');
+  await sel(6, 3);
+  await page.evaluate(() => window.webExcel.filters.sortSelection(false));
+  check('UI sort keeps the totals row and its SUM', (await val(12, 2)) === '합계' && (await cell(12, 3)).f === '=SUM(D6:D12)' && (await val(5, 2)) === '대구');
+  await sel(6, 3);
+  await page.keyboard.press('Control+a');
+  check('UI Ctrl+A selects the whole current region (with totals)', await page.evaluate(() => JSON.stringify(window.webExcel.view().sel)) === '{"r1":4,"c1":2,"r2":12,"c2":5}');
+
   await page.evaluate(() => window.webExcel.activateDoc(1));
   await page.screenshot({ path: path.join(OUT, 'final.png') });
   check('no page errors', errors.length === 0, errors.join(' | '));

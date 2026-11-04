@@ -1,7 +1,10 @@
 // AutoFilter (Excel-compatible values/custom criteria) and sorting.
 import { key, MAX_COLS } from './address.js';
 import { formatValue } from './numfmt.js';
-import { translateFormula } from './formula.js';
+import { translateFormula, refsWithPositions } from './formula.js';
+
+const TOTAL_LABEL = /^\s*(합\s*계|총\s*계|소\s*계|계|누\s*계|평\s*균|total|totals|grand total|sum|subtotal|average)\s*$/i;
+const AGG_FN = /\b(SUM|SUBTOTAL|AVERAGE|COUNT|COUNTA|MAX|MIN|AGGREGATE)\s*\(/i;
 import { cmp } from './engine.js';
 
 const OPS = [
@@ -67,20 +70,45 @@ export class Filters {
 
   /** contiguous data region around a cell (Ctrl+A / filter / sort region) */
   currentRegion(sh, r, c) {
-    const filled = (rr, cc) => rr >= 0 && cc >= 0 && sh.cells.has(key(rr, cc)) && (sh.cells.get(key(rr, cc)).v !== undefined || sh.cells.get(key(rr, cc)).f);
-    let g = { r1: r, c1: c, r2: r, c2: c };
-    for (let changed = true, guard = 0; changed && guard < 200; guard++) {
+    const filled = (rr, cc) => { if (rr < 0 || cc < 0) return false; const x = sh.cells.get(key(rr, cc)); return !!x && (x.f || (x.v !== undefined && x.v !== null && x.v !== '')); };
+    const g = { r1: r, c1: c, r2: r, c2: c };
+    const rowHas = (rr) => { if (rr < 0) return false; for (let cc = Math.max(0, g.c1 - 1); cc <= g.c2 + 1; cc++) if (filled(rr, cc)) return true; return false; };
+    const colHas = (cc) => { if (cc < 0 || cc >= MAX_COLS) return false; for (let rr = Math.max(0, g.r1 - 1); rr <= g.r2 + 1; rr++) if (filled(rr, cc)) return true; return false; };
+    for (let changed = true; changed;) {
       changed = false;
-      const rowHas = (rr) => { for (let cc = Math.max(0, g.c1 - 1); cc <= g.c2 + 1; cc++) if (filled(rr, cc)) return true; return false; };
-      const colHas = (cc) => { for (let rr = Math.max(0, g.r1 - 1); rr <= g.r2 + 1; rr++) if (filled(rr, cc)) return true; return false; };
-      if (g.r1 > 0 && rowHas(g.r1 - 1)) { g.r1--; changed = true; }
-      if (rowHas(g.r2 + 1)) { g.r2++; changed = true; }
-      if (g.c1 > 0 && colHas(g.c1 - 1)) { g.c1--; changed = true; }
-      if (g.c2 < MAX_COLS - 1 && colHas(g.c2 + 1)) { g.c2++; changed = true; }
-      if (g.r2 - g.r1 > 1e6) break;
+      while (g.r1 > 0 && rowHas(g.r1 - 1)) { g.r1--; changed = true; }
+      while (g.r2 <= sh.maxRow && rowHas(g.r2 + 1)) { g.r2++; changed = true; }
+      while (g.c1 > 0 && colHas(g.c1 - 1)) { g.c1--; changed = true; }
+      while (g.c2 <= sh.maxCol && colHas(g.c2 + 1)) { g.c2++; changed = true; }
     }
     return g;
   }
+
+  /** a row under the data that summarises it (합계/Total label, or SUM/AVERAGE… over the rows above) */
+  isTotalRow(sh, r, g) {
+    const first = sh.get(r, g.c1)?.v;
+    if (typeof first === 'string' && TOTAL_LABEL.test(first)) return true;
+    for (let c = g.c1; c <= g.c2; c++) {
+      const f = sh.get(r, c)?.f;
+      if (!f || !AGG_FN.test(f)) continue;
+      for (const { ref } of refsWithPositions(f)) {
+        if (ref.kind !== 'cell') continue;
+        const b = ref.b || ref.a, lo = Math.min(ref.a.r, b.r), hi = Math.max(ref.a.r, b.r);
+        if (hi < r && hi - lo >= 1 && lo >= g.r1) return true;
+      }
+    }
+    return false;
+  }
+
+  /** header + data rows of a table: the region without trailing total rows */
+  tableBody(sh, g) {
+    const t = { ...g };
+    while (t.r2 > t.r1 + 1 && this.isTotalRow(sh, t.r2, t)) t.r2--;
+    return t;
+  }
+
+  /** the table at a cell (for filter / sort / chart / remove duplicates started from one cell) */
+  tableAt(sh, r, c) { return this.tableBody(sh, this.currentRegion(sh, r, c)); }
 
   toggle() {
     const app = this.app, wb = app.doc.wb, sh = wb.sheet;
@@ -91,7 +119,7 @@ export class Filters {
       sh.filterHidden.clear();
     } else {
       const sel = app.view().sel;
-      let range = sel.r1 === sel.r2 && sel.c1 === sel.c2 ? this.currentRegion(sh, sel.r1, sel.c1) : { ...sel, r2: Math.min(sel.r2, sh.maxRow), c2: Math.min(sel.c2, sh.maxCol) };
+      let range = sel.r1 === sel.r2 && sel.c1 === sel.c2 ? this.tableAt(sh, sel.r1, sel.c1) : { ...sel, r2: Math.min(sel.r2, sh.maxRow), c2: Math.min(sel.c2, sh.maxCol) };
       if (range.r2 === range.r1) range.r2 = range.r1 + 1;
       sh.autoFilter = { range, cols: {} };
     }
@@ -121,6 +149,7 @@ export class Filters {
     if (extend) { // only on explicit "reapply": pick up rows typed directly below the range
       const rowFilled = (r) => { for (let c = g.c1; c <= g.c2; c++) if (sh.cells.has(key(r, c))) return true; return false; };
       while (g.r2 < sh.maxRow && rowFilled(g.r2 + 1)) g.r2++;
+      g.r2 = this.tableBody(sh, g).r2; // but not a totals row under the data
     }
     sh.filterHidden.clear();
     const entries = Object.entries(af.cols).map(([k, e]) => [g.c1 + +k, e]);
@@ -195,9 +224,9 @@ export class Filters {
     const app = this.app, sh = app.doc.wb.sheet, sel = app.view().sel;
     let range, hasHeader = false, col = app.view().active.c;
     if (sh.autoFilter && sel.r1 >= sh.autoFilter.range.r1 && sel.r1 <= sh.autoFilter.range.r2 && col >= sh.autoFilter.range.c1 && col <= sh.autoFilter.range.c2) {
-      range = sh.autoFilter.range; hasHeader = true;
+      range = this.tableBody(sh, sh.autoFilter.range); hasHeader = true;
     } else if (sel.r1 === sel.r2 && sel.c1 === sel.c2) {
-      range = this.currentRegion(sh, sel.r1, sel.c1);
+      range = this.tableAt(sh, sel.r1, sel.c1);
       hasHeader = this.guessHeader(sh, range);
     } else range = { ...sel, r2: Math.min(sel.r2, sh.maxRow), c2: Math.min(sel.c2, sh.maxCol) };
     this.sort(sh, range, [{ c: col, asc }], hasHeader);
@@ -280,7 +309,7 @@ export class Filters {
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (!act) return;
       if (act === 'cancel') return this.close();
-      if (act === 'asc' || act === 'desc') { this.close(); return this.sort(sh, af.range, [{ c, asc: act === 'asc' }], true); }
+      if (act === 'asc' || act === 'desc') { this.close(); return this.sort(sh, this.tableBody(sh, af.range), [{ c, asc: act === 'asc' }], true); }
       if (act === 'clear') { this.close(); return this.setColumn(c, null); }
       if (act === 'ok') {
         const entry = {};

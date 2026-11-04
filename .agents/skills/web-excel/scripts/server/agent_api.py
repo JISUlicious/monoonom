@@ -18,6 +18,7 @@ from . import a1 as A
 from .app import SKILL_DIR, ApiError, route
 from .docs_api import REGISTRY, _doc, _wrap
 from . import refs
+from . import region as RG
 from .session import new_id
 
 STYLE_KEYS = {"b", "i", "u", "st", "fs", "ff", "fc", "bg", "ha", "va", "wrap", "ind", "rot", "nf",
@@ -367,6 +368,7 @@ def build_ops(doc, edits):
         elif kind == "filter":
             sh, g = (resolve(doc, e["range"], sheet) if e.get("range") else (doc.sheet(sheet) if sheet else doc.sheets[doc.active_sheet], None))
             if g:
+                g, auto = RG.auto_range(sh, g, cur)
                 r1, c1, r2, c2 = clamp(sh, g, pending=cellbuf.get(sh["id"]))
                 meta.setdefault(sh["id"], {})["autoFilter"] = {"ref": A.range_a1(r1, c1, max(r2, r1 + 1), c2), "cols": {}}
             else:
@@ -375,6 +377,7 @@ def build_ops(doc, edits):
             summary.append(f"{sh['name']} 자동 필터 {'켜기' if g else '끄기'}")
         elif kind == "chart":
             sh_data, g = resolve(doc, e.get("data"), sheet)
+            g, _ = RG.auto_range(sh_data, g, cur)
             target = doc.sheet(e["sheet"]) if e.get("sheet") else sh_data
             chart = chart_from_range(doc, sh_data, g, e, cellbuf.get(sh_data["id"], {}))
             charts = meta_of(target, "charts")
@@ -725,6 +728,14 @@ def structural_batch(doc, e):
     sheet = e.get("sheet")
     if kind == "sort":
         sh, g = resolve(doc, e.get("range"), sheet)
+        af = sh.get("autoFilter")
+        if af and af.get("ref") and (g[0], g[1]) == (g[2], g[3]):
+            fr = A.parse_range(af["ref"])
+            if fr[0] <= g[0] <= fr[2] and fr[1] <= g[1] <= fr[3]:
+                g = RG.table_body(sh, fr)  # inside the filter: sort the filter's table (header kept)
+                e = {**e, "header": True}
+        if (g[0], g[1]) == (g[2], g[3]) or g[2] - g[0] >= A.MAX_ROWS - 1 or g[3] - g[1] >= A.MAX_COLS - 1:
+            g, _ = RG.auto_range(sh, g)
         keys = []
         for k in e.get("by") or []:
             if isinstance(k, str):
@@ -865,13 +876,26 @@ def r_describe(h, m, q, body):
                                 "at": A.a1(ch["anchor"].get("r", 0), ch["anchor"].get("c", 0)),
                                 "data": [s.get("val") for s in ch.get("series", [])][:6]} for ch in sh["charts"]]}
             if mr >= 0:
-                top = min(r for r, _ in sh["cells"])
+                r0, c0 = min(r for r, _ in sh["cells"]), min(c for _, c in sh["cells"])
+                info["used"] = A.range_a1(r0, c0, mr, mc)
+                tabs = RG.tables(sh)
+                info["tables"] = []
+                for g in tabs:
+                    body = RG.table_body(sh, g)
+                    t = {"range": A.range_a1(*g), "headerRow": g[0] + 1,
+                         "header": [display_value(doc, sh, g[0], c, sh["cells"].get((g[0], c)) or {}) for c in range(g[1], min(g[3], g[1] + 29) + 1)]}
+                    if body[2] < g[2]:
+                        t["totalRows"] = f"{body[2] + 2}" + (f":{g[2] + 1}" if g[2] > body[2] + 1 else "")
+                    info["tables"].append(t)
+                main = tabs[0] if tabs else (r0, c0, mr, mc)
+                top = main[0]
                 info["headerRow"] = top + 1
-                info["header"] = [display_value(doc, sh, top, c, sh["cells"].get((top, c)) or {}) for c in range(0, min(mc, 29) + 1)]
+                info["header"] = [display_value(doc, sh, top, c, sh["cells"].get((top, c)) or {}) for c in range(main[1], min(main[3], main[1] + 29) + 1)]
                 types = []
-                for c in range(0, min(mc, 29) + 1):
+                body = RG.table_body(sh, main)
+                for c in range(main[1], min(main[3], main[1] + 29) + 1):
                     cnt = {}
-                    for r in range(top + 1, min(mr, top + 1000) + 1):
+                    for r in range(top + 1, min(body[2], top + 1000) + 1):
                         cell = sh["cells"].get((r, c))
                         if not cell:
                             continue
@@ -883,7 +907,7 @@ def r_describe(h, m, q, body):
                             "bool" if isinstance(v, bool) else "text" if isinstance(v, str) else "empty")
                         cnt[t] = cnt.get(t, 0) + 1
                     types.append(max(cnt, key=cnt.get) if cnt else "empty")
-                info["columnTypes"] = {A.col_name(c): t for c, t in enumerate(types)}
+                info["columnTypes"] = {A.col_name(main[1] + i): t for i, t in enumerate(types)}
             out["sheets"].append(info)
     return out
 

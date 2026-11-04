@@ -202,6 +202,8 @@ def op_filter_reapply(ctx, e):
     r1, c1, r2, c2 = A.parse_range(af["ref"])
     while any((r2 + 1, c) in sh["cells"] for c in range(c1, c2 + 1)):  # pick up rows typed below
         r2 += 1
+    from . import region as RG
+    r1, c1, r2, c2 = RG.table_body(sh, (r1, c1, r2, c2))  # but not a totals row under the data
     af["ref"] = A.range_a1(r1, c1, r2, c2)
     ctx.meta[sh["id"]]["autoFilter"] = af
     ctx.meta[sh["id"]]["filterHidden"] = filter_hidden(ctx.doc, sh, af)
@@ -461,7 +463,9 @@ def op_shift_cells(ctx, e):
 
 def op_remove_duplicates(ctx, e):
     from .agent_api import cell_value, clamp, resolve
+    from . import region as RG
     sh, g = resolve(ctx.doc, e["range"], e.get("sheet"))
+    g, _ = RG.auto_range(sh, g, ctx.cur)
     r1, c1, r2, c2 = clamp(sh, g, pending=ctx.cellbuf.get(sh["id"]))
     header = e.get("header")
     if header is None:

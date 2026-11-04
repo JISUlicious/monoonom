@@ -75,6 +75,27 @@ def make_xlsx(path):
     wb.save(path)
 
 
+def make_offset_xlsx(path):
+    """A table that does not start at A1: title, blank rows, header at C5, totals row under the data."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "지점"
+    ws["B2"] = "2026 지점별 매출"
+    ws.merge_cells("B2:F2")
+    rows = [["지점", "1월", "2월", "합계"], ["서울", 120, 130], ["부산", 90, 80], ["대구", 150, 60],
+            ["서울", 120, 130], ["광주", 70, 95], ["대전", 110, 140], ["울산", 60, 50]]
+    for r, row in enumerate(rows, start=5):
+        for c, v in enumerate(row, start=3):
+            ws.cell(r, c, v)
+        if r > 5:
+            ws.cell(r, 6, f"=D{r}+E{r}")
+    ws["C13"] = "합계"
+    for col in "DEF":
+        ws[f"{col}13"] = f"=SUM({col}6:{col}12)"
+    ws["H5"] = "메모: 단위 만원"
+    wb.save(path)
+
+
 def make_xls(path):
     wb = xlwt.Workbook(encoding="utf-8")
     ws = wb.add_sheet("데이터")
@@ -96,4 +117,5 @@ if __name__ == "__main__":
     os.makedirs(out, exist_ok=True)
     make_xlsx(os.path.join(out, "sample.xlsx"))
     make_xls(os.path.join(out, "sample.xls"))
+    make_offset_xlsx(os.path.join(out, "offset.xlsx"))
     print("written to", out)

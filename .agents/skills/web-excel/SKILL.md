@@ -72,6 +72,10 @@ without clients. Use `xl.py stop` only on request (it refuses while there are un
 | Show the user something | `xl.py goto 'Sheet2!B10'` (moves the preview), `xl.py view --zoom 150 --formulas` |
 | History / undo | `xl.py changes --since 0`, `xl.py undo BATCH` |
 
+Tables do not have to start at A1. Give filter/sort/chart/dedupe a single cell or whole columns and
+they use the table there (the contiguous block, without a 합계/Total row under it); an explicit
+multi-cell range is used as given. `describe` lists each table with its header and totals rows.
+
 Row/column inserts, deletes and sorts move formulas, chart ranges, merges and the filter range just
 like Excel, everywhere in the workbook. If the user edits cells at the same moment, their edits are
 moved to the shifted position automatically.

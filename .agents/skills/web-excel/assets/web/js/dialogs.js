@@ -356,7 +356,7 @@ export function chartDialog(app, model = null, presetType = null) {
       range = p ? rangeA1(p.range) : '';
     } else {
       let g = v.sel;
-      if (g.r1 === g.r2 && g.c1 === g.c2) g = app.filters.currentRegion(sh, g.r1, g.c1);
+      if (g.r1 === g.r2 && g.c1 === g.c2) g = app.filters.tableAt(sh, g.r1, g.c1);
       range = rangeA1({ ...g, r2: Math.min(g.r2, sh.maxRow), c2: Math.min(g.c2, sh.maxCol) });
     }
   }
@@ -424,8 +424,8 @@ function chartIcon(k) {
 // ------------------------------------------------------------------ sort dialog
 export function sortDialog(app) {
   const sh = app.doc.wb.sheet, v = app.view();
-  let range = v.sel.r1 === v.sel.r2 && v.sel.c1 === v.sel.c2 ? app.filters.currentRegion(sh, v.sel.r1, v.sel.c1) : { ...v.sel, r2: Math.min(v.sel.r2, sh.maxRow), c2: Math.min(v.sel.c2, sh.maxCol) };
-  if (sh.autoFilter && v.active.r >= sh.autoFilter.range.r1 && v.active.r <= sh.autoFilter.range.r2) range = sh.autoFilter.range;
+  let range = v.sel.r1 === v.sel.r2 && v.sel.c1 === v.sel.c2 ? app.filters.tableAt(sh, v.sel.r1, v.sel.c1) : { ...v.sel, r2: Math.min(v.sel.r2, sh.maxRow), c2: Math.min(v.sel.c2, sh.maxCol) };
+  if (sh.autoFilter && v.active.r >= sh.autoFilter.range.r1 && v.active.r <= sh.autoFilter.range.r2) range = app.filters.tableBody(sh, sh.autoFilter.range);
   const header = app.filters.guessHeader(sh, range);
   const colOpts = (hdr) => { const o = []; for (let c = range.c1; c <= range.c2; c++) { const t = hdr ? formatValue(app.doc.wb.value(sh, range.r1, c), null).text : ''; o.push(`<option value="${c}">${esc(t || '열 ' + colName(c))}</option>`); } return o.join(''); };
   const levelRow = (i) => `<div class="sort-level"><span>${i === 0 ? '정렬 기준' : '다음 기준'}</span><select class="inp" data-col="${i}">${i ? '<option value="">(없음)</option>' : ''}${colOpts(header)}</select><select class="inp" data-ord="${i}"><option value="asc">오름차순</option><option value="desc">내림차순</option></select></div>`;

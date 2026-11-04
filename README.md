@@ -86,6 +86,7 @@ API는 토큰이 필요합니다: CLI는 `X-WebExcel-Token` 헤더, 브라우저
       agent_api.py                 에이전트 편집(/edit → op 변환)·읽기(/range, /describe, /changes, /selection)·계산 최신화
       a1.py                        A1 참조 유틸
       agent_more.py                필터 조건·차트 편집·시트 관리·연속 채우기·복사/이동·찾기/바꾸기 등 나머지 편집
+      region.py                    표 영역 판정(붙어 있는 데이터, 합계 행 제외) — filter.js와 같은 규칙
       refs.py                      수식 참조 재작성(브라우저 formula.js 이식: 채우기·행/열 이동·시트 이름)
       xlsx_io.py / xls_io.py       openpyxl·xlrd/xlwt ↔ JSON 모델
       colors.py, units.py, formula_compat.py
@@ -121,10 +122,11 @@ docs/                              project-setup.md, skill-spec.md, skill-implem
 ```bash
 python -m unittest tests.test_roundtrip   # Python 읽기/쓰기 왕복 (xlsx 패치, 차트, xls, _xlfn)
 node tests/engine.test.mjs                # 수식 엔진 70개 검사
-python3 run.py --port 8765 --root . & node tests/e2e.cjs   # 브라우저 E2E 34개 (npm i playwright 필요)
+python3 run.py --port 8765 --root . & node tests/e2e.cjs   # 브라우저 E2E 37개 (npm i playwright 필요)
 node tests/sync.e2e.cjs                   # 서버 동기화 17개 (에이전트↔브라우저, 동시 편집, 다중 창, 되돌리기)
 python3 tests/agent_cli.test.py           # 에이전트 CLI 시나리오 39개 (브라우저 없이, 저장 파일을 openpyxl로 확인)
 python3 tests/structural.test.py          # 행/열 삽입·삭제·정렬·충돌 좌표 변환 20개
+python3 tests/region.test.py              # A1이 아닌 곳에서 시작하는 표(제목·빈 행·합계 행)
 python3 tests/agent_full.test.py          # UI 기능 전부를 에이전트 명령으로 (대응표: docs/agent-coverage.md)
 python3 tests/refs_parity.test.py         # 수식 참조 재작성 JS↔Python 동등성 (무작위 1만 건)
 ```

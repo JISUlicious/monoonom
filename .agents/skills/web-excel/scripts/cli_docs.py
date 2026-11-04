@@ -141,6 +141,9 @@ def cmd_describe(args):
               f"  사용 범위 {sh['used'] or '없음'}  셀 {sh['cells']}  수식 {sh['formulas']}"
               f"{'  틀 고정 ' + sh['freeze'] if sh['freeze'] else ''}{'  필터 ' + sh['autoFilter'] if sh['autoFilter'] else ''}"
               f"{'  병합 ' + str(sh['merges']) if sh['merges'] else ''}")
+        for t in sh.get("tables", [])[:5]:
+            print(f"  표 {t['range']}: 머리글 행 {t['headerRow']}" + (f", 합계 행 {t['totalRows']}" if t.get("totalRows") else "")
+                  + "  [" + " | ".join(fmt_cell(v) for v in t["header"][:12]) + "]")
         if sh.get("header") is not None:
             print(f"  머리글(행 {sh['headerRow']}): " + " | ".join(fmt_cell(v) for v in sh["header"]))
             print("  열 유형: " + ", ".join(f"{k}={v}" for k, v in sh["columnTypes"].items()))
