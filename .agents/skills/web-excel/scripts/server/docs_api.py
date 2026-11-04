@@ -91,7 +91,8 @@ def r_ops(h, m, q, body):
         raise ApiError(400, "ops는 배열이어야 합니다.")
     v = doc.apply(ops, actor=body.get("actor", "user"), client_id=body.get("clientId"),
                   batch_id=body.get("batchId"), label=body.get("label", ""),
-                  base_version=body.get("baseVersion"), structural=bool(body.get("structural")))
+                  base_version=body.get("baseVersion"), structural=bool(body.get("structural")),
+                  shifts=body.get("shifts"), transformable=body.get("transformable"))
     return {"version": v}
 
 
@@ -183,7 +184,9 @@ def r_undo(h, m, q, body):
         if later and not body.get("force"):
             raise ApiError(409, f"이 변경 이후 같은 셀/시트를 {len(later)}번 더 바꿨습니다. 그래도 되돌리려면 force가 필요합니다.")
         v = doc.apply(entry["undo"], actor=body.get("actor", "agent"), label=f"되돌리기: {entry['label']}",
-                      structural=entry["structural"])
+                      structural=entry["structural"],
+                      shifts=[{**x, "count": -x["count"]} for x in reversed(entry.get("shifts", []))],
+                      transformable=entry.get("transformable"))
     return {"version": v}
 
 

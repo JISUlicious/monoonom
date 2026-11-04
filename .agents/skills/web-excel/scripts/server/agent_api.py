@@ -17,7 +17,7 @@ import time
 from . import a1 as A
 from .app import SKILL_DIR, ApiError, route
 from .docs_api import REGISTRY, _doc, _wrap
-from .formula_compat import _STR_OR_SHEET
+from . import refs
 from .session import new_id
 
 STYLE_KEYS = {"b", "i", "u", "st", "fs", "ff", "fc", "bg", "ha", "va", "wrap", "ind", "rot", "nf",
@@ -116,29 +116,14 @@ def parse_value(x, parse=True):
     return {"v": s}, None
 
 
-_REF = re.compile(r"(?<![A-Za-z0-9_.$À-￿])(\$?)([A-Za-z]{1,3})(\$?)(\d+)(?![A-Za-z0-9_(À-￿])")
-
-
 def translate(formula: str, dr: int, dc: int) -> str:
-    """Shift relative A1 references (copy/fill semantics). Strings and quoted sheet names are kept."""
-    if not dr and not dc:
-        return formula
+    """Copy/fill semantics (same rewriter as the browser, see refs.py)."""
+    return refs.translate(formula, dr, dc)
 
-    def shift(m):
-        cabs, col, rabs, row = m.groups()
-        c, r = A.col_index(col), int(row) - 1
-        if c >= A.MAX_COLS:
-            return m.group(0)
-        if not cabs:
-            c += dc
-        if not rabs:
-            r += dr
-        if c < 0 or r < 0:
-            return "#REF!"
-        return f"{cabs}{A.col_name(c)}{rabs}{r + 1}"
 
-    parts = _STR_OR_SHEET.split(formula)
-    return "".join(p if i % 2 else _REF.sub(shift, p) for i, p in enumerate(parts))
+def rename_in_formula(formula, old, new):
+    lc = old.lower()
+    return refs.rewrite_refs(formula, lambda r: {**r, "sheet": new} if r["sheet"] is not None and r["sheet"].lower() == lc else r)
 
 
 def merged_style(cur, patch=None, unset=()):
@@ -408,7 +393,7 @@ def build_ops(doc, edits):
             for other in doc.sheets:
                 for (r, c), cell in other["cells"].items():
                     if cell.get("f") and old.lower() in cell["f"].lower():
-                        nf = A.rename_sheet_in_formula(cell["f"], old, name)
+                        nf = rename_in_formula(cell["f"], old, name)
                         if nf != cell["f"]:
                             c2 = dict(cur(other, r, c) or cell)
                             c2["f"] = nf
@@ -420,10 +405,10 @@ def build_ops(doc, edits):
                         for s in ch.get("series", []):
                             for k in ("val", "cat", "nameRef"):
                                 if s.get(k):
-                                    s[k] = A.rename_sheet_in_formula("=" + s[k], old, name)[1:]
+                                    s[k] = rename_in_formula("=" + s[k], old, name)[1:]
                         ch["dirty"] = True
                     meta[other["id"]]["charts"] = new
-            names = {k: A.rename_sheet_in_formula(v if v.startswith("=") else "=" + v, old, name).lstrip("=")
+            names = {k: rename_in_formula(v if v.startswith("=") else "=" + v, old, name).lstrip("=")
                      for k, v in doc.defined_names.items()}
             ops.append({"op": "setWorkbook", "props": {"definedNames": names}})
             structural = True
@@ -531,21 +516,263 @@ def chart_from_range(doc, sh, g, e, pending=None):
             "anchor": {"c": ac, "r": ar, "dx": 0, "dy": 0, "w": int(e.get("width", 480)), "h": int(e.get("height", 288))}}
 
 
+# ------------------------------------------------------------------ structural edits (P3)
+
+STRUCTURAL = {"insertRows", "deleteRows", "insertCols", "deleteCols", "sort"}
+
+
+def _axis_pos(spec, axis):
+    """'5' / 5 (1-based row) or 'C' (column) -> 0-based index; '5:7' / 'C:D' -> (start, count)."""
+    t = str(spec).strip().replace("$", "")
+    a, _, b = t.partition(":")
+    conv = (lambda x: int(x) - 1) if axis == "row" else (lambda x: A.col_index(x) if x.isalpha() else int(x) - 1)
+    try:
+        lo = conv(a)
+        hi = conv(b) if b else lo
+    except ValueError:
+        raise ApiError(400, f"{'행' if axis == 'row' else '열'} 위치가 잘못되었습니다: {spec}")
+    if lo < 0 or hi < lo:
+        raise ApiError(400, f"잘못된 위치: {spec}")
+    return lo, hi - lo + 1
+
+
+def shift_ops(doc, sh, axis, at, count):
+    """State ops for inserting (count>0) / deleting (count<0) rows/cols, mirroring Workbook.shift()."""
+    is_row = axis == "row"
+    k = 0 if is_row else 1
+    target = sh["name"]
+    new_cells = {}
+    for (r, c), cell in sh["cells"].items():
+        p = (r, c)[k]
+        if p < at:
+            new_cells[(r, c)] = cell
+            continue
+        if count < 0 and p < at - count:
+            continue  # deleted
+        np_ = p + count
+        if np_ >= (A.MAX_ROWS if is_row else A.MAX_COLS):
+            continue
+        new_cells[(np_, c) if is_row else (r, np_)] = cell
+    ops = []
+    # formulas everywhere (including moved cells) follow the shift
+    for other in doc.sheets:
+        cells = new_cells if other is sh else other["cells"]
+        changed = {}
+        for key, cell in cells.items():
+            if cell.get("f"):
+                nf = refs.adjust(cell["f"], other["name"], target, axis, at, count)
+                if nf != cell["f"]:
+                    changed[key] = dict(cell, f=nf)
+        if other is sh:
+            new_cells.update(changed)
+            old_keys = set(sh["cells"])
+            out = []
+            for key in old_keys | set(new_cells):
+                before, after = sh["cells"].get(key), new_cells.get(key)
+                if before != after:
+                    out.append([key[0], key[1], after])
+            if out:
+                ops.append({"op": "setCells", "sheet": sh["id"], "cells": sorted(out, key=lambda x: (x[0], x[1]))})
+        elif changed:
+            ops.append({"op": "setCells", "sheet": other["id"], "cells": [[r, c, v] for (r, c), v in sorted(changed.items())]})
+
+    def shift_index(i):
+        if i < at:
+            return i
+        if count > 0:
+            return i + count
+        return i + count if i >= at - count else None
+
+    def shift_range(ref):
+        r1, c1, r2, c2 = A.parse_range(ref)
+        lo, hi = (r1, r2) if is_row else (c1, c2)
+        if count > 0:
+            lo = lo + count if lo >= at else lo
+            hi = hi + count if hi >= at else hi
+        else:
+            end = at - count - 1
+            if lo >= at and hi <= end:
+                return None
+            lo = lo + count if lo > end else (at if lo >= at else lo)
+            hi = hi + count if hi > end else (at - 1 if hi >= at else hi)
+            if hi < lo:
+                return None
+        return A.range_a1(lo, c1, hi, c2) if is_row else A.range_a1(r1, lo, r2, hi)
+
+    meta = {}
+    dims_key = "rows" if is_row else "cols"
+    dims = {}
+    for key, e in sh[dims_key].items():
+        ni = shift_index(int(key))
+        if ni is not None:
+            dims[str(ni)] = e
+    meta[dims_key] = dims
+    if is_row:
+        meta["filterHidden"] = sorted(x for x in (shift_index(r) for r in sh["filterHidden"]) if x is not None)
+    merges = []
+    for mref in sh["merges"]:
+        nr = shift_range(mref)
+        if nr and ":" in nr:
+            merges.append(nr)
+    meta["merges"] = merges
+    af = sh.get("autoFilter")
+    if af and af.get("ref"):
+        nr = shift_range(af["ref"])
+        meta["autoFilter"] = {**af, "ref": nr} if nr else None
+        if not nr:
+            meta["filterHidden"] = []
+    charts = copy.deepcopy(sh["charts"])
+    for ch in charts:
+        p = "r" if is_row else "c"
+        if ch["anchor"].get(p, 0) >= at:
+            ch["anchor"][p] = max(at, ch["anchor"][p] + count)
+    meta["charts"] = charts
+    for other in doc.sheets:  # chart series referencing the shifted sheet (any sheet)
+        chs = charts if other is sh else copy.deepcopy(other["charts"])
+        touched = False
+        for ch in chs:
+            for se in ch.get("series", []):
+                for key in ("val", "cat", "nameRef"):
+                    if se.get(key):
+                        n = refs.adjust("=" + se[key], other["name"], target, axis, at, count)[1:]
+                        if n != se[key]:
+                            se[key], ch["dirty"], touched = n, True, True
+        if other is not sh and touched:
+            ops.append({"op": "setSheetMeta", "sheet": other["id"], "meta": {"charts": chs}})
+    ops.append({"op": "setSheetMeta", "sheet": sh["id"], "meta": meta})
+    names = {n: refs.adjust("=" + v.lstrip("="), target, target, axis, at, count)[1:] if "!" in v else v
+             for n, v in doc.defined_names.items()}
+    if names != doc.defined_names:
+        ops.append({"op": "setWorkbook", "props": {"definedNames": names}})
+    return ops
+
+
+_RANK = lambda v: 4 if v is None or v == "" else 0 if isinstance(v, (int, float)) and not isinstance(v, bool) else 1 if isinstance(v, str) else 2 if isinstance(v, bool) else 3
+
+
+def sort_ops(doc, sh, g, keys, header):
+    """Sort rows of a range like the UI (visible rows only, blanks last, formulas follow their row)."""
+    r1, c1, r2, c2 = clamp(sh, g)
+    if header is None:
+        top = [cell_value(doc, sh, r1, c, sh["cells"].get((r1, c)) or {}) for c in range(c1, c2 + 1)]
+        nxt = [cell_value(doc, sh, r1 + 1, c, sh["cells"].get((r1 + 1, c)) or {}) for c in range(c1, c2 + 1)]
+        header = any(isinstance(v, str) for v in top) and (any(isinstance(v, (int, float)) and not isinstance(v, bool) for v in nxt) or all(isinstance(v, str) for v in top))
+    start = r1 + (1 if header else 0)
+    hidden = set(sh["filterHidden"])
+    rows = [r for r in range(start, r2 + 1) if r not in hidden]
+
+    def sort_key(r):
+        out = []
+        for kc, asc in keys:
+            v = cell_value(doc, sh, r, kc, sh["cells"].get((r, kc)) or {})
+            rank = _RANK(v)
+            if rank == 4:
+                out.append((1, 0, 0))  # blanks last in both directions
+                continue
+            val = v.casefold() if isinstance(v, str) else (float(v) if rank in (0, 2) else str(v))
+            out.append((0, rank if asc else -rank, val if asc else _Neg(val)))
+        return out + [r]
+
+    order = sorted(rows, key=sort_key)
+    cells = []
+    for dst, src in zip(rows, order):
+        for c in range(c1, c2 + 1):
+            cell = sh["cells"].get((src, c))
+            if cell and cell.get("f") and dst != src:
+                cell = dict(cell, f=refs.translate(cell["f"], dst - src, 0))
+            if sh["cells"].get((dst, c)) != cell:
+                cells.append([dst, c, cell])
+    return ([{"op": "setCells", "sheet": sh["id"], "cells": cells}] if cells else []), header, A.range_a1(start, c1, r2, c2)
+
+
+class _Neg:
+    """Reverses ordering for descending sort keys of any comparable type."""
+    __slots__ = ("v",)
+
+    def __init__(self, v):
+        self.v = v
+
+    def __lt__(self, o):
+        return o.v < self.v
+
+    def __eq__(self, o):
+        return self.v == o.v
+
+
+def structural_batch(doc, e):
+    """One structural edit -> (ops, shifts, transformable, summary)."""
+    kind = e["op"]
+    sheet = e.get("sheet")
+    if kind == "sort":
+        sh, g = resolve(doc, e.get("range"), sheet)
+        keys = []
+        for k in e.get("by") or []:
+            if isinstance(k, str):
+                col, _, d = k.partition(":")
+                k = {"col": col, "asc": d.lower() not in ("desc", "d", "내림차순")}
+            col = k["col"]
+            keys.append((A.col_index(col) if str(col).isalpha() else int(col) - 1, bool(k.get("asc", True))))
+        if not keys:
+            raise ApiError(400, "정렬 기준(by)이 필요합니다. 예: [\"C:desc\"]")
+        ops, header, rng = sort_ops(doc, sh, g, keys, e.get("header"))
+        return ops, [], False, f"{sh['name']}!{rng} 정렬({', '.join(A.col_name(c) + ('↑' if a else '↓') for c, a in keys)})" + (" 머리글 제외" if header else "")
+    axis = "row" if kind.endswith("Rows") else "col"
+    sh = doc.sheet(sheet) if sheet else doc.sheets[doc.active_sheet]
+    if "range" in e and "!" in str(e["range"]):
+        sname, rest = A.split_sheet(e["range"])
+        sh, e = doc.sheet(sname), {**e, "at": rest}
+    at, n = _axis_pos(e.get("at", e.get("range")), axis)
+    count = int(e.get("count", n))
+    if count <= 0:
+        raise ApiError(400, "count는 1 이상이어야 합니다.")
+    if count > (5000 if axis == "col" else 100000):
+        raise ApiError(400, "한 번에 삽입/삭제할 수 있는 개수를 넘었습니다.")
+    signed = count if kind.startswith("insert") else -count
+    ops = shift_ops(doc, sh, axis, at, signed)
+    what = f"{at + 1}" if axis == "row" else A.col_name(at)
+    label = f"{sh['name']} {'행' if axis == 'row' else '열'} {what}{'부터 ' + str(count) + '개' if count > 1 else ''} {'삽입' if signed > 0 else '삭제'}"
+    return ops, [{"sheet": sh["id"], "axis": axis, "at": at, "count": signed}], True, label
+
+
 @route("POST", r"/api/docs/([\w-]+)/edit")
 @_wrap
 def r_edit(h, m, q, body):
+    """Apply agent edits. Consecutive non-structural edits form one batch; each row/column insert/delete
+    or sort is its own batch (it changes coordinates the following edits refer to)."""
     doc = _doc(m)
     edits = body.get("edits") or body.get("ops") or []
     if isinstance(edits, dict):
         edits = [edits]
+    groups, cur = [], []
+    for e in edits:
+        if e.get("op") in STRUCTURAL:
+            if cur:
+                groups.append(cur)
+                cur = []
+            groups.append([e])
+        else:
+            cur.append(e)
+    if cur:
+        groups.append(cur)
+    results = []
     with doc.lock:
-        ops, structural, summary = build_ops(doc, edits)
-        if not ops:
-            return {"version": doc.version, "summary": []}
-        batch = body.get("batchId") or new_id("b")
-        v = doc.apply(ops, actor="agent", client_id=body.get("clientId", "agent-cli"), batch_id=batch,
-                      label=body.get("label") or "; ".join(summary)[:120], structural=structural)
-    return {"version": v, "batchId": batch, "summary": summary}
+        for gi, group in enumerate(groups):
+            batch = (body.get("batchId") if len(groups) == 1 else None) or new_id("b")
+            if group[0].get("op") in STRUCTURAL:
+                ops, shifts, transformable, label = structural_batch(doc, group[0])
+                summary, structural = [label], True
+            else:
+                ops, structural, summary = build_ops(doc, group)
+                shifts, transformable = [], True
+            if not ops:
+                results.append({"version": doc.version, "batchId": None, "summary": summary or []})
+                continue
+            v = doc.apply(ops, actor="agent", client_id=body.get("clientId", "agent-cli"), batch_id=batch,
+                          label=(body.get("label") if len(groups) == 1 else None) or "; ".join(summary)[:120],
+                          structural=structural, shifts=shifts, transformable=transformable)
+            results.append({"version": v, "batchId": batch, "summary": summary})
+    last = results[-1] if results else {"version": doc.version, "batchId": None, "summary": []}
+    return {**last, "batches": results, "summary": [x for r in results for x in r["summary"]]}
 
 
 # ------------------------------------------------------------------ reads

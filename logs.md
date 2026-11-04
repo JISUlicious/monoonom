@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-04: Skill P3 구현 — 수식 참조 재작성 Python 이식(JS와 1만 건 동등성 확인), 에이전트 행/열 삽입·삭제·정렬, 동시 편집 시 셀 편집 좌표 변환 (→ docs/skill-implementation.md)
 - 2026-11-04: 고해상도 화면에서 차트가 상자의 1/4 크기로 그려지던 버그 수정, 에이전트 편집 중 미리보기 화면 캡처 추가 (→ docs/skill-implementation.md)
 - 2026-11-04: Skill P2 구현 — 에이전트 CLI(열기·요약·읽기·쓰기·채우기·서식·차트·시트·일괄 적용·변경 이력·되돌리기·저장), Node 계산, SKILL.md 완성, 참조 문서 (→ docs/skill-implementation.md)
 - 2026-11-04: Skill P1 구현 — 서버가 문서를 소유(op·버전·로그), 창당 SSE 스트림, 브라우저 낙관적 적용·대기 추적, 계산값 보고, 저장 백업·디스크 변경 감지, batch 되돌리기 (→ docs/skill-implementation.md)

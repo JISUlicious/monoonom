@@ -1,6 +1,8 @@
 # Batch edit format (`xl.py apply`)
 
-A JSON array of edits, applied in order as one batch (one undo):
+A JSON array of edits, applied in order. Consecutive edits form one batch (one undo); each
+`insertRows`/`deleteRows`/`insertCols`/`deleteCols`/`sort` is its own batch because it moves the
+coordinates the following edits refer to (write later edits in post-insert coordinates).
 
 ```json
 [
@@ -24,6 +26,9 @@ A JSON array of edits, applied in order as one batch (one undo):
 | `filter` | `range` (`null` to remove), `sheet` |
 | `chart` | `data`, `type`, `title`, `at`, `sheet`, `legend`, `width`, `height`, `xTitle`, `yTitle`, `byRows` |
 | `deleteChart` | `sheet`, `id` or `index` |
+| `insertRows` / `deleteRows` | `sheet`, `at` (`"5"` or `"5:7"`), `count` |
+| `insertCols` / `deleteCols` | `sheet`, `at` (`"C"` or `"C:D"`), `count` |
+| `sort` | `range`, `by` (`["C:desc", "A"]` or `[{"col": "C", "asc": false}]`), `header` (true/false; detected if omitted) |
 | `addSheet` | `name`, `at` |
 | `renameSheet` | `sheet`, `name` |
 | `deleteSheet` | `sheet` |

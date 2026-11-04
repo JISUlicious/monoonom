@@ -4,7 +4,7 @@
 - Server: serve, status, stop, launch-config
 - Documents: ls, open, new, docs, close, save
 - Reading: describe, read, changes, selection
-- Editing: write, fill, clear, format, merge, unmerge, width, height, hide, unhide, freeze, filter, sheet, chart, apply, undo
+- Editing: write, fill, clear, format, merge, unmerge, width, height, hide, unhide, freeze, filter, rows, cols, sort, sheet, chart, apply, undo
 - Common options and exit codes
 
 Every command accepts `--root DIR` (workspace; default `$WEBEXCEL_ROOT`, `$CLAUDE_PROJECT_DIR` or the
@@ -59,6 +59,9 @@ All edits are one batch per command, applied live and undoable with `undo BATCH`
 | `hide RANGE` / `unhide RANGE` | Columns (`B:C`) or rows (`3:5`). |
 | `freeze CELL\|none [--sheet S]` | `B2` freezes row 1 and column A. |
 | `filter RANGE\|off [--sheet S]` | Turns the autofilter on for a header + data range. |
+| `rows insert AT [--count N] [--sheet S]` / `rows delete 5:7` | Inserts before row AT. Formulas in every sheet, chart ranges, merges, the filter range and hidden rows follow (same rules as Excel and the browser). |
+| `cols insert C [--count N]` / `cols delete C:D` | Same for columns. |
+| `sort RANGE --by COL[:asc\|desc] [--by ...] [--header\|--no-header]` | Header row is detected when omitted; rows hidden by the filter stay put; blanks sort last; formulas move with their row. |
 | `sheet add NAME` / `sheet rename OLD NEW` / `sheet rm NAME` | Rename rewrites formulas, chart ranges and defined names. |
 | `chart add DATA [--type T] [--title] [--at CELL] [--sheet S] [--legend r\|b\|t\|l] [--width PX] [--height PX]` | First row = series names, first text/date column = categories (like Excel). |
 | `chart ls` / `chart rm ID [--sheet S]` | |

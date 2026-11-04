@@ -95,6 +95,17 @@ try:
     check("apply: format covers A1:C1", all((c or {}).get("s", {}).get("b") for c in hdr), str(hdr))
     check("apply: chart uses batch data", "$B$2:$B$3" in xl(ws, "chart", "ls").stdout)
 
+    # P3: structural edits
+    xl(ws, "rows", "insert", "3", "--count", "2", "--sheet", "판매")
+    check("rows insert shifts totals", js(ws, "read", "판매!B10", "--what", "formulas")["rows"] == [["=SUM(B2:B9)"]])
+    check("rows insert updates other sheet", js(ws, "read", "비중!D1", "--what", "formulas")["rows"] == [["=판매!E10"]])
+    xl(ws, "rows", "delete", "3:4", "--sheet", "판매")
+    xl(ws, "sort", "판매!A1:F7", "--by", "B:desc")
+    check("sort desc", js(ws, "read", "판매!A2:B2")["rows"] == [["6월", 191]], str(js(ws, "read", "판매!A2:B2")["rows"]))
+    xl(ws, "cols", "insert", "B", "--sheet", "판매")
+    check("cols insert", js(ws, "read", "판매!C1")["rows"] == [["제품A"]])
+    xl(ws, "cols", "delete", "B", "--sheet", "판매")
+
     ch = js(ws, "changes", "--since", "0")
     check("change log has agent entries", len(ch["changes"]) >= 8 and all(c["actor"] == "agent" for c in ch["changes"]))
 
@@ -102,7 +113,7 @@ try:
     check("save with backup", p.returncode == 0 and "백업" in p.stdout, p.stdout.strip())
     wb = load_workbook(os.path.join(ws, "sales.xlsx"))
     check("saved: sheet names", wb.sheetnames == ["판매", "비중", "요약", "예제"], str(wb.sheetnames))
-    check("saved: formulas", wb["판매"]["G3"].value == "=B3/E3" and wb["비중"]["D1"].value == "=판매!E8")
+    check("saved: formulas", wb["판매"]["G3"].value == "=B3/E3" and wb["비중"]["D1"].value == "=판매!E8", f'{wb["판매"]["G3"].value} {wb["비중"]["D1"].value}')
     check("saved: charts", len(wb["판매"]._charts) == 2)
     check("saved: column width", round(wb["판매"].column_dimensions["A"].width, 1) == 16.0)
     check("saved: date", wb["판매"]["H2"].is_date)

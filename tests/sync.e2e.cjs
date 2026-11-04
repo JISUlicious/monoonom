@@ -80,6 +80,35 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   snap = await agent('GET', `/api/docs/${opened.docId}/snapshot`);
   check('agent batch undo restores value', cellOf(snap, 0, 0)?.v === '월', JSON.stringify(cellOf(snap, 0, 0)));
 
+  // 9) P3: agent row insert appears in the browser with formulas shifted
+  await page.evaluate((id) => window.webExcel.activateDoc(window.webExcel.docs.findIndex((d) => d.wb.docId === id)), opened.docId);
+  const sid2 = (await agent('GET', `/api/docs/${opened.docId}/snapshot`)).sheets[0].id;
+  r = await agent('POST', `/api/docs/${opened.docId}/edit`, { edits: [{ op: 'insertRows', sheet: '매출', at: '3', count: 2 }] });
+  await page.waitForFunction(() => window.webExcel.doc.wb.sheet.get(9, 1)?.f === '=SUM(B2:B9)', null, { timeout: 5000 }).catch(() => {});
+  check('agent insertRows reflected in browser', await page.evaluate(() => window.webExcel.doc.wb.sheet.get(9, 1)?.f) === '=SUM(B2:B9)');
+
+  // 10) user edit in flight while the agent inserts rows above it -> moved on both sides
+  let release;
+  const gate = new Promise((res) => { release = res; });
+  await page.route('**/api/docs/*/ops', async (route) => { await gate; await route.continue(); });
+  await page.evaluate(() => window.webExcel.select(11, 7)); // H12
+  await page.keyboard.type('지연된 입력'); await page.keyboard.press('Enter');
+  await sleep(200);
+  r = await agent('POST', `/api/docs/${opened.docId}/edit`, { edits: [{ op: 'insertRows', sheet: '매출', at: '1' }] });
+  release(); await sleep(1500);
+  await page.unroute('**/api/docs/*/ops');
+  snap = await agent('GET', `/api/docs/${opened.docId}/snapshot`);
+  const srv = snap.sheets[0].cells.find(([rr, cc]) => rr === 12 && cc === 7)?.[2]?.v;
+  const brw = await page.evaluate(() => window.webExcel.doc.wb.sheet.get(12, 7)?.v);
+  const stale = await page.evaluate(() => window.webExcel.doc.wb.sheet.get(11, 7)?.v);
+  check('in-flight user edit transformed through agent insert', srv === '지연된 입력' && brw === '지연된 입력' && stale !== '지연된 입력', `server=${srv} browser=${brw} old=${stale}`);
+
+  // 11) user inserts a row in the browser -> agent reads shifted formulas
+  await page.evaluate(() => { const a = window.webExcel; a.selectRange({ r1: 1, c1: 0, r2: 1, c2: 16383 }); a.insert('row'); });
+  await sleep(800);
+  const rd = await agent('GET', `/api/docs/${opened.docId}/range?ref=${encodeURIComponent('매출!B12')}&what=formulas`);
+  check('browser row insert reaches agent', rd.rows?.[0]?.[0] === '=SUM(B4:B11)', JSON.stringify(rd.rows));
+
   check('no page errors', errors.length === 0, errors.join(' | '));
   await agent('DELETE', `/api/docs/${opened.docId}`, { force: true });
   await browser.close();

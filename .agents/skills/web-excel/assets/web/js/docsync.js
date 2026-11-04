@@ -73,6 +73,7 @@ export class DocSync {
       await api.ops(this.id, {
         ops, batchId, baseVersion: this.version, clientId: this.app.clientId, actor: 'user',
         label: entry.label, structural: !!entry.structural,
+        transformable: entry.structural ? !!entry.transformable : undefined, shifts: entry.shifts?.length ? entry.shifts : undefined,
       });
     } catch (e) {
       this.track(batchId, batch, -1);
@@ -96,8 +97,14 @@ export class DocSync {
     if (ev.clientId && ev.clientId === this.app.clientId) {
       const batch = this.pending.get(ev.batchId);
       if (batch) this.track(ev.batchId, batch, -1);
+      // the server moved our edit through someone else's row/column insert/delete
+      if (ev.transformed) this.needResync = true;
+      this.maybeResync();
       return;
     }
+    // a remote structural change while our edits are in flight: our local cells are at old
+    // coordinates; once our echoes are back, reload the (correct) server state quietly
+    if (ev.structural && this.pending.size) this.needResync = true;
     const wb = this.doc.wb;
     for (const op of ev.ops) if (op.op === 'sheets') for (const id of op.order) this.known.add(id);
     const skip = (kind, sid, k) => (kind === 'cell' ? this.pendCells.has(`${sid}:${k}`) : kind === 'meta' ? this.pendMeta.has(sid) : this.pendStruct > 0);
@@ -105,6 +112,13 @@ export class DocSync {
     if (ev.actor !== 'system') wb.dirty = true;
     this.app.onRemoteChange(this.doc, ev, boxes);
     this.scheduleCalc();
+  }
+
+  maybeResync() {
+    if (!this.needResync || this.pending.size) return;
+    if (this.app.editor?.active && this.app.doc === this.doc) { setTimeout(() => this.maybeResync(), 500); return; }
+    this.needResync = false;
+    this.resync(null);
   }
 
   onSaved(info) {

@@ -58,9 +58,15 @@ without clients. Use `xl.py stop` only on request (it refuses while there are un
 | Format | `xl.py format A1:F1 b=true bg=#DDEBF7 ha=center nf='#,##0' --border outline` |
 | Column width / row height | `xl.py width A:C 14` (characters), `xl.py height 1 24` (points) |
 | Merge / freeze / filter | `xl.py merge A1:F1`, `xl.py freeze B2`, `xl.py filter A1:F50` (`off`) |
+| Insert / delete rows, columns | `xl.py rows insert 5 --count 2`, `rows delete 5:7`, `cols insert C`, `cols delete C:D` |
+| Sort | `xl.py sort A1:F50 --by C:desc --by A` (header row detected; `--header`/`--no-header`) |
 | Sheets | `xl.py sheet add 요약`, `sheet rename Old New` (formulas follow), `sheet rm Name` |
 | Charts | `xl.py chart add 'A1:C13' --type line --title 'Monthly' --at H2`, `chart ls`, `chart rm ID` |
 | History / undo | `xl.py changes --since 0`, `xl.py undo BATCH` |
+
+Row/column inserts, deletes and sorts move formulas, chart ranges, merges and the filter range just
+like Excel, everywhere in the workbook. If the user edits cells at the same moment, their edits are
+moved to the shifted position automatically.
 
 Values are interpreted like typing into Excel: `=` starts a formula, `2026-03-15` becomes a date,
 `15%` a percentage, `1,234` a number, `'007` stays text. Pass `--raw` to keep strings as text.

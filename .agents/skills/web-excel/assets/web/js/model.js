@@ -110,7 +110,7 @@ export class Workbook {
   // ------------------------------------------------------------ transactions
   begin(label) {
     if (this.txn) { this.txn.depth++; return; }
-    this.txn = { label, depth: 1, cells: new Map(), meta: new Map(), structure: null, structural: false };
+    this.txn = { label, depth: 1, cells: new Map(), meta: new Map(), structure: null, structural: false, transformable: true, shifts: [] };
   }
   _rec(sheet) {
     let m = this.txn.cells.get(sheet);
@@ -149,7 +149,12 @@ export class Workbook {
     sheet._geomVersion++;
   }
   /** mark the open transaction as moving coordinates (row/col shift, sort, sheet rename) */
-  markStructural() { if (this.txn) this.txn.structural = true; }
+  markStructural(transformable = false, shift = null) {
+    if (!this.txn) return;
+    this.txn.structural = true;
+    if (!transformable) this.txn.transformable = false;
+    if (shift) this.txn.shifts.push(shift);
+  }
   touchStructure() {
     if (!this.txn.structure) this.txn.structure = { sheets: [...this.sheets], active: this.active };
   }
@@ -158,7 +163,8 @@ export class Workbook {
     if (!t) return;
     if (--t.depth > 0) return;
     this.txn = null;
-    const entry = { label: t.label, cells: [], meta: [], structure: null, structural: t.structural || !!t.structure };
+    const entry = { label: t.label, cells: [], meta: [], structure: null, structural: t.structural || !!t.structure,
+      transformable: t.transformable && (t.structural || !t.structure), shifts: t.shifts };
     for (const [sheet, m] of t.cells) for (const [k, before] of m) {
       const after = cloneCell(sheet.cells.get(k));
       if (JSON.stringify(before) !== JSON.stringify(after)) entry.cells.push({ sheet, k, before, after });
@@ -230,6 +236,7 @@ export class Workbook {
   // ------------------------------------------------------------ sheet operations
   addSheet(name, at = this.sheets.length) {
     this.begin('시트 추가');
+    this.markStructural(true);
     this.touchStructure();
     const s = new Sheet(name || this.uniqueSheetName());
     this.sheets.splice(at, 0, s);
@@ -240,6 +247,7 @@ export class Workbook {
   deleteSheet(idx) {
     if (this.sheets.length <= 1) return false;
     this.begin('시트 삭제');
+    this.markStructural(false);
     this.touchStructure();
     this.sheets.splice(idx, 1);
     this.active = Math.max(0, Math.min(this.active, this.sheets.length - 1));
@@ -254,7 +262,7 @@ export class Workbook {
     const old = sh.name;
     if (old === name) return;
     this.begin('시트 이름 바꾸기');
-    this.markStructural();
+    this.markStructural(true);
     this.touchMeta(sh);
     sh.name = name;
     // update references in every formula and chart
@@ -278,6 +286,7 @@ export class Workbook {
   moveSheet(from, to) {
     if (to < 0 || to >= this.sheets.length || from === to) return;
     this.begin('시트 이동');
+    this.markStructural(true);
     this.touchStructure();
     const [s] = this.sheets.splice(from, 1);
     this.sheets.splice(to, 0, s);
@@ -287,6 +296,7 @@ export class Workbook {
   duplicateSheet(idx) {
     const src = this.sheets[idx];
     this.begin('시트 복사');
+    this.markStructural(true);
     this.touchStructure();
     const s = new Sheet(this.uniqueSheetName(src.name));
     s.applyMeta({ ...src.metaSnapshot(), name: s.name });
@@ -303,7 +313,7 @@ export class Workbook {
   /** Insert (count>0) or delete (count<0) rows or columns at `at` on `sheet`. */
   shift(sheet, axis, at, count) {
     this.begin(count > 0 ? (axis === 'row' ? '행 삽입' : '열 삽입') : (axis === 'row' ? '행 삭제' : '열 삭제'));
-    this.markStructural();
+    this.markStructural(true, { sheet: sheet.id, axis, at, count });
     this.touchMeta(sheet);
     const isRow = axis === 'row';
     const moved = [];

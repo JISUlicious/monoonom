@@ -279,6 +279,22 @@ def cmd_chart(args):
     return 0
 
 
+def cmd_rows_cols(args):
+    axis = "Rows" if args.cmd == "rows" else "Cols"
+    op = ("insert" if args.action == "insert" else "delete") + axis
+    e = {"op": op, "at": args.at, "sheet": args.sheet}
+    if args.count:
+        e["count"] = args.count
+    return edit(args, [{k: v for k, v in e.items() if v is not None}])
+
+
+def cmd_sort(args):
+    e = {"op": "sort", "range": args.range, "by": args.by or []}
+    if args.header is not None:
+        e["header"] = args.header
+    return edit(args, [e])
+
+
 def cmd_apply(args):
     text = sys.stdin.read() if args.file == "-" else _read_text(args, args.file)
     edits = json.loads(text)
@@ -381,6 +397,13 @@ def register(sub):
     p.add_argument("--type", default="bar", help="bar, barH, barStacked, line, area, pie, doughnut, scatter, radar")
     p.add_argument("--title"); p.add_argument("--at", help="왼쪽 위 셀"); p.add_argument("--sheet"); p.add_argument("--legend")
     p.add_argument("--width", type=int); p.add_argument("--height", type=int)
+    for name in ("rows", "cols"):
+        p = add(name, cmd_rows_cols, "행 삽입/삭제 (예: rows insert 5 --count 2, rows delete 5:7)" if name == "rows" else "열 삽입/삭제 (예: cols insert C, cols delete C:D)")
+        p.add_argument("action", choices=["insert", "delete"]); p.add_argument("at", help="5 / 5:7" if name == "rows" else "C / C:D")
+        p.add_argument("--count", type=int); p.add_argument("--sheet")
+    p = add("sort", cmd_sort, "범위 정렬 (예: sort A1:F50 --by C:desc --by A)"); p.add_argument("range")
+    p.add_argument("--by", action="append", help="열[:asc|desc], 여러 번 가능"); p.add_argument("--header", dest="header", action="store_true", default=None)
+    p.add_argument("--no-header", dest="header", action="store_false")
     p = add("apply", cmd_apply, "편집 목록(JSON 파일/-)을 한 번에 적용"); p.add_argument("file"); p.add_argument("--label")
     p = add("changes", cmd_changes, "변경 이력(사용자/에이전트)"); p.add_argument("--since", type=int, default=0); p.add_argument("--actor", choices=["user", "agent"])
     add("selection", cmd_selection, "사용자가 미리보기에서 선택 중인 범위")

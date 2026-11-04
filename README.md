@@ -27,6 +27,8 @@ python3 $XL read '매출!A1:F20'           # 필요한 범위만 (날짜는 YYYY
 python3 $XL fill 'G2:G7' '=E2*0.3'      # 수식 채우기(상대 참조 이동)
 python3 $XL format G1:G7 b=true nf='#,##0' --border outline
 python3 $XL chart add A1:D7 --type line --title 추이 --at H20
+python3 $XL rows insert 5 --count 2     # 행 삽입 (수식·차트·필터 범위가 따라 이동)
+python3 $XL sort A1:F50 --by C:desc     # 정렬
 python3 $XL changes --since 0 --actor user   # 사용자가 미리보기에서 바꾼 것
 python3 $XL undo BATCH                  # 에이전트 변경 되돌리기
 python3 $XL save                        # 저장(이전 파일은 .web-excel/backups/)
@@ -82,7 +84,8 @@ API는 토큰이 필요합니다: CLI는 `X-WebExcel-Token` 헤더, 브라우저
       session.py                   서버 문서 세션: op 적용·버전·로그·충돌 규칙·되돌리기
       docs_api.py                  /api/docs·/api/stream(SSE)·저장(백업·디스크 변경 감지)
       agent_api.py                 에이전트 편집(/edit → op 변환)·읽기(/range, /describe, /changes, /selection)·계산 최신화
-      a1.py                        A1 참조·시트 이름 변경 시 수식 재작성
+      a1.py                        A1 참조 유틸
+      refs.py                      수식 참조 재작성(브라우저 formula.js 이식: 채우기·행/열 이동·시트 이름)
       xlsx_io.py / xls_io.py       openpyxl·xlrd/xlwt ↔ JSON 모델
       colors.py, units.py, formula_compat.py
   assets/web/                      브라우저 UI
@@ -98,7 +101,8 @@ API는 토큰이 필요합니다: CLI는 `X-WebExcel-Token` 헤더, 브라우저
 .claude/skills/web-excel -> ../../.agents/skills/web-excel
 run.py                             개발용 포그라운드 실행
 tools/build_claude_code_skill.py   SKILL.md에서 SKILL.claude-code.md 생성
-tests/                             make_samples.py, test_roundtrip.py, engine.test.mjs, e2e.cjs, sync.e2e.cjs, agent_cli.test.py
+tests/                             make_samples.py, test_roundtrip.py, engine.test.mjs, e2e.cjs, sync.e2e.cjs, agent_cli.test.py,
+                                   structural.test.py, refs_parity.test.py(+.mjs)
 docs/                              project-setup.md, skill-spec.md, skill-implementation.md
 ```
 
@@ -117,8 +121,10 @@ docs/                              project-setup.md, skill-spec.md, skill-implem
 python -m unittest tests.test_roundtrip   # Python 읽기/쓰기 왕복 (xlsx 패치, 차트, xls, _xlfn)
 node tests/engine.test.mjs                # 수식 엔진 70개 검사
 python3 run.py --port 8765 --root . & node tests/e2e.cjs   # 브라우저 E2E 34개 (npm i playwright 필요)
-node tests/sync.e2e.cjs                   # 서버 동기화 11개 (에이전트↔브라우저, 동시 편집, 다중 창, 되돌리기)
-python3 tests/agent_cli.test.py           # 에이전트 CLI 시나리오 34개 (브라우저 없이, 저장 파일을 openpyxl로 확인)
+node tests/sync.e2e.cjs                   # 서버 동기화 14개 (에이전트↔브라우저, 동시 편집, 다중 창, 되돌리기)
+python3 tests/agent_cli.test.py           # 에이전트 CLI 시나리오 39개 (브라우저 없이, 저장 파일을 openpyxl로 확인)
+python3 tests/structural.test.py          # 행/열 삽입·삭제·정렬·충돌 좌표 변환 20개
+python3 tests/refs_parity.test.py         # 수식 참조 재작성 JS↔Python 동등성 (무작위 1만 건)
 ```
 
 ## 알려진 제한

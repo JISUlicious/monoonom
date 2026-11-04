@@ -220,27 +220,79 @@ class DocSession:
 
     # ------------------------------------------------------------ ops
     def apply(self, ops, *, actor="user", client_id=None, batch_id=None, label="",
-              base_version=None, structural=False) -> int:
+              base_version=None, structural=False, shifts=None, transformable=None) -> int:
+        """Apply a batch. A stale batch (base_version < version) is:
+        - rejected (409) if it is itself structural and others changed the document meanwhile;
+        - transformed through intervening row/column shifts if it only sets cells (P3);
+        - rejected if an intervening structural change cannot be transformed (sort, sheet delete)
+          or the batch replaces sheet properties of a shifted sheet."""
         with self.lock:
-            if base_version is not None and base_version < self.version:
-                since = [e for e in self.log if e["v"] > base_version and e["clientId"] != client_id]
-                if since and (structural or any(e["structural"] for e in since)):
-                    raise SessionError(409, "다른 클라이언트가 문서 구조를 바꿨습니다. 최신 상태로 다시 불러오세요.",
-                                       currentVersion=self.version, reason="structural-conflict")
             if self.version and self.log and base_version is not None and base_version < self.log[0]["v"] - 1:
                 raise SessionError(409, "변경 기록이 너무 오래되었습니다. 다시 불러오세요.",
                                    currentVersion=self.version, reason="log-truncated")
+            transformed = False
+            if base_version is not None and base_version < self.version:
+                since = [e for e in self.log if e["v"] > base_version and e["clientId"] != client_id]
+                struct = [e for e in since if e["structural"]]
+                if since and structural:
+                    raise SessionError(409, "다른 클라이언트가 그 사이 문서를 바꿨습니다. 최신 상태로 다시 불러오세요.",
+                                       currentVersion=self.version, reason="structural-conflict")
+                if struct:
+                    if any(not e.get("transformable") for e in struct):
+                        raise SessionError(409, "다른 클라이언트가 정렬·시트 삭제 등으로 위치를 바꿨습니다. 최신 상태로 다시 불러오세요.",
+                                           currentVersion=self.version, reason="structural-conflict")
+                    shifted = {sh["sheet"] for e in struct for sh in e.get("shifts", [])}
+                    if any(op.get("op") in ("setSheetMeta", "sheets") and op.get("sheet") in shifted | {None} for op in ops
+                           if op.get("op") != "setWorkbook"):
+                        raise SessionError(409, "다른 클라이언트가 행/열을 삽입·삭제한 시트의 속성을 바꾸려 했습니다. 다시 불러오세요.",
+                                           currentVersion=self.version, reason="structural-conflict")
+                    for e in struct:
+                        for sh in e.get("shifts", []):
+                            ops = self._transform(ops, sh)
+                    transformed = True
             undo = self._snapshot_for(ops)
             for op in ops:
                 self._apply_one(op)
             self.version += 1
             entry = {"v": self.version, "actor": actor, "clientId": client_id,
                      "batchId": batch_id or new_id("b"), "label": label, "ops": ops,
-                     "structural": bool(structural), "ts": time.time(), "undo": undo}
+                     "structural": bool(structural), "ts": time.time(), "undo": undo,
+                     "shifts": list(shifts or []), "transformable": bool(transformable) if transformable is not None else False,
+                     "transformed": transformed}
             self.log.append(entry)
             self.dirty = True
-            self.hub.publish("ops", {"docId": self.id, **{k: entry[k] for k in ("v", "actor", "clientId", "batchId", "label", "ops", "structural")}})
+            self.hub.publish("ops", {"docId": self.id, **{k: entry[k] for k in ("v", "actor", "clientId", "batchId", "label", "ops", "structural", "transformed")}})
             return self.version
+
+    def _transform(self, ops, shift):
+        """Move a stale batch's cells (and their formulas) through one row/column insert/delete."""
+        from . import refs
+        target = self.sheet(shift["sheet"])
+        axis, at, count = shift["axis"], shift["at"], shift["count"]
+        k = 0 if axis == "row" else 1
+        out = []
+        for op in ops:
+            if op.get("op") != "setCells":
+                out.append(op)
+                continue
+            try:
+                here = self.sheet(op["sheet"])["name"]
+            except SessionError:
+                here = None
+            cells = []
+            for r, c, cell in op["cells"]:
+                if op["sheet"] == target["id"]:
+                    p = (r, c)[k]
+                    if p >= at:
+                        if count < 0 and p < at - count:
+                            continue  # the row/column it was written to no longer exists
+                        p += count
+                        r, c = (p, c) if k == 0 else (r, p)
+                if cell and cell.get("f") and here:
+                    cell = dict(cell, f=refs.adjust(cell["f"], here, target["name"], axis, at, count))
+                cells.append([r, c, cell])
+            out.append({**op, "cells": cells})
+        return out
 
     def _snapshot_for(self, ops):
         """Inverse ops (previous state) so an agent batch can be undone later."""
@@ -313,7 +365,7 @@ class DocSession:
         with self.lock:
             if self.log and since < self.log[0]["v"] - 1:
                 return None  # caller must resync
-            return [{"docId": self.id, **{k: e[k] for k in ("v", "actor", "clientId", "batchId", "label", "ops", "structural")}}
+            return [{"docId": self.id, **{k: e.get(k) for k in ("v", "actor", "clientId", "batchId", "label", "ops", "structural", "transformed")}}
                     for e in self.log if e["v"] > since]
 
     def set_calc(self, version, values, source, full=False):
