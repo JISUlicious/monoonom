@@ -194,9 +194,17 @@ export class EventStream {
     this.open();
   }
 
-  open() {
+  /** EventSource cannot send headers: get a single-use ticket first (the server also accepts the
+   * page's cookie). */
+  async open() {
     this.ready = false;
-    const es = new EventSource(`/api/stream?client=${encodeURIComponent(this.app.clientId)}`);
+    let ticket = '';
+    try { ticket = (await api.streamTicket()).ticket; } catch (e) {
+      this.app.onAuthError?.(e);
+      setTimeout(() => this.open(), e.status === 401 ? 5000 : 1200);
+      return;
+    }
+    const es = new EventSource(`/api/stream?client=${encodeURIComponent(this.app.clientId)}&ticket=${encodeURIComponent(ticket)}`);
     this.es = es;
     const on = (name, fn) => es.addEventListener(name, (e) => fn(JSON.parse(e.data)));
     on('ready', (d) => {

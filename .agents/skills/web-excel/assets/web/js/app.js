@@ -9,7 +9,7 @@ import { Clipboard } from './clipboard.js';
 import { Filters } from './filter.js';
 import { ChartLayer } from './charts.js';
 import { DocSync, EventStream } from './docsync.js';
-import { api } from './api.js';
+import { api, hasToken, tokenFragment } from './api.js';
 import { geom } from './geometry.js';
 import * as D from './dialogs.js';
 
@@ -958,8 +958,8 @@ class App {
   // ------------------------------------------------------------------ windows
   newWindow(docIdx = this.di) {
     const doc = this.docs[docIdx];
-    const w = window.open(`${location.pathname}?doc=${encodeURIComponent(doc.wb.docId)}`, '_blank');
-    if (!w) this.toast(`팝업이 차단되었습니다. 다른 창/브라우저에서 ${location.origin}/?doc=${doc.wb.docId} 를 여세요.`, 'warn', 9000);
+    const w = window.open(`${location.pathname}?doc=${encodeURIComponent(doc.wb.docId)}${tokenFragment()}`, '_blank');
+    if (!w) this.toast(`팝업이 차단되었습니다. 다른 창/브라우저에서 ${location.origin}/?doc=${doc.wb.docId}${tokenFragment()} 를 여세요.`, 'warn', 15000);
   }
   async windowsMenu(anchor) {
     let docs = [];
@@ -1425,7 +1425,7 @@ class App {
     const want = params.get('doc'), open = params.get('open');
     let docs = [];
     try { docs = (await api.docs()).docs; } catch (e) {
-      this.toast(`서버에 연결할 수 없습니다: ${e.message}. 페이지를 새로 고치세요.`, 'error', 15000);
+      if (!this.onAuthError(e)) this.toast(`서버에 연결할 수 없습니다: ${e.message}. 페이지를 새로 고치세요.`, 'error', 15000);
       return;
     }
     for (const d of docs) await this.attachQuiet(d.docId, { activate: d.docId === want });
@@ -1451,6 +1451,32 @@ class App {
       this.detachDoc(blank);
       if (focus) this.activateDoc(this.docs.indexOf(added));
     }
+  }
+
+  /** 401: tell the user how to open the page with its token (once). Returns true if it was an auth error. */
+  onAuthError(e) {
+    if (e?.status !== 401) return false;
+    if (!this._authWarned) { this._authWarned = true; this.showAuthPanel(e); }
+    return true;
+  }
+
+  /** Stays on screen (unlike a toast): the page is useless until it is opened with its token, and the
+   * user needs to know what to ask the agent for. */
+  showAuthPanel(e) {
+    if (document.getElementById('auth-panel')) return;
+    const mismatch = e?.data?.reason === 'token-mismatch';
+    const el = document.createElement('div');
+    el.id = 'auth-panel';
+    el.setAttribute('role', 'alertdialog');
+    el.innerHTML = `<div class="auth-box">
+      <h2>${mismatch ? '주소의 토큰이 서버와 맞지 않습니다' : '이 주소에는 토큰이 없어 파일을 열 수 없습니다'}</h2>
+      <p>${mismatch ? '서버가 새 토큰을 쓰고 있거나 다른 작업 폴더의 주소입니다.' : '미리보기 주소는 끝에 <code>#t=…</code> 토큰이 붙은 전체 주소여야 합니다.'}</p>
+      <p>에이전트에게 이렇게 요청한 뒤, 받은 주소를 <b>그대로</b> 여세요:</p>
+      <p class="ask">“<code>xl.py url</code>로 미리보기 주소를 알려 줘”</p>
+      <p class="muted small">${D.esc(e?.message || '')}</p>
+      <div class="auth-btns"><button class="btn" data-act="close">닫기</button></div></div>`;
+    el.querySelector('[data-act=close]').addEventListener('click', () => el.remove());
+    document.body.append(el);
   }
 
   /** attachDoc() that never throws: a document can be closed between being listed and being loaded. */

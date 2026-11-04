@@ -113,6 +113,59 @@ def write_state(root, data):
     os.replace(tmp, state_path(root))  # atomic: readers never see a half-written file
 
 
+def workspace_token(root) -> str:
+    """The workspace's browser/API token, kept in .web-excel/token (0600) across server restarts, so a
+    preview opened with #t=TOKEN keeps working after the server stops (idle timeout) and starts again."""
+    d = os.path.join(root, STATE_DIR)
+    path = token_path(root)
+    os.makedirs(d, exist_ok=True)
+    for _ in range(50):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                tok = fh.read().strip()
+            if len(tok) >= 16:
+                return tok
+        except FileNotFoundError:
+            # written to a temp file and linked into place: another process never sees it half-written,
+            # and if two start at once, os.link fails for the loser, which then reads the winner's token
+            tok = secrets.token_urlsafe(24)
+            fd, tmp = tempfile.mkstemp(dir=d, prefix=".token.", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                    fh.write(tok)
+                try:
+                    os.chmod(tmp, 0o600)
+                except OSError:
+                    pass
+                try:
+                    os.link(tmp, path)
+                    return tok
+                except FileExistsError:
+                    pass
+                except OSError:  # file systems without hard links
+                    if not os.path.exists(path):
+                        os.replace(tmp, path)
+                        return tok
+            finally:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+        time.sleep(0.05)  # a token file that is still empty or unreadable: retry
+    raise CliError(f"토큰 파일을 읽을 수 없습니다: {path}")
+
+
+def token_path(root) -> str:
+    return os.path.join(root, STATE_DIR, "token")
+
+
+def page_url(st) -> str:
+    """The URL to give the user: with #t=TOKEN (servers started before tokens were in the URL only
+    stored the bare URL)."""
+    url = st.get("url") or ""
+    if "#t=" in url or not st.get("token"):
+        return url
+    return (st.get("base_url") or url.split("#", 1)[0]) + "#t=" + st["token"]
+
+
 def clear_state(root, pid):
     st = read_state(root)
     if st and st.get("pid") == pid:
@@ -191,7 +244,8 @@ def run_foreground(args):
 
     root = workspace_root(args.root)
     port = args.port if args.port else pick_port(DEFAULT_PORT)
-    token = os.environ.get("WEBEXCEL_TOKEN") or secrets.token_urlsafe(24)
+    # keep the workspace's token across restarts so open previews (whose URL carries #t=TOKEN) keep working
+    token = os.environ.get("WEBEXCEL_TOKEN") or workspace_token(root)
     app.Config.root = root if not args.no_sandbox else None
     app.Config.start = root
     app.Config.token = None if args.no_auth else token
@@ -203,8 +257,10 @@ def run_foreground(args):
                          "에이전트 샌드박스가 루프백 바인딩을 막는 경우(예: Codex workspace-write) 승인 또는 전체 권한이 필요합니다.\n")
         return EXIT_USAGE
     pid = os.getpid()
+    base = f"http://localhost:{port}/"
     write_state(root, {"pid": pid, "port": port, "token": token, "root": root,
-                       "url": f"http://localhost:{port}/", "started_at": time.time(),
+                       "base_url": base, "url": base + (f"#t={token}" if app.Config.token else ""),
+                       "started_at": time.time(),
                        "version": app.VERSION, "python": sys.executable})
     stop = threading.Event()
 
@@ -249,6 +305,14 @@ def cmd_serve(args):
     check_deps()
     root = workspace_root(args.root)
     st = read_state(root)
+    if args.new_token:
+        if alive(st):
+            raise CliError("서버가 실행 중입니다. 토큰을 바꾸려면 먼저 `xl.py stop` 하세요"
+                           "(열린 미리보기는 새 주소로 다시 열어야 합니다).", EXIT_CONFLICT)
+        try:
+            os.remove(token_path(root))
+        except FileNotFoundError:
+            pass
     if alive(st):
         print_status(st, reused=True)
         return 0
@@ -283,14 +347,30 @@ def cmd_serve(args):
     raise CliError("서버를 시작하지 못했습니다.\n" + tail, 1)
 
 
+URL_HINT = ("사용자에게 아래 주소를 한 글자도 바꾸지 말고 그대로 전달하세요 "
+            "(끝의 #t= 토큰 포함. localhost 주소를 직접 만들거나 줄이지 말 것):")
+
+
 def print_status(st, reused=None, extra=None):
     tag = " (기존 서버 재사용)" if reused else " (새로 시작)" if reused is False else ""
     print(f"web-excel 서버 실행 중{tag}")
-    print(f"  URL : {st['url']}   ← 미리보기 창에서 이 주소를 여세요")
+    print(URL_HINT)
+    print(page_url(st))
     print(f"  root: {st['root']}")
     print(f"  pid : {st['pid']}")
     for line in extra or []:
         print("  " + line)
+
+
+def cmd_url(args):
+    """Only the preview URL with its token, for copying verbatim."""
+    st = read_state(workspace_root(args.root))
+    if not alive(st):
+        raise CliError("web-excel 서버가 실행 중이 아닙니다. 먼저 `xl.py serve`를 실행하세요.", EXIT_NOSERVER)
+    if not args.bare:
+        print(URL_HINT)
+    print(page_url(st))
+    return 0
 
 
 def cmd_status(args):
@@ -311,7 +391,9 @@ def cmd_status(args):
     except CliError:
         pass
     if args.brief:
-        print(f"web-excel: running at {st['url']} ({len(extra)} doc(s) open)")
+        base = st.get("base_url") or (st.get("url") or "").split("#", 1)[0]
+        print(f"web-excel: running at {base} ({len(extra)} doc(s) open). "
+              "This bare address does not open workbooks: give the user the URL from `xl.py url`.")
         for e in extra:
             print("  " + e)
         return 0
@@ -380,7 +462,13 @@ def build_parser():
     p.add_argument("--allow-host", action="append")
     p.add_argument("--no-auth", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--no-sandbox", action="store_true", help="allow paths outside the workspace root")
+    p.add_argument("--new-token", action="store_true",
+                   help="issue a new workspace token (old preview URLs stop working); server must be stopped")
     p.set_defaults(fn=cmd_serve)
+
+    p = sub.add_parser("url", help="the preview URL with its token (give it to the user verbatim)")
+    p.add_argument("--bare", action="store_true", help="print only the URL")
+    p.set_defaults(fn=cmd_url)
 
     p = sub.add_parser("status", help="server status and open documents")
     p.add_argument("--brief", action="store_true")

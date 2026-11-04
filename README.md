@@ -1,7 +1,7 @@
 # web-excel
 
 로컬 Python 서버 + 브라우저 UI로 동작하는 **엑셀 호환 웹 스프레드시트**입니다.
-에이전트 SW(Claude Code 데스크톱, VS Code/Cursor Simple Browser 등)의 미리보기 창에서 `http://127.0.0.1:8765`로 접속해 xlsx 파일을 읽고 쓰고, xls 파일을 읽을 수 있습니다(xls는 xlsx로 저장).
+에이전트 SW(Claude Code 데스크톱, VS Code/Cursor Simple Browser 등)의 미리보기 창에서 `xl.py serve`가 알려 주는 주소(`http://localhost:8765/#t=토큰`)로 접속해 xlsx 파일을 읽고 쓰고, xls 파일을 읽을 수 있습니다(xls는 xlsx로 저장).
 
 ## 실행
 
@@ -26,6 +26,7 @@ python3 tests/make_samples.py     # 예제 xlsx 생성 (samples/sample.xls는 �
 ```bash
 cd ~/my-project                          # 작업 폴더
 XL=/path/to/.agents/skills/web-excel/scripts/xl.py
+python3 $XL url                         # 미리보기 주소(#t= 토큰 포함) — 사용자에게 그대로 전달
 python3 $XL open report.xlsx            # 열기 → 미리보기에 탭으로 표시
 python3 $XL describe                    # 시트·사용 범위·머리글·열 유형·차트
 python3 $XL read '매출!A1:F20'           # 필요한 범위만 (날짜는 YYYY-MM-DD)
@@ -50,8 +51,8 @@ python3 $XL save                        # 저장(이전 파일은 .web-excel/bac
 | `--allow-host NAME` | 프록시/원격 미리보기에서 다른 Host 헤더 허용 |
 | `--no-sandbox` | 작업 경로 밖 파일 허용 |
 
-서버 상태는 `<작업 경로>/.web-excel/`(server.json: pid·port·token, server.log)에 있고 이 폴더는 git에서 제외됩니다.
-API는 토큰이 필요합니다: CLI는 `X-WebExcel-Token` 헤더, 브라우저는 페이지를 열 때 받는 `SameSite=Strict` 쿠키를 씁니다.
+서버 상태는 `<작업 경로>/.web-excel/`(server.json: pid·port·url, token, server.log)에 있고 이 폴더는 git에서 제외됩니다.
+API는 토큰이 필요합니다. CLI와 페이지 모두 `X-WebExcel-Token` 헤더로 보냅니다. 페이지는 주소의 `#t=토큰`에서 토큰을 읽으므로, 페이지를 다른 사이트의 iframe 안에 띄우는 미리보기(VS Code Simple Browser, Tauri 앱 등)에서도 동작합니다. 토큰 없이 연 일반 탭은 포트별 쿠키(`wx_token_<포트>`, `SameSite=Strict`)로 동작합니다. 실시간 이벤트 스트림은 헤더를 보낼 수 없어 1분짜리 일회용 티켓을 씁니다. 토큰은 작업 경로별로 유지되어 서버를 다시 시작해도 열린 미리보기가 계속 동작합니다.
 
 ## 요구사항 대응
 
@@ -139,6 +140,7 @@ python3 tests/refs_parity.test.py         # 수식 참조 재작성 JS↔Python 
 python3 tests/preserve_formulas.test.py    # 계산할 수 없는 함수: 열 때 경고, 고치지 않은 수식은 원래대로 저장
 node tests/preserve.e2e.cjs               # 같은 내용을 미리보기에서 (경고 표시, F2+Enter, 수식 수정 경고)
 node tests/startup.e2e.cjs                # 미리보기 시작·재연결 중 에이전트가 열고 닫은 문서 (탭 추가·제거, ?doc 포커스, 빈 통합 문서 교체)
+node tests/auth.e2e.cjs                   # 인증: 다른 사이트 iframe + #t 토큰, 토큰 없을 때 안내, 서버 2개, 재시작 (서버를 스스로 띄움)
 python3 tests/excel_compat.test.py        # 저장한 수식 229개: _xlfn. 접두사·캐시 값·LibreOffice 재계산 대조 (soffice 필요)
 ```
 
