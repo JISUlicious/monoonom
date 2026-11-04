@@ -37,7 +37,7 @@ API는 토큰이 필요합니다: CLI는 `X-WebExcel-Token` 헤더, 브라우저
 | 1 | 로컬 서버 + 미리보기 창에서 xlsx/xls 읽기·쓰기 | `run.py` → `server/app.py` (stdlib `ThreadingHTTPServer`). xlsx/xlsm: openpyxl, xls: xlrd(읽기)/xlwt(쓰기) |
 | 2 | **DRM: 파일 읽기는 반드시 Python 함수** | 브라우저는 파일 바이트에 접근하지 않고 **경로만** 전송. 모든 디스크 I/O는 `server/fileio.py`의 `read_bytes()/write_bytes()` 한 곳을 통과. 드래그&드롭 업로드는 의도적으로 차단. DRM SDK 호출이 필요하면 `WEBEXCEL_READ_HOOK=pkg.mod:func`, `WEBEXCEL_WRITE_HOOK=...`로 교체 |
 | 3 | 웹에서 조작 가능한 스프레드시트 | Canvas 가상화 그리드(1,048,576×16,384), 틀 고정, 병합, 행/열 크기 조절·숨기기·자동 맞춤, 채우기 핸들(선형 추세/요일·월 목록/숫자 접미사), 복사·붙여넣기(Excel과 TSV/HTML 상호 운용), 실행 취소/다시 실행 |
-| 4 | 여러 탭/윈도우 | 상단 통합 문서 탭(다중 파일), 하단 시트 탭(추가·삭제·이름 변경·복사·이동·드래그·탭 색·숨기기). **새 창**: 같은 문서를 다른 창에서 열고 `BroadcastChannel`로 실시간 동기화(셀/서식/시트 구조) |
+| 4 | 여러 탭/윈도우 | 상단 통합 문서 탭(다중 파일), 하단 시트 탭(추가·삭제·이름 변경·복사·이동·드래그·탭 색·숨기기). **서버가 문서를 소유**: 브라우저 창·에이전트 CLI가 모두 서버에 변경(op)을 보내고, 서버가 순서를 정해 각 창에 실시간 전달(SSE). 같은 문서를 여러 창·외부 브라우저에서 열어도 동기화되고, 에이전트가 연 파일은 미리보기에 탭으로 자동 표시 |
 | 5 | 호환 차트 | 세로/가로/누적 막대, 꺾은선, 영역, 원형, 도넛, 분산형, 방사형, **콤보(막대+꺾은선)**. xlsx의 차트 정의(계열 참조 수식 `'시트'!$B$2:$B$7`)를 그대로 읽어 Chart.js로 렌더링, 저장 시 네이티브 Excel 차트로 기록. 수정하지 않은 차트는 원본 객체를 유지 |
 | 6 | 스타일링 | 글꼴/크기/굵게/기울임/밑줄(이중)/취소선/색, 채우기, 테두리 13종, 맞춤·들여쓰기·줄 바꿈, 표시 형식(섹션·조건·색·날짜·시간·`[h]`·분수·지수·회계·₩), 서식 복사, 셀 서식(Ctrl+1). 테마 색+tint 해석(ECMA-376) |
 | 7 | 필터 | 자동 필터(값 목록·검색·사용자 지정 조건 AND/OR·와일드카드), 정렬(오름/내림, 다중 기준), 다시 적용, 중복 제거. 파일의 `autoFilter`/`filterColumn`과 숨김 행으로 저장 |
@@ -61,6 +61,8 @@ API는 토큰이 필요합니다: CLI는 `X-WebExcel-Token` 헤더, 브라우저
     server/
       fileio.py                    ★ 파일 바이트 I/O 단일 진입점 (DRM 훅)
       app.py                       HTTP 라우팅·인증·정적 파일
+      session.py                   서버 문서 세션: op 적용·버전·로그·충돌 규칙·되돌리기
+      docs_api.py                  /api/docs·/api/stream(SSE)·저장(백업·디스크 변경 감지)
       xlsx_io.py / xls_io.py       openpyxl·xlrd/xlwt ↔ JSON 모델
       colors.py, units.py, formula_compat.py
   assets/web/                      브라우저 UI
@@ -70,11 +72,12 @@ API는 토큰이 필요합니다: CLI는 `X-WebExcel-Token` 헤더, 브라우저
     js/editor.js                   셀 편집기/수식 입력줄
     js/formula.js / engine.js      토크나이저·파서·참조 재작성 / 계산 엔진 + 함수
     js/model.js                    통합 문서 모델, 트랜잭션 실행 취소
-    js/numfmt.js, charts.js, filter.js, clipboard.js, dialogs.js, sync.js, api.js
+    js/docsync.js                  서버 문서 동기화: 낙관적 적용, 대기 중 변경 추적, 창당 이벤트 스트림 1개, 계산값 보고
+    js/numfmt.js, charts.js, filter.js, clipboard.js, dialogs.js, api.js
   references/troubleshooting.md
 .claude/skills/web-excel -> ../../.agents/skills/web-excel
 run.py                             개발용 포그라운드 실행
-tests/                             make_samples.py, test_roundtrip.py, engine.test.mjs, e2e.cjs
+tests/                             make_samples.py, test_roundtrip.py, engine.test.mjs, e2e.cjs, sync.e2e.cjs
 docs/                              project-setup.md, skill-spec.md, skill-implementation.md
 ```
 
@@ -85,7 +88,7 @@ docs/                              project-setup.md, skill-spec.md, skill-implem
 3. **재계산**: 매 변경 시 전체 재계산(메모이제이션)을 수행하되, 재귀 깊이를 제한하고 가장 깊은 미계산 셀부터 다시 시작하는 반복 심화 방식으로 20,000단계 체인도 스택 오버플로 없이 계산합니다(Sestoft의 Corecalc 보고서가 다루는 스프레드시트 재계산·의존 그래프 문제 참고 [4]).
 4. **Excel 호환 세부 규칙**: 1900 윤년 버그를 포함한 날짜 일련번호 [3], 15자리 유효숫자 비교, 단항 `-`가 `^`보다 우선(`=-2^2`=4), 숫자<텍스트<논리값 비교 순서, `_xlfn.` 미래 함수 접두사 [2].
 5. **보안**: 기본 127.0.0.1 바인딩, Host 헤더 검사(DNS 리바인딩 방지), 변경 API는 커스텀 헤더 `X-WebExcel` 필수(교차 출처 요청은 CORS 프리플라이트에서 차단됨 [8]), 선택적 `--root` 샌드박스.
-6. **다중 창**: 같은 출처 창 간 `BroadcastChannel`로 트랜잭션 패치를 전송 [7]. 팝업이 외부 브라우저로 열리는 환경을 위해 서버 세션(`/api/session`)으로 초기 상태를 넘기는 대체 경로가 있습니다.
+6. **동기화**: 서버가 문서를 소유하고 변경(op)에 버전을 붙여 순서를 정합니다. 같은 셀은 서버에 나중에 도착한 쪽이 이기고, 좌표를 바꾸는 변경(행 삽입·정렬 등)은 그 사이 다른 클라이언트가 바꿨으면 거절(409)해 다시 불러오게 합니다. 창마다 이벤트 스트림(SSE)을 하나만 열어 브라우저의 호스트당 연결 수 제한을 피합니다. 자세한 내용은 docs/skill-implementation.md.
 
 ## 테스트
 
@@ -93,6 +96,7 @@ docs/                              project-setup.md, skill-spec.md, skill-implem
 python -m unittest tests.test_roundtrip   # Python 읽기/쓰기 왕복 (xlsx 패치, 차트, xls, _xlfn)
 node tests/engine.test.mjs                # 수식 엔진 70개 검사
 python3 run.py --port 8765 --root . & node tests/e2e.cjs   # 브라우저 E2E 34개 (npm i playwright 필요)
+node tests/sync.e2e.cjs                   # 서버 동기화 11개 (에이전트↔브라우저, 동시 편집, 다중 창, 되돌리기)
 ```
 
 ## 알려진 제한

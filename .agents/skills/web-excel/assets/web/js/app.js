@@ -8,7 +8,7 @@ import { Editor } from './editor.js';
 import { Clipboard } from './clipboard.js';
 import { Filters } from './filter.js';
 import { ChartLayer } from './charts.js';
-import { WindowSync } from './sync.js';
+import { DocSync, EventStream } from './docsync.js';
 import { api } from './api.js';
 import { geom } from './geometry.js';
 import * as D from './dialogs.js';
@@ -35,7 +35,8 @@ class App {
     this.clipboard = new Clipboard(this);
     this.filters = new Filters(this);
     this.charts = new ChartLayer(this, this.grid);
-    this.sync = new WindowSync(this);
+    this.clientId = newId('c');
+    this.stream = new EventStream(this);
     this.lastAction = null;
     this.painter = null;
     this.bindUI();
@@ -55,14 +56,63 @@ class App {
     return v;
   }
 
-  addDoc(wb, { activate = true } = {}) {
+  /** Show a server-owned document in this window (doc = {wb, views, sync}). */
+  addDoc(wb, { activate = true, version = 0 } = {}) {
     const doc = { wb, views: new Map(), id: newId('d') };
     wb.on((ev) => this.onWbChange(doc, ev));
+    doc.sync = new DocSync(this, doc, version);
     this.docs.push(doc);
+    doc.sync.connect();
+    doc.sync.scheduleCalc();
     if (activate) this.activateDoc(this.docs.length - 1);
-    this.sync.announce();
     if (wb.warnings?.length) this.toast(wb.warnings.join('\n'), 'warn', 8000);
     return doc;
+  }
+
+  /** Attach a document that is open on the server (by id). */
+  async attachDoc(docId, { activate = true } = {}) {
+    const i = this.docs.findIndex((d) => d.wb.docId === docId);
+    if (i >= 0) { if (activate) this.activateDoc(i); return this.docs[i]; }
+    this._attaching ||= new Map();
+    if (!this._attaching.has(docId)) {
+      this._attaching.set(docId, (async () => {
+        try {
+          const snap = await api.snapshot(docId);
+          const wb = Workbook.fromJSON(snap);
+          wb.docId = snap.docId; wb.dirty = !!snap.dirty; wb.basePath = snap.path;
+          return this.addDoc(wb, { activate: false, version: snap.version });
+        } finally { this._attaching.delete(docId); }
+      })());
+    }
+    const doc = await this._attaching.get(docId);
+    if (doc && (activate || !this.doc || this.di < 0)) this.activateDoc(this.docs.indexOf(doc));
+    return doc;
+  }
+
+  /** Replace the in-memory workbook with a fresh server snapshot (after a conflict). */
+  replaceDoc(doc, snap) {
+    const wb = Workbook.fromJSON(snap);
+    wb.docId = snap.docId; wb.dirty = !!snap.dirty; wb.basePath = snap.path;
+    wb.on((ev) => this.onWbChange(doc, ev));
+    doc.wb = wb;
+    if (doc === this.doc) { this.restoreScroll(); this.render(); } else this.renderTabs();
+  }
+
+  /** Remove a document from this window only. */
+  detachDoc(doc) {
+    const i = this.docs.indexOf(doc);
+    if (i < 0) return;
+    doc.sync.close();
+    this.docs.splice(i, 1);
+    if (!this.docs.length) { this.di = -1; this.newDoc(); return; }
+    if (i === this.di || this.di >= this.docs.length) { this.di = -1; this.activateDoc(Math.min(i, this.docs.length - 1)); }
+    else { if (i < this.di) this.di--; this.renderTabs(); }
+  }
+
+  onDocClosedRemotely(doc) {
+    if (!this.docs.includes(doc)) return;
+    this.toast(`'${doc.wb.name}' 문서가 닫혔습니다.`);
+    this.detachDoc(doc);
   }
 
   saveScroll() {
@@ -102,16 +152,13 @@ class App {
 
   async closeDoc(i) {
     const doc = this.docs[i];
-    if (doc.wb.dirty && !this.sync.sharedWith(doc.wb.docId)) {
+    if (doc.wb.dirty) {
       const ans = await D.confirmBox(`'${doc.wb.name}'의 변경 내용을 저장하시겠습니까?`, { yes: '저장', no: '저장 안 함', cancel: true });
       if (ans === null) return;
       if (ans === 'yes') { this.di = i; if (!(await this.save())) return; }
     }
-    this.docs.splice(i, 1);
-    if (!this.docs.length) { this.addDoc(blankWorkbook(this.nextBlankName())); return; }
-    this.di = -1;
-    this.activateDoc(Math.min(i, this.docs.length - 1));
-    this.sync.announce();
+    try { await api.closeDoc(doc.wb.docId, true); } catch (e) { if (e.status !== 404) { this.toast(e.message, 'error'); return; } }
+    this.detachDoc(doc);
   }
 
   nextBlankName() {
@@ -122,21 +169,23 @@ class App {
 
   onWbChange(doc, ev) {
     if (ev.type !== 'change') return;
-    if (ev.entry) this.sync.publish(doc, ev.entry);
-    for (const s of doc.wb.sheets) if (s.autoFilter && ev.kind === 'do' && ev.entry.cells.some((c) => c.sheet === s)) { /* filters stay until reapply (Excel) */ }
+    if (ev.entry) doc.sync.send(ev.entry);
+    doc.sync.scheduleCalc();
     if (doc === this.doc) { this.render(); }
     else this.renderTabs();
   }
 
-  onRemoteChange(doc) { for (const s of doc.wb.sheets) for (const [k, c] of s.cells) if (c.s && !Object.isFrozen(c.s)) c.s = internStyle(c.s); if (doc === this.doc) this.render(); else this.renderTabs(); }
-
-  replaceFromFull(m) {
-    const doc = this.docs.find((d) => d.wb.docId === m.docId);
-    if (!doc) return;
-    const wb = Workbook.fromJSON(m.json);
-    wb.docId = m.docId; wb.basePath = m.basePath; wb.dirty = m.dirty;
-    wb.on((ev) => this.onWbChange(doc, ev));
-    doc.wb = wb;
+  /** ops from another client (agent CLI or another window) were applied */
+  onRemoteChange(doc, ev, boxes) {
+    if (doc !== this.doc) { this.renderTabs(); return; }
+    const now = performance.now();
+    this.grid.flashes = (this.grid.flashes || []).filter((f) => f.until > now).concat(boxes.map((b) => ({ ...b, until: now + 1600 })));
+    if (boxes.length) setTimeout(() => this.grid.render(), 1700);
+    const who = ev.actor === 'agent' ? '에이전트' : ev.actor === 'system' ? '' : '다른 창';
+    if (who && (boxes.length || ev.label)) {
+      const where = boxes.slice(0, 3).map((b) => `${b.sheet.name}!${rangeA1(b)}`).join(', ');
+      this.setStatus(`${who}: ${ev.label || '변경'}${where ? ` (${where})` : ''}`);
+    }
     this.render();
   }
 
@@ -273,6 +322,7 @@ class App {
     this.afterSelect();
   }
   afterSelect() {
+    this.doc?.sync?.presence(this.doc.wb.sheet, this.view());
     this.grid.render();
     this.syncFormulaBar();
     this.updateStatus();
@@ -654,6 +704,7 @@ class App {
     const wb = this.doc.wb, sh = wb.sheet, sel = this.selection();
     const h = sel.r2 - sel.r1 + 1, w = sel.c2 - sel.c1 + 1;
     wb.begin('셀 이동');
+    wb.markStructural();
     const moves = [];
     for (const [k, cell] of sh.cells) {
       const r = keyRow(k), c = keyCol(k);
@@ -817,7 +868,12 @@ class App {
   }
 
   // ------------------------------------------------------------------ files
-  async newDoc() { this.addDoc(blankWorkbook(this.nextBlankName())); }
+  async newDoc() {
+    try {
+      const res = await api.newDoc(this.nextBlankName());
+      await this.attachDoc(res.docId);
+    } catch (e) { this.toast(`새 통합 문서를 만들 수 없습니다: ${e.message}`, 'error'); }
+  }
 
   async openFile(path = null) {
     if (!path) {
@@ -825,19 +881,15 @@ class App {
       if (!res) return;
       path = res.path;
     }
-    const existing = this.docs.findIndex((d) => d.wb.path === path);
-    if (existing >= 0) { this.activateDoc(existing); return; }
     this.showBusy(`여는 중… ${path}`);
     try {
-      const json = await api.open(path);
-      const wb = Workbook.fromJSON(json);
+      const res = await api.openDoc(path);
       // replace an untouched blank workbook (Excel behaviour)
-      const blank = this.docs.length === 1 && !this.doc.wb.path && !this.doc.wb.dirty && this.doc.wb.sheets.length === 1 && !this.doc.wb.sheet.cells.size;
-      if (blank) this.docs = [];
-      this.di = -1;
-      this.addDoc(wb);
+      const blank = this.docs.length === 1 && !this.doc.wb.path && !this.doc.wb.dirty && this.doc.wb.sheets.length === 1 && !this.doc.wb.sheet.cells.size && this.doc.wb.docId !== res.docId ? this.doc : null;
+      const doc = await this.attachDoc(res.docId);
+      if (blank && doc) { api.closeDoc(blank.wb.docId).catch(() => {}); this.detachDoc(blank); this.activateDoc(this.docs.indexOf(doc)); }
       D.addRecent(path);
-      this.setStatus(`열기 완료 (${wb.sheets.length}개 시트, 계산 ${wb.lastCalcMs?.toFixed(0)}ms)`);
+      if (doc) this.setStatus(`열기 완료 (${doc.wb.sheets.length}개 시트, 계산 ${doc.wb.lastCalcMs?.toFixed(0)}ms)`);
     } catch (e) {
       this.toast(`파일을 열 수 없습니다: ${e.message}`, 'error', 8000);
     } finally { this.hideBusy(); }
@@ -864,30 +916,30 @@ class App {
     return this.writeTo(res.path, res.format, false);
   }
 
+  /** Save through the server (Python writes the file). Wait for pending edits first. */
   async writeTo(path, format, overwrite) {
-    const wb = this.doc.wb;
+    const doc = this.doc, wb = doc.wb;
     this.showBusy('저장 중…');
     try {
-      const json = wb.toJSON({ forSave: true });
-      json.format = format;
+      for (let i = 0; i < 50 && doc.sync.pending.size; i++) await new Promise((r) => setTimeout(r, 100));
+      await doc.sync.reportCalc(); // formulas' computed values are stored as cached results (xls)
+      const opts = { path, format, overwrite };
       let res;
-      try { res = await api.save(path, json, { overwrite, base: wb.basePath }); } catch (e) {
-        if (e.status !== 409) throw e;
-        this.hideBusy();
-        const ans = await D.confirmBox(`'${path.split(/[\\/]/).pop()}'이(가) 이미 있습니다. 바꾸시겠습니까?`, { yes: '바꾸기', no: '아니요' });
-        if (ans !== 'yes') return false;
-        this.showBusy('저장 중…');
-        res = await api.save(path, json, { overwrite: true, base: wb.basePath });
+      for (;;) {
+        try { res = await api.saveDoc(wb.docId, opts); break; } catch (e) {
+          if (e.status !== 409) throw e;
+          this.hideBusy();
+          const changed = /디스크/.test(e.message);
+          const ans = await D.confirmBox(changed ? `${e.message}\n그래도 덮어쓰시겠습니까?` : `'${path.split(/[\\/]/).pop()}'이(가) 이미 있습니다. 바꾸시겠습니까?`, { yes: '바꾸기', no: '아니요' });
+          if (ans !== 'yes') return false;
+          if (changed) opts.force = true; else opts.overwrite = true;
+          this.showBusy('저장 중…');
+        }
       }
       Object.assign(wb, { path: res.path, name: res.name, format: res.format, basePath: res.path, dirty: false });
-      for (const s of wb.sheets) {
-        s.origName = s.name;
-        s.charts.forEach((c, i) => { c.orig = res.format === 'xls' ? null : i; c.dirty = res.format === 'xls'; });
-      }
       D.addRecent(res.path);
-      this.sync.publishSaved(this.doc);
       this.renderTabs();
-      this.setStatus(`저장됨: ${res.path}`);
+      this.setStatus(`저장됨: ${res.path}${res.backup ? ' (이전 파일 백업됨)' : ''}`);
       if (res.warnings?.length) this.toast(res.warnings.join('\n'), 'warn', 9000);
       return true;
     } catch (e) {
@@ -897,29 +949,23 @@ class App {
   }
 
   // ------------------------------------------------------------------ windows
-  async newWindow(docIdx = this.di) {
+  newWindow(docIdx = this.di) {
     const doc = this.docs[docIdx];
-    const w = window.open(`${location.pathname}?attach=${encodeURIComponent(doc.wb.docId)}`, '_blank');
-    if (!w) this.toast('팝업이 차단되었습니다. 브라우저 설정에서 이 사이트의 팝업을 허용하세요.', 'warn');
+    const w = window.open(`${location.pathname}?doc=${encodeURIComponent(doc.wb.docId)}`, '_blank');
+    if (!w) this.toast(`팝업이 차단되었습니다. 다른 창/브라우저에서 ${location.origin}/?doc=${doc.wb.docId} 를 여세요.`, 'warn', 9000);
   }
-  async attach(docId) {
-    let full = await this.sync.requestFull(docId);
-    if (!full) { this.toast('원본 창의 통합 문서를 가져오지 못했습니다.', 'error'); return false; }
-    const wb = Workbook.fromJSON(full.json);
-    wb.docId = docId; wb.basePath = full.basePath ?? wb.path; wb.dirty = !!full.dirty;
-    this.addDoc(wb);
-    this.setStatus('다른 창과 동기화되는 창입니다.');
-    return true;
-  }
-  onWindowsChanged() { const m = this.$('#win-count'); if (m) m.textContent = String(this.sync.windows().length); }
-  windowsMenu(anchor) {
-    const wins = this.sync.windows();
+  async windowsMenu(anchor) {
+    let docs = [];
+    try { docs = (await api.docs()).docs; } catch { /* offline */ }
     const items = [['새 창 (현재 통합 문서)', () => this.newWindow()], null,
-      ...this.docs.map((d, i) => [`${i === this.di ? '✓ ' : '　'}${d.wb.name}`, () => this.activateDoc(i)]), null,
-      ...wins.filter((w) => !w.me).map((w) => [`🗗 다른 창: ${w.docs.map((d) => d.name).join(', ') || w.title}`, () => this.toast('브라우저 보안상 다른 창으로 직접 전환할 수 없습니다. 작업 표시줄/탭에서 선택하세요.')])];
+      ...docs.map((d) => {
+        const i = this.docs.findIndex((x) => x.wb.docId === d.docId);
+        return [`${i === this.di ? '✓ ' : '　'}${d.name}${d.dirty ? ' ●' : ''} — 연결 ${d.clients}`, () => (i >= 0 ? this.activateDoc(i) : this.attachDoc(d.docId))];
+      })];
     const r = anchor.getBoundingClientRect();
     this.menu(r.left, r.bottom + 2, items);
   }
+  onWindowsChanged(docs) { const m = this.$('#win-count'); if (m && docs) m.textContent = String(docs.reduce((n, d) => Math.max(n, d.clients || 0), 1)); }
 
   // ------------------------------------------------------------------ charts
   chartDialog(model, type) { return D.chartDialog(this, model, type); }
@@ -1102,6 +1148,7 @@ class App {
     const removed = total - keep.length;
     if (!removed) return this.toast('중복된 값이 없습니다.');
     wb.begin('중복된 항목 제거');
+    wb.markStructural();
     const rows = keep.map((r) => range(g.c1, g.c2).map((c) => sh.get(r, c)));
     for (let r = g.r1 + (header ? 1 : 0); r <= g.r2; r++) for (let c = g.c1; c <= g.c2; c++) wb.setCell(sh, r, c, null);
     rows.forEach((row, i) => row.forEach((cell, j) => { const r = g.r1 + (header ? 1 : 0) + i; wb.setCell(sh, r, g.c1 + j, cell ? { ...cell, f: cell.f ? translateFormula(cell.f, r - keep[i], 0) : undefined } : null); }));
@@ -1326,9 +1373,6 @@ class App {
     this.$('#win-btn').addEventListener('click', (e) => this.windowsMenu(e.currentTarget));
     // painter completes on mouseup in grid
     this.grid.scroller.addEventListener('pointerup', () => setTimeout(() => this.onSelectionDone(), 0));
-    window.addEventListener('beforeunload', (e) => {
-      if (this.docs.some((d) => d.wb.dirty && !this.sync.sharedWith(d.wb.docId))) { e.preventDefault(); e.returnValue = ''; }
-    });
     // dropping files would make the *browser* read bytes (DRM!) — refuse and explain
     window.addEventListener('dragover', (e) => { if (e.dataTransfer?.types?.includes('Files')) e.preventDefault(); });
     window.addEventListener('drop', (e) => { if (e.dataTransfer?.files?.length) { e.preventDefault(); this.toast('DRM 보호를 위해 파일은 [열기] (Ctrl+O)로 서버(Python)를 통해 엽니다.', 'warn', 6000); } });
@@ -1371,12 +1415,26 @@ class App {
 
   async start() {
     const params = new URLSearchParams(location.search);
-    const attach = params.get('attach'), open = params.get('open');
-    if (attach && await this.attach(attach)) { history.replaceState(null, '', location.pathname); return; }
-    this.addDoc(blankWorkbook(this.nextBlankName()));
+    const want = params.get('doc'), open = params.get('open');
+    let docs = [];
+    try { docs = (await api.docs()).docs; } catch (e) {
+      this.toast(`서버에 연결할 수 없습니다: ${e.message}. 페이지를 새로 고치세요.`, 'error', 15000);
+      return;
+    }
+    for (const d of docs) await this.attachDoc(d.docId, { activate: d.docId === want });
+    if (!this.docs.length) await this.newDoc();
+    if (want && !this.docs.some((d) => d.wb.docId === want)) this.toast('요청한 문서가 서버에 없습니다.', 'warn');
+    if (want) history.replaceState(null, '', location.pathname);
     if (open) await this.openFile(open);
-    this.onWindowsChanged();
+    this.started = true;
   }
+
+  /** Documents opened by the agent (or another window) appear here automatically. */
+  onDocOpened(d) {
+    if (!this.started || this.docs.some((x) => x.wb.docId === d.docId)) return;
+    this.attachDoc(d.docId, { activate: true }).then((doc) => doc && this.setStatus(`'${d.name}' 문서가 열렸습니다.`));
+  }
+  onDocsList(docs) { this.onWindowsChanged(docs); }
 }
 
 // ------------------------------------------------------------------ helpers

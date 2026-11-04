@@ -440,6 +440,16 @@ export class Grid {
       ctx.strokeStyle = h.color; ctx.lineWidth = 2 / m.z; ctx.setLineDash([]);
       ctx.strokeRect(x + 1 / m.z, y + 1 / m.z, w - 2 / m.z, hh - 2 / m.z);
     }
+    // cells changed by another client (agent / other window) flash briefly
+    const now = performance.now();
+    for (const f of this.flashes || []) {
+      if (f.sheet !== m.sh || f.until < now) continue;
+      const [fx, fy, fw, fh] = rectOf(f);
+      const a = Math.min(1, (f.until - now) / 1600);
+      ctx.fillStyle = `rgba(255,193,7,${0.35 * a})`; ctx.fillRect(fx, fy, fw, fh);
+      ctx.strokeStyle = `rgba(230,145,0,${a})`; ctx.lineWidth = 2 / m.z; ctx.setLineDash([]);
+      ctx.strokeRect(fx + 1 / m.z, fy + 1 / m.z, fw - 2 / m.z, fh - 2 / m.z);
+    }
     const sel = v.sel;
     const [sx, sy, sw, sh] = rectOf(sel);
     const single = sel.r1 === sel.r2 && sel.c1 === sel.c2 || (m.sh.mergeAt(sel.r1, sel.c1) && (() => { const mg = m.sh.mergeAt(sel.r1, sel.c1); return mg.r1 === sel.r1 && mg.c1 === sel.c1 && mg.r2 === sel.r2 && mg.c2 === sel.c2; })());

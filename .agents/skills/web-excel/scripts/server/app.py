@@ -209,21 +209,6 @@ def r_fs(h, m, q, body):
     return api_fs(q)
 
 
-@route("POST", "/api/open")
-def r_open(h, m, q, body):
-    return api_open(body)
-
-
-@route("POST", "/api/save")
-def r_save(h, m, q, body):
-    return api_save(body)
-
-
-@route("POST", "/api/new")
-def r_new(h, m, q, body):
-    return api_new(body)
-
-
 @route("POST", "/api/shutdown")
 def r_shutdown(h, m, q, body):
     dirty = Config.dirty_check() if Config.dirty_check else []
@@ -371,3 +356,5 @@ def serve(host="127.0.0.1", port=8765):
     httpd = ThreadingHTTPServer((host, port), Handler)
     httpd.daemon_threads = True
     return httpd
+
+from . import docs_api  # noqa: E402,F401  (registers /api/docs routes)

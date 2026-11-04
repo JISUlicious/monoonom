@@ -110,7 +110,7 @@ export class Workbook {
   // ------------------------------------------------------------ transactions
   begin(label) {
     if (this.txn) { this.txn.depth++; return; }
-    this.txn = { label, depth: 1, cells: new Map(), meta: new Map(), structure: null };
+    this.txn = { label, depth: 1, cells: new Map(), meta: new Map(), structure: null, structural: false };
   }
   _rec(sheet) {
     let m = this.txn.cells.get(sheet);
@@ -148,6 +148,8 @@ export class Workbook {
     if (!this.txn.meta.has(sheet)) this.txn.meta.set(sheet, sheet.metaSnapshot());
     sheet._geomVersion++;
   }
+  /** mark the open transaction as moving coordinates (row/col shift, sort, sheet rename) */
+  markStructural() { if (this.txn) this.txn.structural = true; }
   touchStructure() {
     if (!this.txn.structure) this.txn.structure = { sheets: [...this.sheets], active: this.active };
   }
@@ -156,7 +158,7 @@ export class Workbook {
     if (!t) return;
     if (--t.depth > 0) return;
     this.txn = null;
-    const entry = { label: t.label, cells: [], meta: [], structure: null };
+    const entry = { label: t.label, cells: [], meta: [], structure: null, structural: t.structural || !!t.structure };
     for (const [sheet, m] of t.cells) for (const [k, before] of m) {
       const after = cloneCell(sheet.cells.get(k));
       if (JSON.stringify(before) !== JSON.stringify(after)) entry.cells.push({ sheet, k, before, after });
@@ -252,6 +254,7 @@ export class Workbook {
     const old = sh.name;
     if (old === name) return;
     this.begin('시트 이름 바꾸기');
+    this.markStructural();
     this.touchMeta(sh);
     sh.name = name;
     // update references in every formula and chart
@@ -300,6 +303,7 @@ export class Workbook {
   /** Insert (count>0) or delete (count<0) rows or columns at `at` on `sheet`. */
   shift(sheet, axis, at, count) {
     this.begin(count > 0 ? (axis === 'row' ? '행 삽입' : '열 삽입') : (axis === 'row' ? '행 삭제' : '열 삭제'));
+    this.markStructural();
     this.touchMeta(sheet);
     const isRow = axis === 'row';
     const moved = [];
@@ -462,6 +466,7 @@ export class Workbook {
         s.autoFilter = { range: parseRange(sj.autoFilter.ref), cols: sj.autoFilter.cols || {} };
       }
       s.charts = (sj.charts || []).map((c) => ({ id: newId('ch'), ...c }));
+      if (Array.isArray(sj.filterHidden)) { s.filterHidden = new Set(sj.filterHidden.map(Number)); s._explicitFilter = true; }
       s.updateExtent();
       wb.sheets.push(s);
     }
@@ -471,7 +476,7 @@ export class Workbook {
     wb.recalc();
     // filter state derived from the file: rows hidden inside a filtered range belong to the filter
     for (const s of wb.sheets) {
-      if (s.autoFilter && Object.keys(s.autoFilter.cols).length) {
+      if (!s._explicitFilter && s.autoFilter && Object.keys(s.autoFilter.cols).length) {
         for (const r of [...s.hiddenRows]) if (r > s.autoFilter.range.r1 && r <= s.autoFilter.range.r2) { s.hiddenRows.delete(r); s.filterHidden.add(r); }
       }
     }
@@ -527,6 +532,124 @@ export class Workbook {
     };
   }
 }
+
+// ------------------------------------------------------------------ server sync helpers
+/** Sheet properties in the server's canonical JSON shape (same keys as the file model). */
+export function sheetMetaJSON(s) {
+  const cols = {}, rows = {};
+  for (const [c, w] of s.colW) (cols[c] ||= {}).w = w;
+  for (const c of s.hiddenCols) (cols[c] ||= {}).hidden = true;
+  for (const [r, h] of s.rowH) (rows[r] ||= {}).h = h;
+  for (const r of s.hiddenRows) (rows[r] ||= {}).hidden = true;
+  return {
+    name: s.name, origName: s.origName, state: s.state, tabColor: s.tabColor, showGrid: s.showGrid,
+    defaultColW: s.defaultColW, defaultRowH: s.defaultRowH, cols, rows,
+    filterHidden: [...s.filterHidden].sort((a, b) => a - b),
+    merges: s.merges.map(rangeA1),
+    freeze: s.freeze && (s.freeze.r || s.freeze.c) ? a1(s.freeze.r, s.freeze.c) : null,
+    autoFilter: s.autoFilter ? { ref: rangeA1(s.autoFilter.range), cols: s.autoFilter.cols } : null,
+    charts: structuredClone(s.charts),
+  };
+}
+
+export function applySheetMetaJSON(s, m) {
+  if ('name' in m) s.name = m.name;
+  if ('origName' in m) s.origName = m.origName;
+  if ('state' in m) s.state = m.state || 'visible';
+  if ('tabColor' in m) s.tabColor = m.tabColor;
+  if ('showGrid' in m) s.showGrid = m.showGrid !== false;
+  if ('defaultColW' in m) s.defaultColW = m.defaultColW || 64;
+  if ('defaultRowH' in m) s.defaultRowH = m.defaultRowH || 20;
+  if ('cols' in m) {
+    s.colW = new Map(); s.hiddenCols = new Set();
+    for (const [c, e] of Object.entries(m.cols || {})) { if (e.w !== undefined) s.colW.set(+c, e.w); if (e.hidden) s.hiddenCols.add(+c); }
+  }
+  if ('rows' in m) {
+    s.rowH = new Map(); s.hiddenRows = new Set();
+    for (const [r, e] of Object.entries(m.rows || {})) { if (e.h !== undefined) s.rowH.set(+r, e.h); if (e.hidden) s.hiddenRows.add(+r); }
+  }
+  if ('filterHidden' in m) s.filterHidden = new Set((m.filterHidden || []).map(Number));
+  if ('merges' in m) s.merges = (m.merges || []).map((x) => (typeof x === 'string' ? parseRange(x) : x)).filter(Boolean);
+  if ('freeze' in m) { const p = m.freeze ? parseA1(m.freeze) : null; s.freeze = p ? { r: p.r, c: p.c } : { r: 0, c: 0 }; }
+  if ('autoFilter' in m) s.autoFilter = m.autoFilter && m.autoFilter.ref ? { range: parseRange(m.autoFilter.ref), cols: m.autoFilter.cols || {} } : null;
+  if ('charts' in m) s.charts = (m.charts || []).map((c) => ({ id: c.id || newId('ch'), ...structuredClone(c) }));
+  s._geomVersion++;
+}
+
+/** Cell as sent to the server: inline style object, no client-only fields. */
+export function cellJSON(cell) {
+  if (!cell) return null;
+  const o = {};
+  for (const k of ['v', 'f', 't', 's', 'h', 'cm', 'a']) if (cell[k] !== undefined && cell[k] !== null) o[k] = cell[k];
+  if (cell.f && cell.cached !== undefined && cell.cached !== null) o.v = cell.cached && cell.cached.err ? cell.cached.err : cell.cached;
+  return o;
+}
+
+export function sheetJSON(s) {
+  const cells = [];
+  for (const [k, c] of s.cells) cells.push([keyRow(k), keyCol(k), cellJSON(c)]);
+  return { id: s.id, ...sheetMetaJSON(s), cells };
+}
+
+function cellFromJSON(it) {
+  const cell = {};
+  if (it.f) { cell.f = it.f.startsWith('=') ? it.f : '=' + it.f; if (it.v !== undefined) cell.cached = it.t === 'e' ? { err: it.v } : it.v; }
+  else if (it.v !== undefined && it.v !== null) { cell.v = it.v; if (it.t === 'e') cell.t = 'e'; }
+  if (it.s && typeof it.s === 'object') cell.s = internStyle(it.s);
+  for (const k of ['h', 'cm', 'a']) if (it[k]) cell[k] = it[k];
+  return Object.keys(cell).length ? cell : null;
+}
+
+/**
+ * Apply ops received from the server without touching the undo stack.
+ * `skip(kind, sheetId, key)` returns true for parts that have unacknowledged local edits.
+ * Returns [{sheet, r1,c1,r2,c2}] bounding boxes of changed cells (for highlighting).
+ */
+Workbook.prototype.applyRemote = function applyRemote(ops, skip = () => false) {
+  const boxes = [];
+  for (const op of ops) {
+    if (op.op === 'setCells') {
+      const sh = this.sheets.find((x) => x.id === op.sheet);
+      if (!sh) continue;
+      let b = null;
+      for (const [r, c, it] of op.cells) {
+        const k = key(r, c);
+        if (skip('cell', sh.id, k)) continue;
+        const cell = it ? cellFromJSON(it) : null;
+        if (cell) sh.cells.set(k, cell); else sh.cells.delete(k);
+        b = b ? { r1: Math.min(b.r1, r), c1: Math.min(b.c1, c), r2: Math.max(b.r2, r), c2: Math.max(b.c2, c) } : { r1: r, c1: c, r2: r, c2: c };
+      }
+      sh.updateExtent();
+      if (b) boxes.push({ sheet: sh, ...b });
+    } else if (op.op === 'setSheetMeta') {
+      const sh = this.sheets.find((x) => x.id === op.sheet);
+      if (!sh || skip('meta', sh.id)) continue;
+      applySheetMetaJSON(sh, op.meta);
+    } else if (op.op === 'sheets') {
+      if (skip('structure')) continue;
+      const byId = new Map(this.sheets.map((x) => [x.id, x]));
+      const active = this.sheet;
+      this.sheets = op.order.map((id) => {
+        if (byId.has(id)) return byId.get(id);
+        const sj = op.add?.[id];
+        const sh = new Sheet(sj?.name || 'Sheet');
+        sh.id = id;
+        if (sj) {
+          applySheetMetaJSON(sh, sj);
+          for (const [r, c, it] of sj.cells || []) { const cell = cellFromJSON(it); if (cell) sh.cells.set(key(r, c), cell); }
+          sh.updateExtent();
+        }
+        return sh;
+      });
+      this.active = Math.max(0, this.sheets.indexOf(active));
+    } else if (op.op === 'setWorkbook') {
+      if (op.props?.definedNames) this.definedNames = op.props.definedNames;
+    }
+  }
+  this.version++;
+  this.recalc();
+  return boxes;
+};
 
 export function blankWorkbook(name) {
   const wb = new Workbook();

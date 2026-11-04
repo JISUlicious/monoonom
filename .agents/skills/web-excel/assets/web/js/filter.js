@@ -177,6 +177,7 @@ export class Filters {
     const snapshot = new Map();
     for (const { r } of rows) for (let c = range.c1; c <= range.c2; c++) snapshot.set(key(r, c), sh.cells.get(key(r, c)));
     wb.begin('정렬');
+    wb.markStructural();
     rows.forEach((row, i) => {
       const dst = targets[i];
       for (let c = range.c1; c <= range.c2; c++) {
