@@ -247,8 +247,9 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "web-excel/" + VERSION
     protocol_version = "HTTP/1.1"
 
-    def log_message(self, fmt, *args):  # quieter log
-        sys.stderr.write("[web-excel] " + (fmt % args) + "\n")
+    def log_message(self, fmt, *args):  # quieter log; never write stream tickets to the log
+        import re
+        sys.stderr.write("[web-excel] " + re.sub(r"ticket=[^&\s\"]+", "ticket=***", fmt % args) + "\n")
 
     def _host_ok(self) -> bool:
         if not Config.host_check:
@@ -257,26 +258,56 @@ class Handler(BaseHTTPRequestHandler):
         name = host.rsplit(":", 1)[0] if not host.startswith("[") else host.split("]")[0] + "]"
         return name in Config.allowed_hosts
 
+    def cookie_name(self) -> str:
+        # cookies are shared by all ports of a host, so each server (port) gets its own name
+        return f"wx_token_{self.server.server_address[1]}"
+
     def _cookie_token(self):
+        name = self.cookie_name()
         for part in (self.headers.get("Cookie") or "").split(";"):
             k, _, v = part.strip().partition("=")
-            if k == "wx_token":
+            if k == name:
                 return v
         return None
 
-    def authorized(self) -> bool:
-        """CLI: X-WebExcel-Token header. Browser: SameSite=Strict cookie set when the page loads
-        (+ the X-WebExcel header on POST, which forces a CORS preflight we never approve)."""
+    def authorized(self, q=None, allow_ticket=False) -> bool:
+        """Who may call /api/*:
+        - X-WebExcel-Token header: the CLI, and the page with the token from its URL (#t=...). Works in
+          previews that embed the page in a cross-site iframe (VS Code, Tauri apps), where cookies are
+          not sent. A custom header also forces a CORS preflight, which this server never approves.
+        - wx_token_<port> cookie (SameSite=Strict, set when the page loads) for top-level tabs; POSTs
+          must also carry the X-WebExcel header.
+        - ?ticket= (single use, 60 s) for the event stream only: EventSource cannot send headers."""
+        self.auth_reason = ""
         if not Config.token:
             return self.command == "GET" or self.headers.get("X-WebExcel") == "1"
         import hmac
         hdr = self.headers.get("X-WebExcel-Token")
-        if hdr and hmac.compare_digest(hdr, Config.token):
-            return True
+        if hdr:
+            if hmac.compare_digest(hdr, Config.token):
+                return True
+            self.auth_reason = "token-mismatch"
+            return False
         ck = self._cookie_token()
         if ck and hmac.compare_digest(ck, Config.token):
-            return self.command == "GET" or self.headers.get("X-WebExcel") == "1"
+            if self.command == "GET" or self.headers.get("X-WebExcel") == "1":
+                return True
+        if allow_ticket and q and take_ticket((q.get("ticket") or [""])[0]):
+            return True
+        self.auth_reason = "cookie-mismatch" if ck else "no-credentials"
         return False
+
+    def auth_error(self):
+        site = self.headers.get("Sec-Fetch-Site") or "-"
+        sys.stderr.write(f"[web-excel] 401 {self.command} {urlparse(self.path).path} reason={self.auth_reason}"
+                         f" sec-fetch-site={site}\n")
+        if self.auth_reason == "token-mismatch":
+            msg = ("인증 토큰이 이 서버와 다릅니다. 서버가 다른 토큰으로 다시 시작됐거나 다른 서버의 주소입니다. "
+                   "에이전트가 알려 준 최신 주소(#t=… 포함)로 다시 여세요.")
+        else:
+            msg = ("인증 정보가 없습니다. 에이전트가 알려 준 주소를 #t=… 부분까지 그대로 여세요"
+                   + (" (미리보기가 페이지를 다른 사이트 안에 띄우면 쿠키가 전달되지 않습니다)." if site == "cross-site" else "."))
+        return self._err(401, msg, reason=self.auth_reason)
 
     def _send(self, status, body: bytes, ctype: str, extra=None):
         gz = "gzip" in (self.headers.get("Accept-Encoding") or "") and len(body) > 2048 and (
@@ -335,8 +366,8 @@ class Handler(BaseHTTPRequestHandler):
             m = rx.match(url.path)
             if not m:
                 continue
-            if opts.get("auth", True) and not self.authorized():
-                return self._err(401, "인증 토큰이 필요합니다.")
+            if opts.get("auth", True) and not self.authorized(q, allow_ticket=opts.get("ticket", False)):
+                return self.auth_error()
             try:
                 body = json.loads(raw) if raw else {}
                 res = fn(self, m, q, body)
@@ -367,9 +398,33 @@ class Handler(BaseHTTPRequestHandler):
             ctype += "; charset=utf-8"
         extra = {}
         if path == "/index.html" and Config.token:
-            extra["Set-Cookie"] = f"wx_token={Config.token}; Path=/; HttpOnly; SameSite=Strict"
+            extra["Set-Cookie"] = f"{self.cookie_name()}={Config.token}; Path=/; HttpOnly; SameSite=Strict"
         with open(full, "rb") as fh:
             self._send(200, fh.read(), ctype, extra)
+
+
+_TICKETS: dict = {}
+_tickets_lock = threading.Lock()
+
+
+def new_ticket(ttl=60.0) -> str:
+    """Single-use credential for one EventSource connection (it cannot send the token header)."""
+    import secrets
+    t = secrets.token_urlsafe(18)
+    now = time.time()
+    with _tickets_lock:
+        for k in [k for k, exp in _TICKETS.items() if exp < now]:
+            del _TICKETS[k]
+        _TICKETS[t] = now + ttl
+    return t
+
+
+def take_ticket(t: str) -> bool:
+    if not t:
+        return False
+    with _tickets_lock:
+        exp = _TICKETS.pop(t, None)
+    return exp is not None and exp >= time.time()
 
 
 def serve(host="127.0.0.1", port=8765):

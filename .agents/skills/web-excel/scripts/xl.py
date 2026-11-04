@@ -113,6 +113,26 @@ def write_state(root, data):
     os.replace(tmp, state_path(root))  # atomic: readers never see a half-written file
 
 
+def workspace_token(root) -> str:
+    """The workspace's browser/API token, kept in .web-excel/token (0600) across server restarts, so a
+    preview opened with #t=TOKEN keeps working after the server stops (idle timeout) and starts again."""
+    d = os.path.join(root, STATE_DIR)
+    path = os.path.join(d, "token")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            tok = fh.read().strip()
+        if len(tok) >= 16:
+            return tok
+    except OSError:
+        pass
+    os.makedirs(d, exist_ok=True)
+    tok = secrets.token_urlsafe(24)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(tok)
+    return tok
+
+
 def clear_state(root, pid):
     st = read_state(root)
     if st and st.get("pid") == pid:
@@ -191,7 +211,8 @@ def run_foreground(args):
 
     root = workspace_root(args.root)
     port = args.port if args.port else pick_port(DEFAULT_PORT)
-    token = os.environ.get("WEBEXCEL_TOKEN") or secrets.token_urlsafe(24)
+    # keep the workspace's token across restarts so open previews (whose URL carries #t=TOKEN) keep working
+    token = os.environ.get("WEBEXCEL_TOKEN") or workspace_token(root)
     app.Config.root = root if not args.no_sandbox else None
     app.Config.start = root
     app.Config.token = None if args.no_auth else token
@@ -203,8 +224,10 @@ def run_foreground(args):
                          "에이전트 샌드박스가 루프백 바인딩을 막는 경우(예: Codex workspace-write) 승인 또는 전체 권한이 필요합니다.\n")
         return EXIT_USAGE
     pid = os.getpid()
+    base = f"http://localhost:{port}/"
     write_state(root, {"pid": pid, "port": port, "token": token, "root": root,
-                       "url": f"http://localhost:{port}/", "started_at": time.time(),
+                       "base_url": base, "url": base + (f"#t={token}" if app.Config.token else ""),
+                       "started_at": time.time(),
                        "version": app.VERSION, "python": sys.executable})
     stop = threading.Event()
 
@@ -286,7 +309,8 @@ def cmd_serve(args):
 def print_status(st, reused=None, extra=None):
     tag = " (기존 서버 재사용)" if reused else " (새로 시작)" if reused is False else ""
     print(f"web-excel 서버 실행 중{tag}")
-    print(f"  URL : {st['url']}   ← 미리보기 창에서 이 주소를 여세요")
+    print(f"  URL : {st['url']}")
+    print("        ↑ 미리보기 창에서 이 주소를 #t=… 까지 그대로 여세요 (토큰이 없으면 파일이 열리지 않음)")
     print(f"  root: {st['root']}")
     print(f"  pid : {st['pid']}")
     for line in extra or []:

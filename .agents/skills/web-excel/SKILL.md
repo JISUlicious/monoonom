@@ -33,9 +33,10 @@ pass `--root <workspace>`; xl.py refuses to run with the skill folder as its wor
 
 ## Workflow
 
-1. **Start**: `xl.py serve` (reuses a running server). If it exits with code 6, a Python package is
-   missing: ask the user before running the printed `pip install -r scripts/requirements.txt` command, then retry. Tell the user to open the printed URL
-   (default `http://localhost:8765/`) in the preview pane.
+1. **Start**: `xl.py serve` (reuses a running server). Give the user the printed URL **including its
+   `#t=…` token** (`http://localhost:8765/#t=…`) to open in the preview pane; without the token the page
+   loads but no workbook opens. If it exits with code 6, a Python package is missing: ask the user
+   before running the printed `pip install -r scripts/requirements.txt` command, then retry.
 2. **Open**: `xl.py open report.xlsx` — the file also appears as a tab in the preview.
    `xl.py ls` lists Excel files in the workspace.
 3. **Understand before editing**: `xl.py describe` (sheets, used range, header row, column types,

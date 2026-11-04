@@ -308,7 +308,14 @@ STREAMS: dict = {}
 _streams_lock = _th.Lock()
 
 
-@route("GET", "/api/stream")
+@route("POST", "/api/stream/ticket")
+def r_stream_ticket(h, m, q, body):
+    """Single-use ticket for GET /api/stream (EventSource cannot send the X-WebExcel-Token header)."""
+    from .app import new_ticket
+    return {"ticket": new_ticket()}
+
+
+@route("GET", "/api/stream", ticket=True)
 def r_stream(h, m, q, body):
     cid = (q.get("client") or [""])[0] or "anon"
     sq = _queue.Queue(maxsize=20000)

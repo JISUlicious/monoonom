@@ -1,10 +1,35 @@
 // Thin client for the local Python server. The browser only ever sends *paths*; Python reads/writes files.
-// Auth: the page receives an HttpOnly SameSite=Strict cookie when it loads; POSTs also carry X-WebExcel.
+//
+// Auth: the server prints the page URL as http://localhost:PORT/#t=TOKEN. The token is read from the
+// fragment (never sent to the server as part of the URL), kept in sessionStorage and sent as the
+// X-WebExcel-Token header. This works in previews that embed the page in a cross-site iframe
+// (VS Code Simple Browser, Tauri apps), where cookies are not sent. Top-level tabs opened without the
+// token still work through the HttpOnly cookie the page gets when it loads.
+const KEY = 'wx_token';
+let token = null;
+(function readToken() {
+  if (typeof location === 'undefined') return; // imported outside a browser
+  const m = /(?:^#|&)t=([^&]+)/.exec(location.hash);
+  if (m) token = decodeURIComponent(m[1]);
+  try {
+    if (token) sessionStorage.setItem(KEY, token); else token = sessionStorage.getItem(KEY);
+    // stored: drop the token from the address bar (only when it survives a reload in storage)
+    if (m && sessionStorage.getItem(KEY) === token) history.replaceState(null, '', location.pathname + location.search);
+  } catch { /* storage blocked: keep the token in memory and in the URL */ }
+})();
+
+/** '#t=TOKEN' for URLs of new windows of this page ('' without a token). */
+export const tokenFragment = () => (token ? `#t=${encodeURIComponent(token)}` : '');
+export const hasToken = () => !!token;
+
 async function call(method, url, body) {
+  const headers = { 'X-WebExcel': '1' };
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (token) headers['X-WebExcel-Token'] = token;
   const res = await fetch(url, {
     method,
     credentials: 'same-origin',
-    headers: body !== undefined ? { 'Content-Type': 'application/json', 'X-WebExcel': '1' } : { 'X-WebExcel': '1' },
+    headers,
     body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
   });
   let data;
@@ -30,6 +55,7 @@ export const api = {
   calc: (id, payload) => call('POST', `${D(id)}/calc`, payload),
   saveDoc: (id, opts) => call('POST', `${D(id)}/save`, opts),
   closeDoc: (id, force = false) => call('DELETE', D(id), { force }),
+  streamTicket: () => call('POST', '/api/stream/ticket', {}),
   subscribe: (payload) => call('POST', '/api/stream/subscribe', payload),
   unsubscribe: (payload) => call('POST', '/api/stream/unsubscribe', payload),
 };

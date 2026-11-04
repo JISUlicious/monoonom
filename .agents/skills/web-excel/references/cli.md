@@ -17,7 +17,7 @@ and most accept `--json`.
 
 | Command | Notes |
 |---|---|
-| `serve [--port P] [--idle-timeout S] [--no-sandbox] [--allow-host H]` | Starts a detached server for the workspace or reuses the running one. Picks the first free port from 8765. Stops after S seconds (default 3600) with no clients/requests; dirty workbooks are written to `.web-excel/recovery/` first. |
+| `serve [--port P] [--idle-timeout S] [--no-sandbox] [--allow-host H]` | Starts a detached server for the workspace or reuses the running one. Picks the first free port from 8765. Prints the page URL with the workspace token (`http://localhost:PORT/#t=TOKEN`, also in `status`); the token stays the same across restarts (`.web-excel/token`). Stops after S seconds (default 3600) with no clients/requests; dirty workbooks are written to `.web-excel/recovery/` first. |
 | `serve --foreground [--exit-with-parent]` | Runs in the current process (used by `.claude/launch.json`); exits when the parent exits. |
 | `status [--brief]` | URL, pid, open workbooks. Exit 3 if not running (`--brief` always exits 0). |
 | `stop [--force]` | Refuses (exit 4) while a workbook has unsaved changes unless `--force`. |

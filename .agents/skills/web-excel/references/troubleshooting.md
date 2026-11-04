@@ -7,6 +7,13 @@ on a connected machine run `pip download -r scripts/requirements.txt -d wheels`,
 `pip install --no-index --find-links wheels -r scripts/requirements.txt`. If `.xls` files fail to open
 with "xlrd가 필요합니다", only xlrd is missing.
 
+## Preview shows the menus but no workbook opens ("인증 정보가 없습니다", HTTP 401)
+The page was opened without its token. Open the URL that `serve`/`status` prints, including `#t=…`.
+Previews that embed the page in an iframe of another site (VS Code Simple Browser, apps built with
+Tauri/Electron webviews) do not send cookies, so the token in the URL is the only way in there.
+"토큰이 이 서버와 다릅니다": the URL belongs to another server or workspace; use the current `status` URL.
+`.web-excel/server.log` shows each 401 with `reason=` and `sec-fetch-site=` (`cross-site` = embedded page).
+
 ## "서버에 연결할 수 없습니다" / exit code 3
 Run `xl.py serve`. State lives in `<workspace>/.web-excel/server.json`; the log is `.web-excel/server.log`.
 

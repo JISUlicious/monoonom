@@ -322,3 +322,32 @@ xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있�
 
 ### 검증
 `agent_cli.test.py`에 3개 추가: skill 폴더에서 실행 → 2, `--root`가 skill 안 → 2, 작업 폴더에서 `--root` 없이 → 정상. 수동으로 `scripts/` 하위 폴더, 심볼릭 링크 경유, `CLAUDE_PROJECT_DIR`이 설정된 경우(정상 동작)도 확인.
+
+## 미리보기 인증: URL 토큰 방식 (2026-11-04)
+
+### 증상
+다른 PC의 에이전트 SW(Tauri로 만든 것으로 보임) 미리보기에서 메뉴 등 화면은 뜨지만 파일이 열리지 않음. 토큰 관련 오류, 새로 고침으로도 해결 안 됨.
+
+### 원인 (재현)
+브라우저 인증이 `index.html`을 받을 때 발급하는 `SameSite=Strict` 쿠키 하나에 의존했다. 정적 파일은 인증 없이 받으므로 화면은 뜨고 `/api/*`만 401.
+1. **다른 사이트의 iframe 안에 띄우는 미리보기**: VS Code Simple Browser(웹뷰 안의 `iframe.src`), Tauri 앱(앱 페이지가 `http(s)://tauri.localhost` 또는 `tauri://localhost`). `localhost` 페이지는 cross-site 문맥이라 Strict 쿠키가 저장·전송되지 않는다. `SameSite=None`도 WKWebView(ITP)나 서드파티 쿠키 차단에서 막힌다. 새로 고쳐도 그대로라 이번 증상과 일치.
+2. 쿠키는 포트를 구분하지 않아 같은 PC의 다른 서버 페이지를 열면 먼저 연 창이 401.
+3. 서버가 다시 시작되면 토큰이 새로 생겨 열려 있던 창이 401(새로 고치면 해결).
+
+### 변경
+- `serve`/`status`가 `http://localhost:PORT/#t=TOKEN`을 출력(`server.json`의 `url`, 토큰 없는 주소는 `base_url`). `#` 뒤는 서버로 전송되지 않는다.
+- 페이지(`api.js`): 주소의 토큰을 `sessionStorage`에 보관하고 주소창에서 지운 뒤(저장이 막히면 지우지 않음), 모든 API 요청에 `X-WebExcel-Token` 헤더. 새 창(`window.open`)에도 `#t=`를 붙인다.
+- 이벤트 스트림: `EventSource`는 헤더를 못 보내므로 `POST /api/stream/ticket`으로 1회용 티켓(60초)을 받아 `?ticket=`으로 연결. 로그에는 `ticket=***`로 남김.
+- 쿠키는 최상위 탭(토큰 없이 연 경우, Claude Code 데스크톱 `launch.json` 미리보기)을 위해 유지하되 이름을 `wx_token_<포트>`로.
+- 토큰은 작업 폴더별 `.web-excel/token`(0600)에 두고 재시작해도 재사용(`WEBEXCEL_TOKEN`이 있으면 그 값).
+- 401 응답에 이유(`no-credentials`, `token-mismatch`, `cookie-mismatch`)와 안내, 서버 로그에 `reason=`과 `sec-fetch-site=`. 페이지는 401을 "연결할 수 없음" 대신 토큰 안내로 표시.
+- SKILL.md: 사용자에게 `#t=…`까지 포함한 주소를 줄 것. troubleshooting에 401 항목.
+
+### 함께 고친 것
+`SKILL.claude-code.md`에서 Claude Code 데스크톱용 1단계(`launch-config`) 안내가 빠져 있었다. Python 패키지 설치 안내를 넣으며 SKILL.md 문장이 바뀌었는데 빌드 스크립트의 치환이 조용히 실패했다. 빌드 스크립트가 치환할 문장을 못 찾으면 멈추도록 `assert`.
+
+### 검증
+`tests/auth.e2e.cjs`(12개, 서버를 스스로 띄움): 다른 사이트 iframe + `#t` → 문서 열림·주소에서 토큰 제거·에이전트 편집 수신(티켓 스트림)·사용자 편집 반영, 토큰 없이 → 안내 표시, 서버 2개 → 둘 다 정상, 재시작 → 같은 토큰·새로 고침 없이 재연결, 로그에 토큰·티켓 없음. 기존 브라우저 테스트(쿠키 경로)도 2회 통과.
+
+### 남은 관찰
+서버가 다시 시작되면 열려 있던 문서가 사라지고, 마지막 탭을 잃은 창마다 빈 "통합 문서1"을 서버에 하나씩 만든다(창이 둘이면 둘). 이번 변경 전부터 있던 동작.

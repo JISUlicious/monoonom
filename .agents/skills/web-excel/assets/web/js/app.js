@@ -9,7 +9,7 @@ import { Clipboard } from './clipboard.js';
 import { Filters } from './filter.js';
 import { ChartLayer } from './charts.js';
 import { DocSync, EventStream } from './docsync.js';
-import { api } from './api.js';
+import { api, hasToken, tokenFragment } from './api.js';
 import { geom } from './geometry.js';
 import * as D from './dialogs.js';
 
@@ -958,7 +958,7 @@ class App {
   // ------------------------------------------------------------------ windows
   newWindow(docIdx = this.di) {
     const doc = this.docs[docIdx];
-    const w = window.open(`${location.pathname}?doc=${encodeURIComponent(doc.wb.docId)}`, '_blank');
+    const w = window.open(`${location.pathname}?doc=${encodeURIComponent(doc.wb.docId)}${tokenFragment()}`, '_blank');
     if (!w) this.toast(`팝업이 차단되었습니다. 다른 창/브라우저에서 ${location.origin}/?doc=${doc.wb.docId} 를 여세요.`, 'warn', 9000);
   }
   async windowsMenu(anchor) {
@@ -1425,7 +1425,7 @@ class App {
     const want = params.get('doc'), open = params.get('open');
     let docs = [];
     try { docs = (await api.docs()).docs; } catch (e) {
-      this.toast(`서버에 연결할 수 없습니다: ${e.message}. 페이지를 새로 고치세요.`, 'error', 15000);
+      if (!this.onAuthError(e)) this.toast(`서버에 연결할 수 없습니다: ${e.message}. 페이지를 새로 고치세요.`, 'error', 15000);
       return;
     }
     for (const d of docs) await this.attachQuiet(d.docId, { activate: d.docId === want });
@@ -1451,6 +1451,16 @@ class App {
       this.detachDoc(blank);
       if (focus) this.activateDoc(this.docs.indexOf(added));
     }
+  }
+
+  /** 401: tell the user how to open the page with its token (once). Returns true if it was an auth error. */
+  onAuthError(e) {
+    if (e?.status !== 401) return false;
+    if (!this._authWarned) {
+      this._authWarned = true;
+      this.toast(`${e.message}${hasToken() ? '' : '\n지금 주소에는 토큰(#t=…)이 없습니다.'}`, 'error', 30000);
+    }
+    return true;
   }
 
   /** attachDoc() that never throws: a document can be closed between being listed and being loaded. */
