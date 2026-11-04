@@ -136,8 +136,9 @@ export class ChartLayer {
       if (inst.sig !== sig) {
         inst.sig = sig;
         const cfg = this.config(model, sh);
-        inst.canvas.width = a.w * z * (window.devicePixelRatio || 1); inst.canvas.height = a.h * z * (window.devicePixelRatio || 1);
+        // logical size only: Chart.js multiplies by devicePixelRatio itself (setting both draws at 1/dpr scale)
         inst.canvas.style.width = a.w * z + 'px'; inst.canvas.style.height = a.h * z + 'px';
+        if (!inst.chart) { inst.canvas.width = a.w * z; inst.canvas.height = a.h * z; }
         if (inst.chart && inst.type === cfg.type) {
           inst.chart.data = cfg.data; inst.chart.options = cfg.options; inst.chart.resize(a.w * z, a.h * z); inst.chart.update('none');
         } else {
