@@ -38,23 +38,27 @@ def _wrap(fn):
     return inner
 
 
-def _register(doc):
+def _register(doc, by=None, client=None):
     os.makedirs(state_dir(), exist_ok=True)
     doc.audit_path = os.path.join(state_dir(), "audit.log")
     doc.audit({"event": "open"})
-    return REGISTRY.add(doc)
+    return REGISTRY.add(doc, by=by, client=client)
 
 
-def open_document(path=None, new=False, name=None) -> DocSession:
+def open_document(path=None, new=False, name=None, by=None, client=None) -> DocSession:
     if new:
         model = blank_workbook(name or "통합 문서1.xlsx")
-        return _register(DocSession(model, None, "xlsx"))
+        return _register(DocSession(model, None, "xlsx"), by, client)
     path = _norm(path)
     existing = REGISTRY.find_path(path)
     if existing:
+        if by == "agent":
+            REGISTRY.focus(existing, by, client)  # `xl.py open` again: show it in the previews
+        else:
+            existing.focused_at = time.time()
         return existing
     model = read_workbook(path)
-    return _register(DocSession(model, path, model.get("format", "xlsx")))
+    return _register(DocSession(model, path, model.get("format", "xlsx")), by, client)
 
 
 @route("GET", "/api/docs")
@@ -64,7 +68,8 @@ def r_docs(h, m, q, body):
 
 @route("POST", "/api/docs")
 def r_docs_open(h, m, q, body):
-    doc = open_document(body.get("path"), bool(body.get("new")), body.get("name"))
+    by = "agent" if body.get("actor") == "agent" else "user"
+    doc = open_document(body.get("path"), bool(body.get("new")), body.get("name"), by=by, client=body.get("clientId"))
     out = doc.summary()
     out["warnings"] = doc.warnings
     return out
@@ -112,6 +117,7 @@ def r_presence(h, m, q, body):
         doc.presence[cid] = {"clientId": cid, "actor": body.get("actor", "user"), "sheet": body.get("sheet"),
                              "sel": body.get("sel"), "active": body.get("active"), "ts": time.time()}
         doc.presence = {k: v for k, v in doc.presence.items() if time.time() - v["ts"] < 600}
+        doc.focused_at = time.time()  # someone is working in it
     doc.hub.publish("presence", {"docId": doc.id, **doc.presence[cid]})
     return {"ok": True}
 

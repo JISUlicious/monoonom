@@ -1001,6 +1001,7 @@ def r_goto(h, m, q, body):
     """Move the user's preview to a sheet/range (not a document change)."""
     doc = _doc(m)
     sh, g = resolve(doc, body.get("range") or "A1", body.get("sheet"))
+    doc.focused_at = time.time()
     doc.hub.publish("goto", {"docId": doc.id, "sheet": sh["id"], "range": A.range_a1(*g)})
     return {"ok": True, "sheet": sh["name"], "range": A.range_a1(*g), "clients": len(doc.hub)}
 

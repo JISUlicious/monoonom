@@ -99,7 +99,7 @@ def _q(s):
 
 def cmd_open(args):
     st = connect(workspace_root(args.root))
-    res = request(st, "POST", "/api/docs", {"path": in_root(args, args.path)})
+    res = request(st, "POST", "/api/docs", {"path": in_root(args, args.path), "actor": "agent"})
     if args.json:
         return out_json(res)
     print(f"열림: {res['docId']}  {res['name']}  시트: {', '.join(res['sheets'])}  (미리보기에 탭으로 표시됨)")
@@ -111,7 +111,7 @@ def cmd_open(args):
 
 def cmd_new(args):
     st = connect(workspace_root(args.root))
-    res = request(st, "POST", "/api/docs", {"new": True, "name": args.name})
+    res = request(st, "POST", "/api/docs", {"new": True, "name": args.name, "actor": "agent"})
     print(f"새 문서: {res['docId']}  {res['name']}")
     return 0
 

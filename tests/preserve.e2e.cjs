@@ -24,6 +24,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(BASE + '/');
+  await page.waitForFunction(() => window.webExcel?.started);
+  await page.evaluate(async () => { if (!window.webExcel.doc) await window.webExcel.newDoc(); }); // no workbook is created automatically
   await page.waitForFunction(() => window.webExcel?.doc?.sync);
   xl('open', 'tests/out/keep.xlsx');
   await page.waitForFunction(() => window.webExcel.docs.some((d) => d.wb.name === 'keep.xlsx'), null, { timeout: 8000 });
