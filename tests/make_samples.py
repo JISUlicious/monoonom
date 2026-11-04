@@ -1,7 +1,7 @@
 """Generate sample workbooks into ./samples (xlsx with styles/formulas/chart/filter).
 
-samples/sample.xls is a committed fixture: web-excel no longer bundles an .xls writer (xlwt),
-and make_xls() copies it.
+samples/sample.xls is a committed fixture (web-excel has no .xls writer); make_xls() copies it.
+To rebuild it: python3 tests/make_samples.py --xls (needs xlwt, a dev-only package).
 """
 import datetime as dt
 import os
@@ -100,15 +100,47 @@ def make_offset_xlsx(path):
     wb.save(path)
 
 
+XLS_FIXTURE = os.path.join(OUT, "sample.xls")
+
+
+def generate_xls(path):
+    """Rebuild the .xls fixture. Needs xlwt (dev only, not part of the skill): pip install xlwt."""
+    try:
+        import xlwt
+    except ImportError:
+        raise SystemExit("samples/sample.xls를 다시 만들려면 xlwt가 필요합니다(개발용): python -m pip install xlwt")
+    wb = xlwt.Workbook(encoding="utf-8")
+    ws = wb.add_sheet("데이터")
+    bold = xlwt.easyxf("font: bold on; pattern: pattern solid, fore_colour light_yellow")
+    for c, h in enumerate(["이름", "수량", "단가", "금액"]):
+        ws.write(0, c, h, bold)
+    for r, (n, q, p) in enumerate([("사과", 3, 1200), ("배", 2, 2500), ("포도", 5, 3000)], start=1):
+        ws.write(r, 0, n)
+        ws.write(r, 1, q)
+        ws.write(r, 2, p)
+        ws.write(r, 3, xlwt.Formula(f"B{r + 1}*C{r + 1}"))
+    ws.col(0).width = 256 * 12
+    wb.save(path)
+
+
 def make_xls(path):
-    """Legacy .xls fixture (sheet 데이터: 이름/수량/단가/금액, D2:D4 = B*C formulas)."""
-    if os.path.abspath(path) != os.path.abspath(os.path.join(OUT, "sample.xls")):
-        shutil.copyfile(os.path.join(OUT, "sample.xls"), path)
+    """Legacy .xls test file (sheet 데이터: 이름/수량/단가/금액, D2:D4 = B*C formulas).
+
+    Copies the committed fixture samples/sample.xls; web-excel itself has no .xls writer."""
+    if not os.path.isfile(XLS_FIXTURE):
+        raise FileNotFoundError(f"고정 테스트 파일이 없습니다: {XLS_FIXTURE}. "
+                                "git checkout -- samples/sample.xls 로 되돌리거나 "
+                                "python3 tests/make_samples.py --xls 로 다시 만드세요(xlwt 필요).")
+    if os.path.abspath(path) != os.path.abspath(XLS_FIXTURE):
+        shutil.copyfile(XLS_FIXTURE, path)
+
 
 if __name__ == "__main__":
-    out = sys.argv[1] if len(sys.argv) > 1 else OUT
+    args = [a for a in sys.argv[1:] if a != "--xls"]
+    out = args[0] if args else OUT
     os.makedirs(out, exist_ok=True)
     make_xlsx(os.path.join(out, "sample.xlsx"))
-    make_xls(os.path.join(out, "sample.xls"))
+    if "--xls" in sys.argv:
+        generate_xls(os.path.join(out, "sample.xls"))
     make_offset_xlsx(os.path.join(out, "offset.xlsx"))
     print("written to", out)

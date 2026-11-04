@@ -906,9 +906,8 @@ class App {
     if (this.editor.active && !this.editor.commit()) return false;
     const wb = this.doc.wb;
     if (!wb.path) return this.saveAs();
-    // .xls is read-only: save next to it as .xlsx (the server does the same; this names it in prompts)
-    if (wb.format === 'xls') return this.writeTo(wb.path.replace(/\.xls$/i, '') + '.xlsx', 'xlsx', false);
-    return this.writeTo(wb.path, wb.format, true);
+    // .xls is read-only: the server saves it as NAME.xlsx (and asks before replacing an existing one)
+    return this.writeTo(wb.path, wb.format, wb.format !== 'xls');
   }
 
   async saveAs() {
@@ -934,7 +933,11 @@ class App {
           if (e.status !== 409) throw e;
           this.hideBusy();
           const changed = /디스크/.test(e.message);
-          const ans = await D.confirmBox(changed ? `${e.message}\n그래도 덮어쓰시겠습니까?` : `'${path.split(/[\\/]/).pop()}'이(가) 이미 있습니다. 바꾸시겠습니까?`, { yes: '바꾸기', no: '아니요' });
+          const target = e.data?.targetName || path.split(/[\\/]/).pop();
+          const msg = changed ? `${e.message}\n그래도 덮어쓰시겠습니까?`
+            : e.data?.converted ? `xls는 xlsx로 저장됩니다. '${target}'이(가) 이미 있습니다. 바꾸시겠습니까?`
+              : `'${target}'이(가) 이미 있습니다. 바꾸시겠습니까?`;
+          const ans = await D.confirmBox(msg, { yes: '바꾸기', no: '아니요' });
           if (ans !== 'yes') return false;
           if (changed) opts.force = true; else opts.overwrite = true;
           this.showBusy('저장 중…');
@@ -1431,14 +1434,24 @@ class App {
     if (want) history.replaceState(null, '', location.pathname);
     if (open) await this.openFile(open);
     this.started = true;
+    // documents the agent opened while this page was starting (their 'opened' event came too early)
+    try {
+      for (const d of (await api.docs()).docs) if (!this.docs.some((x) => x.wb.docId === d.docId)) await this.attachDoc(d.docId, { activate: true });
+    } catch { /* the stream's 'ready' list catches up later */ }
   }
 
   /** Documents opened by the agent (or another window) appear here automatically. */
   onDocOpened(d) {
+    // before start() finishes, start() itself re-reads the document list
+    // attachDoc() shares one in-flight attach per docId, so repeated events do not duplicate a tab
     if (!this.started || this.docs.some((x) => x.wb.docId === d.docId)) return;
     this.attachDoc(d.docId, { activate: true }).then((doc) => doc && this.setStatus(`'${d.name}' 문서가 열렸습니다.`));
   }
-  onDocsList(docs) { this.onWindowsChanged(docs); }
+  onDocsList(docs) {
+    this.onWindowsChanged(docs);
+    // after a reconnect: attach documents opened while the stream was down
+    if (this.started) for (const d of docs || []) if (d.docId && !this.docs.some((x) => x.wb.docId === d.docId)) this.attachDoc(d.docId, { activate: false });
+  }
   /** the agent asked to show a sheet/range in the preview */
   onGoto(d) {
     const i = this.docs.findIndex((x) => x.wb.docId === d.docId);

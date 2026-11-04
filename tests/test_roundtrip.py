@@ -20,7 +20,10 @@ class RoundTrip(unittest.TestCase):
         cls.xlsx = os.path.join(cls.tmp, "s.xlsx")
         cls.xls = os.path.join(cls.tmp, "s.xls")
         make_xlsx(cls.xlsx)
-        make_xls(cls.xls)
+        try:
+            make_xls(cls.xls)
+        except FileNotFoundError as e:  # only the .xls test depends on the fixture
+            cls.xls, cls.xls_missing = None, str(e)
 
     def cells(self, sheet):
         return {(r, c): it for r, c, it in sheet["cells"]}
@@ -63,6 +66,8 @@ class RoundTrip(unittest.TestCase):
         self.assertEqual((c["type"], c["title"], c["anchor"]["w"]), ("pie", "T", 300))
 
     def test_xls_read_only(self):
+        if not self.xls:
+            self.skipTest(self.xls_missing)
         m = read_workbook(self.xls)
         cells = self.cells(m["sheets"][0])
         self.assertEqual(cells[(1, 0)]["v"], "사과")
@@ -74,6 +79,12 @@ class RoundTrip(unittest.TestCase):
             write_workbook(os.path.join(self.tmp, "o.xls"), "xls", m, None)
         self.assertEqual(xlsx_target("/w/report.xls", "xls"), ("/w/report.xlsx", "xlsx", True))
         self.assertEqual(xlsx_target("/w/report.xlsx", "xlsx"), ("/w/report.xlsx", "xlsx", False))
+        # a stale client asking for 'xls' on an xlsx/xlsm path: keep the path, no double extension
+        self.assertEqual(xlsx_target("/w/report.xlsx", "xls"), ("/w/report.xlsx", "xlsx", True))
+        self.assertEqual(xlsx_target("/w/report.xlsm", "xls"), ("/w/report.xlsm", "xlsm", True))
+        # an explicit xlsm for an .xls path is kept
+        self.assertEqual(xlsx_target("/w/out.xls", "xlsm"), ("/w/out.xlsm", "xlsm", True))
+        self.assertEqual(xlsx_target("/w/out.XLS", None), ("/w/out.xlsx", "xlsx", True))
         out = os.path.join(self.tmp, "from-xls.xlsx")
         write_workbook(out, "xlsx", m, self.xls)  # base .xls is ignored, xlsx written from the model
         self.assertEqual(self.cells(read_workbook(out)["sheets"][0])[(0, 3)]["v"], "금액")

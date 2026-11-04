@@ -143,12 +143,17 @@ def r_save_doc(h, m, q, body):
     if os.path.splitext(path)[1].lower() not in EXTS:
         path += "." + fmt
     path, fmt, converted = xlsx_target(path, fmt)
+    from_xls = doc.format == "xls"
     if not os.path.isdir(os.path.dirname(path)):
         raise ApiError(404, "저장할 폴더가 없습니다.")
     same = doc.path and os.path.normcase(path) == os.path.normcase(doc.path)
     if os.path.exists(path):
         if not same and not body.get("overwrite"):
-            raise ApiError(409, "같은 이름의 파일이 이미 있습니다.")
+            name = os.path.basename(path)
+            err = ApiError(409, f"'{name}' 파일이 이미 있습니다." + (
+                " xls는 xlsx로 저장하므로 이 파일을 덮어쓰게 됩니다. 다른 이름으로 저장하려면 --as를 쓰세요." if converted else ""))
+            err.extra = {"target": path, "targetName": name, "converted": converted}
+            raise err
         if same and doc.file_sig and doc.file_sig != _sig(path) and not body.get("force"):
             raise ApiError(409, "파일이 열린 뒤 디스크에서 바뀌었습니다(다른 프로그램이 저장). 덮어쓰려면 force가 필요합니다.")
     backup = None
@@ -162,7 +167,11 @@ def r_save_doc(h, m, q, body):
     calc = ensure_calc(doc, wait=2.0)
     warns = write_workbook(path, fmt, doc.file_model(), doc.base_path)
     if converted:
-        warns = [f"xls 형식으로는 저장하지 않으므로 '{os.path.basename(path)}'(xlsx)로 저장했습니다. 원본 .xls는 그대로입니다."] + list(warns or [])
+        note = [f"xls 형식으로는 저장하지 않으므로 '{os.path.basename(path)}'({fmt})로 저장했습니다. 원본 .xls는 그대로입니다."]
+        if from_xls:
+            note.append("xls에서 읽은 수식은 계산된 값으로만 저장됐습니다(xlrd는 xls의 수식 텍스트를 읽지 못함). "
+                        "다시 계산되어야 하는 셀은 수식을 다시 입력하세요.")
+        warns = note + list(warns or [])
     if calc.get("status") == "stale":
         warns = list(warns or []) + ["수식 결과가 최신이 아닐 수 있어 파일의 캐시 값이 이전 결과일 수 있습니다(Excel은 열 때 다시 계산)."]
     with doc.lock:

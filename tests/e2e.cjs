@@ -18,7 +18,8 @@ const check = (name, cond, extra = '') => { console.log(`${cond ? 'PASS' : 'FAIL
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  // a 409 is how the server asks before replacing a file (the overwrite prompt is tested below)
+  page.on('console', (m) => { if (m.type() === 'error' && !/status of 409/.test(m.text())) errors.push(m.text()); });
   await page.goto(BASE);
   await page.waitForFunction(() => window.webExcel?.doc);
   const val = (r, c, sheet) => page.evaluate(([r, c, s]) => { const a = window.webExcel; const sh = s == null ? a.doc.wb.sheet : a.doc.wb.sheets[s]; const v = a.doc.wb.value(sh, r, c); return v && v.err ? v.err : v; }, [r, c, sheet]);
@@ -149,6 +150,15 @@ const check = (name, cond, extra = '') => { console.log(`${cond ? 'PASS' : 'FAIL
   check('xls saved as xlsx next to it', await page.evaluate(() => window.webExcel.save()) && fs.existsSync(outL));
   check('original xls untouched', Buffer.compare(before, fs.readFileSync(inL)) === 0);
   check('document now points to the xlsx', await page.evaluate(() => window.webExcel.doc.wb.name) === 'e2e_legacy.xlsx');
+  // open the .xls again: saving it now would replace the e2e_legacy.xlsx just written -> the prompt names it
+  await page.evaluate((p) => window.webExcel.openFile(p), inL);
+  await page.waitForFunction(() => window.webExcel.doc.wb.name === 'e2e_legacy.xls');
+  const saving = page.evaluate(() => window.webExcel.save());
+  await page.waitForSelector('.modal-overlay .modal-body', { timeout: 5000 });
+  const prompt = await page.evaluate(() => document.querySelector('.modal-overlay .modal-body').textContent);
+  check('overwrite prompt names the xlsx that would be replaced', /xlsx로 저장됩니다/.test(prompt) && prompt.includes("'e2e_legacy.xlsx'"), prompt);
+  await page.click('.modal-overlay .modal-btns [data-act=no]');
+  check('declining keeps the existing xlsx', (await saving) === false);
 
   // ---- multi-window sync
   await page.evaluate(() => window.webExcel.activateDoc(0));

@@ -117,6 +117,20 @@ try:
     check("saved: column width", round(wb["판매"].column_dimensions["A"].width, 1) == 16.0)
     check("saved: date", wb["판매"]["H2"].is_date)
 
+    # .xls is read-only: saved as NAME.xlsx; an existing NAME.xlsx is named before it is replaced
+    from tests.make_samples import make_xls
+    make_xls(os.path.join(ws, "legacy.xls"))
+    shutil.copyfile(os.path.join(ws, "sales.xlsx"), os.path.join(ws, "legacy.xlsx"))
+    xl(ws, "open", "legacy.xls")
+    xl(ws, "write", "A6", "추가", "--doc", "legacy.xls")
+    p = xl(ws, "save", "--doc", "legacy.xls", ok=False)
+    check("xls save: existing xlsx is named in the 409", p.returncode == 4 and "'legacy.xlsx'" in p.stderr and "덮어쓰게" in p.stderr, p.stderr.strip())
+    p = xl(ws, "save", "--doc", "legacy.xls", "--overwrite")
+    check("xls save --overwrite: warns that .xls formulas are values", p.returncode == 0 and "계산된 값으로만" in p.stdout, p.stdout.strip())
+    check("xls saved next to it, original untouched",
+          load_workbook(os.path.join(ws, "legacy.xlsx"))["데이터"]["A6"].value == "추가" and os.path.isfile(os.path.join(ws, "legacy.xls")))
+    xl(ws, "close", "--doc", "legacy.xlsx", "--force")
+
     check("bad sheet -> exit 5", xl(ws, "read", "없음!A1", ok=False).returncode == 5)
     check("bad doc -> exit 2", xl(ws, "read", "A1", "--doc", "zzz", ok=False).returncode == 2)
     xl(ws, "write", "A30", "미저장")
