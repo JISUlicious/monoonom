@@ -1,5 +1,5 @@
 // End-to-end test (requires: npm i playwright, and the server running on :8765)
-//   python run.py --port 8765 &   node tests/e2e.cjs
+//   python run.py --port 8765 --root . &   node tests/e2e.cjs
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');

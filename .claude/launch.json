@@ -4,7 +4,7 @@
     {
       "name": "web-excel",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["run.py", "--port", "8765", "--start", "samples"],
+      "runtimeArgs": ["run.py", "--port", "8765", "--root", "."],
       "port": 8765
     }
   ]

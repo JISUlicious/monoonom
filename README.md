@@ -5,21 +5,30 @@
 
 ## 실행
 
+이 프로젝트는 **Agent Skill** 형태로 패키징되어 있습니다: `.agents/skills/web-excel/` (Claude Code용 링크: `.claude/skills/web-excel`).
+필요한 Python 라이브러리(openpyxl, xlrd, xlwt)는 skill 안 `scripts/_vendor/`에 들어 있어 `pip install`이 필요 없습니다.
+
 ```bash
-pip install -r requirements.txt          # openpyxl, xlrd, xlwt (그 외 의존성 없음: 표준 라이브러리 HTTP 서버)
-python run.py --start ./samples          # → http://127.0.0.1:8765
-python tests/make_samples.py             # 예제 파일(samples/sample.xlsx, sample.xls) 생성
+XL=.agents/skills/web-excel/scripts/xl.py
+python3 $XL serve                 # 작업 경로(현재 폴더)용 서버를 분리 실행하거나 기존 서버 재사용 → URL 출력
+python3 $XL status                # 상태·열린 문서
+python3 $XL launch-config         # Claude Code 데스크톱: .claude/launch.json에 미리보기 구성 기록
+python3 $XL stop                  # 종료 (저장 안 된 문서가 있으면 거부, --force)
+python3 run.py --port 8765 --root .   # 개발용: 포그라운드 실행
+python3 tests/make_samples.py     # 예제 파일(samples/sample.xlsx, sample.xls) 생성
 ```
 
-| 옵션 | 설명 |
+| `serve` 옵션 | 설명 |
 |---|---|
-| `--port 8765` / `--host 127.0.0.1` | 바인딩 주소 (기본: 로컬 전용) |
-| `--start DIR` | 파일 열기 대화상자 시작 폴더 |
-| `--root DIR` | 이 폴더 밖 파일 접근 차단 (선택) |
-| `--allow-host NAME` | 프록시/원격 미리보기에서 다른 Host 헤더로 접속할 때 허용 |
-| `?open=<경로>` | URL 파라미터로 시작 시 파일 열기 |
+| `--root DIR` | 작업 경로(기본: `$WEBEXCEL_ROOT`, `$CLAUDE_PROJECT_DIR`, 현재 폴더). 이 밖의 파일은 접근 차단 |
+| `--port P` | 선호 포트(기본 8765, 사용 중이면 다음 빈 포트) |
+| `--idle-timeout S` | 클라이언트·요청이 없으면 S초 후 종료(기본 3600, 0=안 함) |
+| `--foreground` / `--exit-with-parent` | 현재 프로세스에서 실행 / 부모 프로세스가 끝나면 종료(launch.json용) |
+| `--allow-host NAME` | 프록시/원격 미리보기에서 다른 Host 헤더 허용 |
+| `--no-sandbox` | 작업 경로 밖 파일 허용 |
 
-Claude Code 데스크톱 미리보기용 설정은 `.claude/launch.json`에 있습니다.
+서버 상태는 `<작업 경로>/.web-excel/`(server.json: pid·port·token, server.log)에 있고 이 폴더는 git에서 제외됩니다.
+API는 토큰이 필요합니다: CLI는 `X-WebExcel-Token` 헤더, 브라우저는 페이지를 열 때 받는 `SameSite=Strict` 쿠키를 씁니다.
 
 ## 요구사항 대응
 
@@ -43,24 +52,30 @@ Claude Code 데스크톱 미리보기용 설정은 `.claude/launch.json`에 있�
 ## 구조
 
 ```
-run.py                  서버 실행
-server/
-  fileio.py             ★ 파일 바이트 I/O 단일 진입점 (DRM 훅)
-  app.py                HTTP 라우팅: /api/info, /api/fs, /api/open, /api/save, /api/session
-  xlsx_io.py            openpyxl ↔ JSON 모델 (원본 패치 방식 저장)
-  xls_io.py             xlrd/xlwt ↔ JSON 모델
-  colors.py, units.py, formula_compat.py
-static/
-  index.html, css/app.css, vendor/chart.umd.min.js (Chart.js 4.4.6, MIT)
-  js/app.js             컨트롤러: 문서/창, 명령, 리본, 단축키
-  js/grid.js            Canvas 그리드 렌더링·히트 테스트·드래그
-  js/editor.js          셀 편집기/수식 입력줄 (입력·편집·참조 지정 모드, 자동 완성)
-  js/formula.js         토크나이저/파서/참조 재작성
-  js/engine.js          계산 엔진 + 함수 라이브러리
-  js/model.js           통합 문서 모델, 트랜잭션 실행 취소, 행/열 이동
-  js/numfmt.js          Excel 표시 형식
-  js/charts.js, filter.js, clipboard.js, dialogs.js, sync.js, api.js
-tests/                  make_samples.py, test_roundtrip.py, engine.test.mjs, e2e.cjs
+.agents/skills/web-excel/          ← Agent Skill 패키지 (원본)
+  SKILL.md                         이식 가능판 (명세 필드만)
+  SKILL.claude-code.md             Claude Code판 (allowed-tools, 상태 주입, launch.json 안내)
+  scripts/
+    xl.py                          ★ 단일 진입점 CLI: serve/status/stop/launch-config (+문서 명령)
+    _vendor/                       openpyxl, et_xmlfile, xlrd, xlwt + 라이선스
+    server/
+      fileio.py                    ★ 파일 바이트 I/O 단일 진입점 (DRM 훅)
+      app.py                       HTTP 라우팅·인증·정적 파일
+      xlsx_io.py / xls_io.py       openpyxl·xlrd/xlwt ↔ JSON 모델
+      colors.py, units.py, formula_compat.py
+  assets/web/                      브라우저 UI
+    index.html, css/app.css, vendor/chart.umd.min.js (Chart.js 4.4.6, MIT)
+    js/app.js                      컨트롤러: 문서/창, 명령, 리본, 단축키
+    js/grid.js                     Canvas 그리드 렌더링·히트 테스트·드래그
+    js/editor.js                   셀 편집기/수식 입력줄
+    js/formula.js / engine.js      토크나이저·파서·참조 재작성 / 계산 엔진 + 함수
+    js/model.js                    통합 문서 모델, 트랜잭션 실행 취소
+    js/numfmt.js, charts.js, filter.js, clipboard.js, dialogs.js, sync.js, api.js
+  references/troubleshooting.md
+.claude/skills/web-excel -> ../../.agents/skills/web-excel
+run.py                             개발용 포그라운드 실행
+tests/                             make_samples.py, test_roundtrip.py, engine.test.mjs, e2e.cjs
+docs/                              project-setup.md, skill-spec.md, skill-implementation.md
 ```
 
 ### 설계 결정과 근거
@@ -77,7 +92,7 @@ tests/                  make_samples.py, test_roundtrip.py, engine.test.mjs, e2e
 ```bash
 python -m unittest tests.test_roundtrip   # Python 읽기/쓰기 왕복 (xlsx 패치, 차트, xls, _xlfn)
 node tests/engine.test.mjs                # 수식 엔진 70개 검사
-python run.py & node tests/e2e.cjs        # 브라우저 E2E 34개 (npm i playwright 필요)
+python3 run.py --port 8765 --root . & node tests/e2e.cjs   # 브라우저 E2E 34개 (npm i playwright 필요)
 ```
 
 ## 알려진 제한

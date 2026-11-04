@@ -6,6 +6,8 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, ".agents", "skills", "web-excel", "scripts", "_vendor"))
+sys.path.insert(0, os.path.join(ROOT, ".agents", "skills", "web-excel", "scripts"))
 
 from server.app import blank_workbook, read_workbook, write_workbook  # noqa: E402
 from server.formula_compat import add_prefixes, strip_prefixes  # noqa: E402

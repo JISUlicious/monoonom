@@ -9,6 +9,12 @@
 
 - [project-setup.md](docs/project-setup.md) — 저장소·폴더 구성과 그 이유
 - [skill-spec.md](docs/skill-spec.md) — Agent Skill로 포장하기 위한 기술 조사·실현 가능성·구현 계획·명세
+- [skill-implementation.md](docs/skill-implementation.md) — 단계별(P0–) 구현 기록: 한 일, 결정과 이유, 검증, spec과 달라진 점
+
+## Agent Skill
+
+- [.agents/skills/web-excel/](.agents/skills/web-excel/) — skill 패키지 원본 (`SKILL.md`, `scripts/xl.py`, `assets/web/`, `references/`)
+- [.claude/skills/web-excel](.claude/skills/web-excel) — Claude Code용 심볼릭 링크
 
 ## tests/
 

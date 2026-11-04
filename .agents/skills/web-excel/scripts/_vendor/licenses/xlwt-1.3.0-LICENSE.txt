@@ -1,0 +1,2 @@
+xlwt 1.3.0 is distributed under a BSD-style license (the wheel ships no license file).
+Full text: https://github.com/python-excel/xlwt/blob/master/LICENSE
