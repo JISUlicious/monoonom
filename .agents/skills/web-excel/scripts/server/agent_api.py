@@ -1011,6 +1011,6 @@ def r_goto(h, m, q, body):
 def r_view(h, m, q, body):
     """Preview display settings: zoom (0.25-4) and formula display."""
     doc = _doc(m)
-    data = {k: body[k] for k in ("zoom", "showFormulas") if k in body}
+    data = {k: body[k] for k in ("zoom", "showFormulas", "follow") if k in body}
     doc.hub.publish("view", {"docId": doc.id, **data})
     return {"ok": True, **data, "clients": len(doc.hub)}

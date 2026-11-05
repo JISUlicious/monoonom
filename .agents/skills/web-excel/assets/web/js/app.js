@@ -37,6 +37,9 @@ class App {
     // nowhere until a second click. Hand focus straight back to the textarea; preventing the default
     // instead would keep an embedded (iframe) preview from receiving focus at all.
     this.gridHost.addEventListener('focus', () => { if (!this.editor.active) this.focusGrid(); });
+    // follow the agent: on (default) = the view moves to where the agent works; off = it stays put
+    // and the agent's cells are only highlighted. Kept per browser.
+    this.follow = (() => { try { return localStorage.getItem('wx_follow') !== 'off'; } catch { return true; } })();
     this.clipboard = new Clipboard(this);
     this.filters = new Filters(this);
     this.charts = new ChartLayer(this, this.grid);
@@ -149,6 +152,7 @@ class App {
   activateSheet(i, { keepEditor = false } = {}) {
     const wb = this.doc.wb;
     if (i < 0 || i >= wb.sheets.length) return;
+    wb.sheets[i].unseen = false;
     if (!keepEditor && this.editor.active) {
       if (this.editor.isFormulaPointable() || this.editor.isFormula()) { /* pointing across sheets */ }
       else if (!this.editor.commit()) return;
@@ -187,6 +191,10 @@ class App {
 
   /** ops from another client (agent CLI or another window) were applied */
   onRemoteChange(doc, ev, boxes) {
+    if (ev.actor === 'agent') {
+      this.noteAgentWork(doc, ev, boxes);
+      if (this.follow) this.followAgent(doc, ev, boxes);
+    }
     if (doc !== this.doc) {
       if (ev.actor !== 'system' && boxes.length) doc.unseen = true; // the agent or another window changed it
       this.renderTabs();
@@ -201,6 +209,61 @@ class App {
       this.setStatus(`${who}: ${ev.label || '변경'}${where ? ` (${where})` : ''}`);
     }
     this.render();
+  }
+
+  /** Where the agent just worked: a sheet with changed cells, a sheet it added, or one whose
+   * layout/charts it changed. */
+  agentTarget(doc, ev, boxes) {
+    if (boxes.length) return { sheet: boxes[0].sheet, box: boxes[0] };
+    const wb = doc.wb;
+    for (const op of ev.ops || []) {
+      const id = op.op === 'sheets' ? Object.keys(op.add || {})[0] : op.op === 'setSheetMeta' ? op.sheet : null;
+      const sh = id && wb.sheets.find((s) => s.id === id);
+      if (sh) return { sheet: sh, box: null };
+    }
+    return null;
+  }
+
+  /** Highlight the agent's cells (in both modes) and mark tabs of sheets/documents not on screen. */
+  noteAgentWork(doc, ev, boxes) {
+    const now = performance.now();
+    doc.agentMarks = (doc.agentMarks || []).filter((f) => f.until > now).concat(boxes.map((b) => ({ ...b, until: now + 8000 })));
+    for (const b of boxes) if (doc !== this.doc || b.sheet !== doc.wb.sheet) b.sheet.unseen = true;
+    const t = this.agentTarget(doc, ev, boxes);
+    if (t && !boxes.length && (doc !== this.doc || t.sheet !== doc.wb.sheet)) t.sheet.unseen = true;
+    const busy = this.$('#agent-busy');
+    busy.hidden = false;
+    clearTimeout(this._busyTimer);
+    this._busyTimer = setTimeout(() => { busy.hidden = true; }, 4000);
+    clearTimeout(this._marksTimer);
+    this._marksTimer = setTimeout(() => this.grid.render(), 8100); // drop the last highlight
+  }
+
+  /** Follow mode: bring the document, sheet and changed range the agent works on into view, unless
+   * the user is typing in a cell (then only the tabs are marked). */
+  followAgent(doc, ev, boxes) {
+    if (this.editor.active) return;
+    const t = this.agentTarget(doc, ev, boxes);
+    if (!t) return;
+    const di = this.docs.indexOf(doc);
+    if (di < 0) return;
+    if (di !== this.di) this.activateDoc(di);
+    const si = doc.wb.sheets.indexOf(t.sheet);
+    if (si >= 0 && t.sheet.state === 'visible' && si !== doc.wb.active) this.activateSheet(si);
+    const b = t.box, vis = this.grid.lastVisible;
+    if (b && vis && !(b.r1 >= vis.r0 && b.r1 <= vis.r1 && b.c1 >= vis.c0 && b.c1 <= vis.c1)) this.grid.scrollTo(b.r1, b.c1);
+  }
+
+  setFollow(on) {
+    this.follow = !!on;
+    try { localStorage.setItem('wx_follow', on ? 'on' : 'off'); } catch { /* ignore */ }
+    this.$('#follow-agent').checked = this.follow;
+    this.setStatus(on ? '에이전트 따라가기: 켬 — 에이전트가 작업하는 곳으로 화면이 이동합니다.' : '에이전트 따라가기: 끔 — 에이전트가 바꾼 셀은 강조만 합니다.');
+    if (on && this.doc) { // jump to the latest work, if there is any
+      const marks = this.docs.flatMap((d) => (d.agentMarks || []).map((m) => ({ d, m }))).filter((x) => x.m.until > performance.now());
+      const last = marks[marks.length - 1];
+      if (last) this.followAgent(last.d, {}, [last.m]);
+    }
   }
 
   // ------------------------------------------------------------------ rendering
@@ -225,7 +288,7 @@ class App {
   renderSheetTabs() {
     const wb = this.doc.wb;
     const box = this.$('#sheet-tabs');
-    box.innerHTML = wb.sheets.map((s, i) => s.state !== 'visible' ? '' : `<div class="sheet-tab${i === wb.active ? ' on' : ''}" data-i="${i}" draggable="true" style="${s.tabColor ? `--tab:${s.tabColor}` : ''}">${D.esc(s.name)}</div>`).join('');
+    box.innerHTML = wb.sheets.map((s, i) => s.state !== 'visible' ? '' : `<div class="sheet-tab${i === wb.active ? ' on' : ''}" data-i="${i}" draggable="true" style="${s.tabColor ? `--tab:${s.tabColor}` : ''}">${D.esc(s.name)}${s.unseen && i !== wb.active ? '<span class="st-new" title="에이전트가 이 시트를 바꿨습니다">●</span>' : ''}</div>`).join('');
   }
 
   syncFormulaBar() {
@@ -1392,6 +1455,9 @@ class App {
     this.$('#sheet-next').addEventListener('click', () => this.cycleSheet(1));
     // zoom
     this.$('#zoom-range').addEventListener('input', (e) => this.setZoom(+e.target.value / 100));
+    const fol = this.$('#follow-agent');
+    fol.checked = this.follow;
+    fol.addEventListener('change', () => { this.setFollow(fol.checked); this.focusGrid(); });
     this.$('#zoom-label').addEventListener('click', () => this.exec('zoom100'));
     this.$('#win-btn').addEventListener('click', (e) => this.windowsMenu(e.currentTarget));
     // painter completes on mouseup in grid
@@ -1589,6 +1655,7 @@ class App {
     if (g) this.selectRange(g, { r: g.r1, c: g.c1 });
   }
   onView(d) {
+    if (typeof d.follow === 'boolean' && d.follow !== this.follow) this.setFollow(d.follow);
     const doc = this.docs.find((x) => x.wb.docId === d.docId);
     if (!doc || doc !== this.doc) return;
     if (typeof d.showFormulas === 'boolean' && d.showFormulas !== this.view().showFormulas) this.exec('showFormulas');
