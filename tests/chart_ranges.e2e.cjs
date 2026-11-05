@@ -71,6 +71,45 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
     await p.evaluate(() => { const a = window.webExcel; a.charts.select(a.doc.wb.sheet.charts[0].id); }); await sleep(200);
     s = await st();
     check('pie: name, categories and values outlined', s.ranges.length === 3 && s.rows === 1, JSON.stringify(s));
+
+    // ---- switch rows / columns
+    await p.evaluate(() => window.webExcel.activateSheet(0)); await sleep(150);
+    await p.evaluate(() => { const a = window.webExcel; a.charts.select(a.doc.wb.sheet.charts[0].id); }); await sleep(150);
+    await p.click('.chart-ranges [data-switch]'); await sleep(400);
+    const sw = await p.evaluate(() => window.webExcel.doc.wb.sheet.charts[0].series.map((x) => [x.nameRef, x.cat, x.val].map((t) => t && t.replace(/'/g, '')).join(' ')));
+    check('UI 행/열 전환: 6 series (one per month), names A2..A7, X = B1:E1, Y = a row',
+      sw.length === 6 && sw[0] === '매출!$A$2 매출!$B$1:$E$1 매출!$B$2:$E$2' && sw[5] === '매출!$A$7 매출!$B$1:$E$1 매출!$B$7:$E$7', JSON.stringify(sw));
+    s = await st();
+    check('…the outlines follow (names A2:A7 green, X B1:E1 purple)', has('#008000', [1, 0, 1, 0]) && has('#7030A0', [0, 1, 0, 4]) && has('#0070C0', [6, 1, 6, 4]), JSON.stringify(s.ranges));
+    const agentSees = xl('chart', 'ls');
+    check('…the server (agent) sees the switched chart', /계열 6: 이름 '?매출'?!\$A\$7 {2}X '?매출'?!\$B\$1:\$E\$1 {2}Y '?매출'?!\$B\$7:\$E\$7/.test(agentSees), agentSees);
+    const cid = await p.evaluate(() => window.webExcel.doc.wb.sheet.charts[0].id);
+    xl('chart', 'set', cid, '--switch');
+    await p.waitForFunction(() => window.webExcel.doc.wb.sheet.charts[0].series.length === 4, null, { timeout: 4000 }).catch(() => {});
+    const back = await p.evaluate(() => window.webExcel.doc.wb.sheet.charts[0].series.map((x) => [x.nameRef, x.cat, x.val].map((t) => t && t.replace(/'/g, '')).join(' ')));
+    check('agent `chart set --switch` switches it back; the preview shows the original ranges',
+      back.length === 4 && back[0] === '매출!$B$1 매출!$A$2:$A$7 매출!$B$2:$B$7' && back[3] === '매출!$E$1 매출!$A$2:$A$7 매출!$E$2:$E$7', JSON.stringify(back));
+    // the same rules in JS (UI) and Python (agent)
+    const cases = [
+      [{ val: 'S!$B$2:$B$5', cat: 'S!$A$2:$A$5', nameRef: 'S!$B$1' }, { val: 'S!$C$2:$C$5', cat: 'S!$A$2:$A$5', nameRef: 'S!$C$1' }],
+      [{ val: 'S!$B$2:$D$2', cat: 'S!$B$1:$D$1', nameRef: 'S!$A$2' }, { val: 'S!$B$3:$D$3', nameRef: 'S!$A$3' }],
+      [{ val: 'S!$B$2:$B$4', name: '리터럴' }],
+      [{ val: 'S!$B$2:$B$4' }, { val: 'S!$D$2:$D$4' }],
+      [{ val: 'S!$B$2:$B$4', cat: 'S!$A$2:$A$4' }, { val: 'S!$C$2:$C$4', cat: 'S!$E$2:$E$4' }],
+      [{ val: 'S!$B$2:$B$4', cat: 'S!$A$2:$A$3' }],
+    ];
+    const js = await p.evaluate((cs) => cs.map((c) => { try { return window.webExcel.charts.constructor.switchRowCol(c); } catch (e) { return 'ERR ' + e.message; } }), cases);
+    const py = JSON.parse(execFileSync('python3', ['-c', `
+import json, sys; sys.path.insert(0, ${JSON.stringify(path.join(ROOT, '.agents', 'skills', 'web-excel', 'scripts'))})
+from server.agent_more import switch_row_col
+out = []
+for c in json.loads(sys.argv[1]):
+    try: out.append(switch_row_col(c))
+    except Exception as e: out.append('ERR ' + str(getattr(e, 'message', None) or e.args[-1]))
+print(json.dumps(out, ensure_ascii=False))`, JSON.stringify(cases)], { encoding: 'utf8' }));
+    const norm = (r) => JSON.stringify(typeof r === 'string' ? r.startsWith('ERR') : r.map((x) => [x.nameRef, x.cat, x.val]));
+    const same = js.every((r, i) => norm(r) === norm(py[i]));
+    check('JS and Python switch the same way (6 cases incl. errors)', same && typeof js[3] === 'string' && typeof js[4] === 'string' && typeof js[5] === 'string', JSON.stringify({ js, py }));
     check('no page errors', errors.length === 0, errors.join('; '));
   } finally {
     await browser.close();
