@@ -561,12 +561,13 @@ xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있�
   - 그 안의 `a:off`·`a:ext`는 둘 다 `minOccurs="0"`(`CT_Transform2D`)이므로, 빈 `<xfrm/>`은 규격상 올바르다.
 - openpyxl로 만든 차트는 모두 이 형태다. 복구본의 off/ext는 Excel이 자기 형식으로 다시 쓴 결과일 수 있다.
 **유력한 원인**:
-- 수정 전 코드(main)로 차트 9종과 샘플을 저장해 모든 drawing·chart 파트를 XSD로 검증했다.
+- 수정 전 코드(커밋 `2510703`, #13 병합 직전의 main)로 차트 9종과 샘플을 저장해 모든 drawing·chart 파트를 XSD로 검증했다. 재현: 그 커밋을 체크아웃해 저장한 파일을 ECMA-376 Part 4 Transitional의 `dml-chart.xsd`·`dml-spreadsheetDrawing.xsd`로 검증한다.
 - 유일한 위반은 분산형 차트의 `scatterStyle` 누락이었다(`CT_ScatterChart`에서 `minOccurs="1"`). 위 1–4번 수정의 3번에서 고쳤다.
 - 빈 xfrm이 든 drawing은 전부 통과했고, 축 ID·교차축 참조와 차트 ID 중복도 정상이었다.
 - Excel은 차트 파트의 오류도 "drawing 제거"로 표시한다. 사례로 빈 scatterChart(Python Forum)와 잘못된 축 설정(Stack Overflow)이 있다.
 - 문제가 된 파일에 분산형이 없었다면 원인은 아직 모른다. Excel 복구 로그(`error*.xml`)나 해당 파일로 확인해야 한다.
 **그래도 남긴 것**:
-- `xlsx_io.fix_drawings`는 저장 직후 빈 xfrm을 Excel이 쓰는 형태로 바꾼다. 규격상 차이가 없는 예방 조치다.
+- `xlsx_io.fix_drawings`는 저장 직후 차트 틀(`nvGraphicFramePr` 바로 뒤)의 빈 xfrm만 Excel이 쓰는 형태로 바꾼다. 도형의 `a:xfrm`은 건드리지 않는다. 규격상 차이가 없는 예방 조치다.
+- 이 형태(`a:off` 0,0 / `a:ext` 0,0)는 XlsxWriter(Excel이 만든 파일과 비교해 테스트하는 라이브러리)가 차트 틀에 쓰는 것과 같다(`xlsxwriter/drawing.py` `_write_xfrm`, 3.3.1에서 확인).
 - 위치는 앵커가 가지므로 0 값이어도 된다. 다른 파트는 바이트 그대로 둔다.
 **검증**: `chart_style.test.py`에 2개 추가(새 통합 문서, 원본 차트가 있는 통합 문서의 모든 차트 틀). 수정 전 코드에서 실패함을 확인했다. XML 파싱, openpyxl로 다시 읽기, LibreOffice로 열기 모두 정상이다. 실제 Excel에서는 확인하지 못했다.

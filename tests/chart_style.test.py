@@ -114,6 +114,15 @@ try:
     xl("chart", "set", ids["slices"], "--title", "slices2", "--doc", "old.xlsx")
     xl("save", "--as", "old-out.xlsx", "--doc", "old.xlsx")
     c = charts_xml(os.path.join(ws, "old-out.xlsx"))
+    # only chart frames are touched: a shape's empty <a:xfrm/> (spPr / grpSpPr) is left as it is
+    import io as _io
+    from server.xlsx_io import fix_drawings
+    buf = _io.BytesIO()
+    shape = '<sp><spPr><a:xfrm/></spPr></sp><grpSp><grpSpPr><a:xfrm/></grpSpPr></grpSp>'
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("xl/drawings/drawing1.xml", '<wsDr><graphicFrame><nvGraphicFramePr/></nvGraphicFramePr><xfrm/></graphicFrame>' + shape + '</wsDr>')
+    got = zipfile.ZipFile(_io.BytesIO(fix_drawings(buf.getvalue()))).read("xl/drawings/drawing1.xml").decode()
+    check("fix_drawings: chart frame filled, shapes' empty <a:xfrm/> untouched", '<xfrm><a:off ' in got and got.endswith(shape + '</wsDr>'), got)
     # chart frames: Excel's off/ext form instead of openpyxl's empty <xfrm/> (valid; precaution, see fix_drawings)
     for fn in ("fresh.xlsx", "old-out.xlsx"):
         z = zipfile.ZipFile(os.path.join(ws, fn))

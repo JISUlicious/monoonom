@@ -836,7 +836,9 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
 
 
 _A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
-_EMPTY_XFRM = re.compile(r"<((?:\w+:)?)xfrm\s*/>")
+# only a chart frame's own transform: in CT_GraphicalObjectFrame it comes right after nvGraphicFramePr
+# (shapes' <a:xfrm/> in spPr/grpSpPr are left alone)
+_EMPTY_XFRM = re.compile(r"(</(?:\w+:)?nvGraphicFramePr>)\s*<((?:\w+:)?)xfrm\s*/>")
 
 
 def fix_drawings(data: bytes) -> bytes:
@@ -847,7 +849,8 @@ def fix_drawings(data: bytes) -> bytes:
     writes has it. It was suspected for Excel's "Removed Part: /xl/drawings/drawingN.xml", but XSD
     checks found the scatter chart's missing <scatterStyle> instead (see docs/skill-implementation.md);
     Excel reports chart-part errors as a removed drawing. This writes the form Excel itself saves,
-    <xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xfrm> (the anchor holds the real position).
+    <xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xfrm> (also what XlsxWriter, which is tested
+    against Excel-made files, writes: xlsxwriter/drawing.py _write_xfrm); the anchor holds the position.
     Only drawing parts change; everything else stays byte-identical.
     """
     import zipfile
@@ -856,8 +859,8 @@ def fix_drawings(data: bytes) -> bytes:
     names = [n for n in zin.namelist() if n.startswith("xl/drawings/drawing") and n.endswith(".xml")]
     if not names:
         return data
-    full = lambda m: (f'<{m.group(1)}xfrm><a:off xmlns:a="{_A_NS}" x="0" y="0"/>'
-                      f'<a:ext xmlns:a="{_A_NS}" cx="0" cy="0"/></{m.group(1)}xfrm>')
+    full = lambda m: (f'{m.group(1)}<{m.group(2)}xfrm><a:off xmlns:a="{_A_NS}" x="0" y="0"/>'
+                      f'<a:ext xmlns:a="{_A_NS}" cx="0" cy="0"/></{m.group(2)}xfrm>')
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
         for info in zin.infolist():
