@@ -61,6 +61,10 @@ wb.save(${JSON.stringify(path.join(ws, 'axes.xlsx'))})
     });
     const n = ax.narrow, mx = ax.mixed, d = ax.dates, lit = ax.literal;
     check('160–180 (spread under 1/6): the axis does not start at 0, but below 160 (Excel 5/6 rule)', n.yMin > 0 && n.yMin < 160 && n.yMax > 180, JSON.stringify([n.yMin, n.yMax]));
+    // the 5/6 boundary with Peltier's numbers: min exactly 5/6 of max -> not 0; just under -> 0
+    const edge = await p.evaluate(async () => { const { excelAutoRange: f } = await import('/js/charts.js');
+      return [f([2.5, 3]).beginAtZero, f([2.49999999999999, 3]).beginAtZero, f([-3, -2.5]).beginAtZero, f([-3, -2.49999999999999]).beginAtZero]; });
+    check('5/6 rule boundary: exactly 5/6 does not start at 0, just under does (both signs)', edge.join() === 'false,true,false,true', edge.join());
     check('mixed signs: 0 inside the axis', mx.yMin < -3 && mx.yMax > 5, JSON.stringify([mx.yMin, mx.yMax]));
     check('scatter with dates as X: X labels in the cells\' date format', d.xTicks.length > 1 && d.xTicks.every((t) => /^\d{4}-\d{2}-\d{2}$/.test(t)), JSON.stringify(d.xTicks));
     check('…X axis does not start at 0 (1900) but near the first date (5/6 rule on X)', d.xMin > 46000, String(d.xMin));

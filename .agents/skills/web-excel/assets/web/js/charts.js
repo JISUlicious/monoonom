@@ -45,17 +45,19 @@ export const CHART_TYPES = [
   ['line', '꺾은선형'], ['area', '영역형'], ['pie', '원형'], ['doughnut', '도넛형'], ['scatter', '분산형'], ['radar', '방사형'],
 ];
 
-/** Excel's automatic value-axis limits (KB 214075 "How Chart Axis Limits Are Determined"): the axis
- * starts at 0 unless all values have one sign and their spread is under 1/6 of the largest magnitude
- * (the "5/6 rule"); either end gets a 5 % margin of the spread before rounding to the major unit.
+/** Excel's automatic value-axis limits (KB 214075 "How Chart Axis Limits Are Determined", and Jon
+ * Peltier's tests in Excel 2010): the axis starts at 0 while the smallest value is under 5/6 of the
+ * largest (all positive; mirrored when all negative); from exactly 5/6 on it does not. Either end
+ * gets a margin of 1/20 of the spread (the KB's "/2" is a typo, per Peltier) before rounding to the
+ * major unit; the same for scatter X and Y axes (Peltier's XY demo; not the KB's scatter exception).
  * Chart.js: beginAtZero = include 0, grace = the margin; it rounds the ends to its tick step. */
 export function excelAutoRange(values) {
   const xs = values.filter((v) => typeof v === 'number' && Number.isFinite(v));
   if (!xs.length) return { beginAtZero: true };
   const lo = Math.min(...xs), hi = Math.max(...xs), spread = hi - lo;
   let zero = true;
-  if (spread > 0 && lo >= 0) zero = spread / hi >= 1 / 6;
-  else if (spread > 0 && hi <= 0) zero = spread / -lo >= 1 / 6;
+  if (spread > 0 && lo >= 0) zero = 6 * lo < 5 * hi; // lo < 5/6 hi, without the rounding of a division
+  else if (spread > 0 && hi <= 0) zero = 6 * -hi < 5 * -lo;
   return { beginAtZero: zero, grace: '5%' };
 }
 
