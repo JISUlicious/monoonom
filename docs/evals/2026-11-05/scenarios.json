@@ -1,0 +1,617 @@
+[
+ {
+  "id": "add-margin-column",
+  "model": "haiku",
+  "browser_ready": true,
+  "skill_used": true,
+  "steps": 4,
+  "cost": 0.00603065,
+  "turns": 6,
+  "subtype": "success",
+  "secs": 25,
+  "grade": [
+   {
+    "expectation": "Ran xl.py serve and gave the user the printed URL verbatim, including its #t= token",
+    "pass": false,
+    "evidence": "No `xl.py serve` call appears; the agent ran `xl.py url` instead. Its output is truncated, so the URL given (http://localhost:8900/#t=Xp6s...) cannot be confirmed as the printed one."
+   },
+   {
+    "expectation": "Used describe or read before editing",
+    "pass": true,
+    "evidence": "Call [2] ran `xl.py describe` and call [3] ran `xl.py read '매출!A1:F12' --what formulas`, both before the write/fill in [4]."
+   },
+   {
+    "expectation": "Wrote formulas with fill (relative references), not hard-coded numbers",
+    "pass": true,
+    "evidence": "`fill '매출!G2:G8' '=E2*0.3'`; the final state shows G2..G7 as =E2*0.3..=E7*0.3, plus G8 =E8*0.3."
+   },
+   {
+    "expectation": "Applied a number format with one decimal (nf like #,##0.0 or 0.0)",
+    "pass": true,
+    "evidence": "`format '매출!G2:G8' nf='0.0'`; the final formats show \"nf\": \"0.0\" on G2:G8."
+   },
+   {
+    "expectation": "Did not run xl.py save because the user did not ask to save",
+    "pass": true,
+    "evidence": "No save call; the final describe shows *수정됨* and saved (backups) is []. The agent wrote \"파일은 아직 저장하지 않았습니다.\""
+   }
+  ],
+  "passed": 4,
+  "total": 5
+ },
+ {
+  "id": "add-margin-column",
+  "model": "sonnet",
+  "browser_ready": true,
+  "skill_used": true,
+  "steps": 4,
+  "cost": 0.09373060000000001,
+  "turns": 6,
+  "subtype": "success",
+  "secs": 25,
+  "grade": [
+   {
+    "expectation": "Ran xl.py serve and gave the user the printed URL verbatim, including its #t= token",
+    "pass": false,
+    "evidence": "The agent ran `xl.py url`, not `xl.py serve`. It did pass the printed URL verbatim, http://localhost:8901/#t=-a2neMHpT0ct1CNkvdCwySLtPJEOB2P4, but the transcript shows no serve call. Whether that matters depends on whether reusing a running server counts."
+   },
+   {
+    "expectation": "Used describe or read before editing",
+    "pass": true,
+    "evidence": "Call [2] ran `xl.py describe` and call [3] ran `xl.py read '매출!A1:F12' --what all`, both before the first write in [4]."
+   },
+   {
+    "expectation": "Wrote formulas with fill (relative references), not hard-coded numbers",
+    "pass": true,
+    "evidence": "`xl.py fill 'G2:G8' '=E2*0.3'` produced =E2*0.3 through =E8*0.3 in the final state."
+   },
+   {
+    "expectation": "Applied a number format with one decimal (nf like #,##0.0 or 0.0)",
+    "pass": true,
+    "evidence": "`xl.py format G2:G8 nf='0.0'` was run, and the final state shows \"nf\": \"0.0\" on G2:G8."
+   },
+   {
+    "expectation": "Did not run xl.py save because the user did not ask to save",
+    "pass": true,
+    "evidence": "No save command was run. The workbook shows v6 *수정됨*, saved backups is [], and the agent told the user it had not saved yet."
+   }
+  ],
+  "passed": 4,
+  "total": 5
+ },
+ {
+  "id": "add-margin-column",
+  "model": "opus",
+  "browser_ready": true,
+  "skill_used": true,
+  "steps": 4,
+  "cost": 0.1944268,
+  "turns": 6,
+  "subtype": "success",
+  "secs": 22,
+  "grade": [
+   {
+    "expectation": "Ran xl.py serve and gave the user the printed URL verbatim, including its #t= token",
+    "pass": false,
+    "evidence": "No `xl.py serve` call appears. Call [2] ran only open, describe and url, and the url output is cut off. The final message gives http://localhost:8902/#t=eCHD7-..., but the evidence shows neither a serve run nor printed output to match that URL against."
+   },
+   {
+    "expectation": "Used describe or read before editing",
+    "pass": true,
+    "evidence": "Call [2] ran `xl.py describe` and call [3] ran `xl.py read '매출!A1:G12' --what all`, both before the write and fill in call [4]."
+   },
+   {
+    "expectation": "Wrote formulas with fill (relative references), not hard-coded numbers",
+    "pass": true,
+    "evidence": "`xl.py fill 'G2:G8' '=E2*0.3'`. The final state shows G2..G7 = =E2*0.3..=E7*0.3."
+   },
+   {
+    "expectation": "Applied a number format with one decimal (nf like #,##0.0 or 0.0)",
+    "pass": true,
+    "evidence": "`xl.py format G2:G8 nf='0.0'`. The final state shows \"nf\": \"0.0\" on G2:G8."
+   },
+   {
+    "expectation": "Did not run xl.py save because the user did not ask to save",
+    "pass": true,
+    "evidence": "No save call. The workbook shows v6 *수정됨* and saved (backups) is []. The agent told the user it had not saved yet."
+   }
+  ],
+  "passed": 4,
+  "total": 5
+ },
+ {
+  "id": "react-to-user-selection",
+  "model": "haiku",
+  "browser_ready": true,
+  "skill_used": true,
+  "steps": 5,
+  "cost": 0.0059080700000000005,
+  "turns": 7,
+  "subtype": "success",
+  "secs": 18,
+  "grade": [
+   {
+    "expectation": "Called xl.py selection to find the user's current range",
+    "pass": true,
+    "evidence": "Call [3]: `xl.py selection --json` returned sheet 매출, range B2:C4"
+   },
+   {
+    "expectation": "Formatted only that range with b=true and a yellow bg",
+    "pass": true,
+    "evidence": "Call [4]: `format '매출!B2:C4' b=true bg='#FFFF00'`; the final state shows B2:C4 with {b:true, bg:#FFFF00}. D2:D4 and rows 5-7 are unchanged."
+   },
+   {
+    "expectation": "Reported the batch id or how to undo",
+    "pass": true,
+    "evidence": "Final message: \"되돌리려면 `xl.py undo b3bde805367`를 실행하면 됩니다\""
+   }
+  ],
+  "passed": 3,
+  "total": 3
+ },
+ {
+  "id": "react-to-user-selection",
+  "model": "sonnet",
+  "browser_ready": true,
+  "skill_used": false,
+  "steps": 5,
+  "cost": 0.0831209,
+  "turns": 6,
+  "subtype": "success",
+  "secs": 17,
+  "grade": [
+   {
+    "expectation": "Called xl.py selection to find the user's current range",
+    "pass": true,
+    "evidence": "Tool call [4]: `xl.py selection` → '매출!B2:C4 (활성 셀 B2, 11초 전)'"
+   },
+   {
+    "expectation": "Formatted only that range with b=true and a yellow bg",
+    "pass": true,
+    "evidence": "Tool call [5]: `format '매출!B2:C4' b=true bg=#FFFF00`. In the final state, B2:C4 have {b:true, bg:#FFFF00}. D2:D4 and B5:C7 are unchanged."
+   },
+   {
+    "expectation": "Reported the batch id or how to undo",
+    "pass": true,
+    "evidence": "Final message: '되돌리려면 `xl.py undo ba8851b8ee6`을 실행하면 됩니다.'"
+   }
+  ],
+  "passed": 3,
+  "total": 3
+ },
+ {
+  "id": "react-to-user-selection",
+  "model": "opus",
+  "browser_ready": true,
+  "skill_used": true,
+  "steps": 4,
+  "cost": 0.1545338,
+  "turns": 6,
+  "subtype": "success",
+  "secs": 17,
+  "grade": [
+   {
+    "expectation": "Called xl.py selection to find the user's current range",
+    "pass": true,
+    "evidence": "[3] xl.py selection → 매출!B2:C4 (활성 셀 B2, 9초 전)"
+   },
+   {
+    "expectation": "Formatted only that range with b=true and a yellow bg",
+    "pass": true,
+    "evidence": "[4] format '매출!B2:C4' b=true bg=#FFFF00; workbook shows B2:C4 with b:true, bg:#FFFF00, D2:D4 and B5:C7 unchanged"
+   },
+   {
+    "expectation": "Reported the batch id or how to undo",
+    "pass": false,
+    "evidence": "Tool output had batch=be2b1d4d047 / undo command, but final message mentions neither the batch id nor how to undo"
+   }
+  ],
+  "passed": 2,
+  "total": 3
+ },
+ {
+  "id": "insert-and-sort-then-save",
+  "model": "haiku",
+  "browser_ready": true,
+  "skill_used": false,
+  "steps": 6,
+  "cost": 0.01166314,
+  "turns": 7,
+  "subtype": "success",
+  "secs": 50,
+  "grade": [
+   {
+    "expectation": "Used xl.py rows insert (not manual cell moves)",
+    "pass": false,
+    "evidence": "No xl.py call at all; agent hand-edited sheet1.xml with regex in a custom edit.py to renumber rows and insert the blank row 5"
+   },
+   {
+    "expectation": "Used xl.py sort with --by B:desc (header row excluded)",
+    "pass": false,
+    "evidence": "Sorting done in Python (data.sort(key=lambda t: -t[0])) by rewriting row XML, not via xl.py sort --by B:desc"
+   },
+   {
+    "expectation": "Ran xl.py save and mentioned the backup",
+    "pass": false,
+    "evidence": "No xl.py save; file overwritten with cp. A manual backup copy was mentioned in the scratchpad, but workbook state shows 'saved (backups)': [] and the live workbook is still v0 with original order"
+   },
+   {
+    "expectation": "Verified totals with read after the changes",
+    "pass": false,
+    "evidence": "No xl.py read; only openpyxl dumps of formula strings, with no calculated totals checked. Final workbook state still shows the unsorted A1:F12 with totals at row 8, so the change did not reach the live preview"
+   }
+  ],
+  "passed": 0,
+  "total": 4
+ },
+ {
+  "id": "insert-and-sort-then-save",
+  "model": "sonnet",
+  "browser_ready": true,
+  "skill_used": true,
+  "steps": 7,
+  "cost": 0.1216226,
+  "turns": 9,
+  "subtype": "success",
+  "secs": 48,
+  "grade": [
+   {
+    "expectation": "Used xl.py rows insert (not manual cell moves)",
+    "pass": true,
+    "evidence": "Call [7]: `python3 $XL rows insert 6` → 'v6 batch=bfb80e77490 매출 행 6 삽입'. No manual cell moves. Note: the agent inserted at row 6 after sorting, while the expected outcome was row 5 before sorting. The blank row still ends up directly below 3월."
+   },
+   {
+    "expectation": "Used xl.py sort with --by B:desc (header row excluded)",
+    "pass": true,
+    "evidence": "Call [6]: `sort A2:F7 --by B:desc --no-header` → '매출!A2:F7 정렬(B↓)'. The range starts at A2, so header row 1 is excluded. Result is 6월 191 … 1월 126. The first attempt had wrongly treated row 2 as a header and was undone with --force."
+   },
+   {
+    "expectation": "Ran xl.py save and mentioned the backup",
+    "pass": true,
+    "evidence": "Call [7] ends with `python3 $XL save`. Workbook state lists backup 'sample.20261105-095134.xlsx'. The final message says '원본은 `.web-excel/backups/`에 백업해 뒀습니다'."
+   },
+   {
+    "expectation": "Verified totals with read after the changes",
+    "pass": true,
+    "evidence": "After the sort, `read '매출!A1:F8'` showed totals 951/629/499/2079. After the insert, `read '매출!A1:F13' --what formulas` showed '=SUM(B2:B8)'…'=SUM(E2:E8)' and per-row '=SUM(Bn:Dn)' correctly shifted. Totals were not re-read as values after the insert, only as formulas."
+   }
+  ],
+  "passed": 4,
+  "total": 4
+ },
+ {
+  "id": "insert-and-sort-then-save",
+  "model": "opus",
+  "browser_ready": true,
+  "skill_used": true,
+  "steps": 5,
+  "cost": 0.2075548,
+  "turns": 7,
+  "subtype": "success",
+  "secs": 28,
+  "grade": [
+   {
+    "expectation": "Used xl.py rows insert (not manual cell moves)",
+    "pass": true,
+    "evidence": "Call [4]: `python3 $X rows insert 5` → 'v1 batch=b1efccb703a 매출 행 5 삽입'"
+   },
+   {
+    "expectation": "Used xl.py sort with --by B:desc (header row excluded)",
+    "pass": true,
+    "evidence": "Call [4]: `sort 'A1:F8' --header --by B:desc` → '매출!A2:F8 정렬(B↓) 머리글 제외'"
+   },
+   {
+    "expectation": "Ran xl.py save and mentioned the backup",
+    "pass": true,
+    "evidence": "Call [5] save → '백업: .../sample.20261105-095129.xlsx'; the final message says '원본은 `.web-excel/backups/sample.20261105-095129.xlsx`에 백업되어 있습니다'"
+   },
+   {
+    "expectation": "Verified totals with read after the changes",
+    "pass": true,
+    "evidence": "After the insert and sort, call [4] ran `read '매출!A1:F13'` for both values and formulas, which covers the totals rows. The final message reports the totals are intact (합계 2079, 최대 제품A 월 6월). The final state shows =SUM(B2:B8) etc."
+   }
+  ],
+  "passed": 4,
+  "total": 4
+ },
+ {
+  "id": "user-edits-meanwhile",
+  "model": "haiku",
+  "browser_ready": true,
+  "skill_used": false,
+  "steps": 4,
+  "cost": 0.006661459999999999,
+  "turns": 5,
+  "subtype": "success",
+  "secs": 23,
+  "grade": [
+   {
+    "expectation": "Called xl.py changes with --actor user",
+    "pass": false,
+    "evidence": "No xl.py invocation appears in the tool calls. The agent read audit.log and server.log with cat/tail, dumped the xlsx with a custom Python script, and curled /api/health and /api/docs directly."
+   },
+   {
+    "expectation": "Summarized ranges and values without modifying the workbook",
+    "pass": false,
+    "evidence": "The workbook was not modified, but the agent never summarized ranges or values. Its final message says '어느 셀을 어떤 값으로 고쳤는지 정리할 수 없습니다'. The live state shows the user's edits (매출!B3=999, D5=77), and neither is reported."
+   }
+  ],
+  "passed": 0,
+  "total": 2
+ },
+ {
+  "id": "user-edits-meanwhile",
+  "model": "sonnet",
+  "browser_ready": true,
+  "skill_used": false,
+  "steps": 5,
+  "cost": 0.10952230000000002,
+  "turns": 6,
+  "subtype": "success",
+  "secs": 28,
+  "grade": [
+   {
+    "expectation": "Called xl.py changes with --actor user",
+    "pass": true,
+    "evidence": "Tool call [3]: `python3 .claude/skills/web-excel/scripts/xl.py changes --since 0 --actor user` returned v1 매출!B3 and v2 매출!D5"
+   },
+   {
+    "expectation": "Summarized ranges and values without modifying the workbook",
+    "pass": true,
+    "evidence": "Final message tables B3 139→999 and D5 65→77 with downstream formula effects. All tool calls were read-only (ls, cat, changes, read, openpyxl load). The workbook stays at v2, the same version as after the user's edits."
+   }
+  ],
+  "passed": 2,
+  "total": 2
+ },
+ {
+  "id": "user-edits-meanwhile",
+  "model": "opus",
+  "browser_ready": true,
+  "skill_used": true,
+  "steps": 4,
+  "cost": 0.2325734,
+  "turns": 6,
+  "subtype": "success",
+  "secs": 24,
+  "grade": [
+   {
+    "expectation": "Called xl.py changes with --actor user",
+    "pass": true,
+    "evidence": "Tool call [3]: `python3 $XL changes --since 0 --actor user` returned v1 매출!B3 and v2 매출!D5 as 사용자 edits"
+   },
+   {
+    "expectation": "Summarized ranges and values without modifying the workbook",
+    "pass": true,
+    "evidence": "Final message lists B3 139→999 and D5 65→77 with dependent formula effects. Only read-only commands were run (changes, read, openpyxl load of the saved file). Workbook remains at v2 *수정됨* with no backups or saves, matching the state after the user's edits."
+   }
+  ],
+  "passed": 2,
+  "total": 2
+ },
+ {
+  "id": "give-preview-url",
+  "model": "haiku",
+  "browser_ready": true,
+  "skill_used": true,
+  "steps": 3,
+  "cost": 0.0041246699999999996,
+  "turns": 5,
+  "subtype": "success",
+  "secs": 7,
+  "grade": [
+   {
+    "expectation": "Ran xl.py serve or xl.py url to get the URL instead of writing it from memory",
+    "pass": true,
+    "evidence": "Tool call [3]: python3 .claude/skills/web-excel/scripts/xl.py url"
+   },
+   {
+    "expectation": "The URL given to the user ends with #t= followed by the token exactly as printed",
+    "pass": true,
+    "evidence": "Printed and given URL both: http://localhost:8912/#t=th-5_xThtHiTC94lc4XUwykrdC2hKtQC"
+   },
+   {
+    "expectation": "Did not give a bare http://localhost:PORT/ address",
+    "pass": true,
+    "evidence": "Only the full tokenized URL appears in the final message"
+   },
+   {
+    "expectation": "Explained that the page needs the token in the URL to open workbooks",
+    "pass": true,
+    "evidence": "\"끝의 `#t=` 토큰까지 그대로 붙여서 여세요. 토큰이 없으면 메뉴만 보이고 파일이 열리지 않습니다.\""
+   }
+  ],
+  "passed": 4,
+  "total": 4
+ },
+ {
+  "id": "give-preview-url",
+  "model": "sonnet",
+  "browser_ready": true,
+  "skill_used": true,
+  "steps": 2,
+  "cost": 0.0662828,
+  "turns": 4,
+  "subtype": "success",
+  "secs": 12,
+  "grade": [
+   {
+    "expectation": "Ran xl.py serve or xl.py url to get the URL instead of writing it from memory",
+    "pass": true,
+    "evidence": "Tool call [2] ran `xl.py open samples/sample.xlsx && xl.py url`, which printed http://localhost:8913/#t=J8Fh8GHXBSA-tB9PojBpq-f-eDAuMHFF"
+   },
+   {
+    "expectation": "The URL given to the user ends with #t= followed by the token exactly as printed",
+    "pass": true,
+    "evidence": "Final message gives http://localhost:8913/#t=J8Fh8GHXBSA-tB9PojBpq-f-eDAuMHFF, identical to the xl.py url output"
+   },
+   {
+    "expectation": "Did not give a bare http://localhost:PORT/ address",
+    "pass": true,
+    "evidence": "The only bare form, `http://localhost:8913/`, appears as the likely cause of the problem ('토큰이 없는 ... 접속하셨기 때문'), not as an address to open. The address to open includes the token."
+   },
+   {
+    "expectation": "Explained that the page needs the token in the URL to open workbooks",
+    "pass": true,
+    "evidence": "'토큰이 없는 `http://localhost:8913/`로 접속하셨기 때문일 가능성이 큽니다. 이 주소로는 페이지만 뜨고 워크북은 열리지 않습니다.'"
+   }
+  ],
+  "passed": 4,
+  "total": 4
+ },
+ {
+  "id": "give-preview-url",
+  "model": "opus",
+  "browser_ready": true,
+  "skill_used": true,
+  "steps": 3,
+  "cost": 0.14521720000000002,
+  "turns": 5,
+  "subtype": "success",
+  "secs": 16,
+  "grade": [
+   {
+    "expectation": "Ran xl.py serve or xl.py url to get the URL instead of writing it from memory",
+    "pass": true,
+    "evidence": "Tool call [2]: python3 .claude/skills/web-excel/scripts/xl.py url"
+   },
+   {
+    "expectation": "The URL given to the user ends with #t= followed by the token exactly as printed",
+    "pass": true,
+    "evidence": "Final message URL http://localhost:8914/#t=qqKRc8jqFeSEdzHySQOQT3pFpqoLbP7n matches the xl.py url output character for character"
+   },
+   {
+    "expectation": "Did not give a bare http://localhost:PORT/ address",
+    "pass": true,
+    "evidence": "The only address in the final message includes the #t= token; no bare localhost URL appears"
+   },
+   {
+    "expectation": "Explained that the page needs the token in the URL to open workbooks",
+    "pass": true,
+    "evidence": "\"메뉴만 나왔던 건 아까 주소 끝에 `#t=…` 토큰이 없었기 때문이에요. 토큰이 없으면 화면은 뜨지만 통합문서가 열리지 않아요.\""
+   }
+  ],
+  "passed": 4,
+  "total": 4
+ },
+ {
+  "id": "summary-with-formulas",
+  "model": "haiku",
+  "browser_ready": true,
+  "skill_used": false,
+  "steps": 8,
+  "cost": 0.01253476,
+  "turns": 9,
+  "subtype": "success",
+  "secs": 44,
+  "grade": [
+   {
+    "expectation": "The summary cells contain formulas (=SUM, =AVERAGE, =INDEX/MATCH, =XLOOKUP, =MAX ...) that reference the 매출 sheet",
+    "pass": false,
+    "evidence": "The agent wrote formulas such as =SUM('매출'!B2:B7) into raw XML, but the workbook state after the run reports \"요약 sheet\": \"(no 요약 sheet)\". The live workbook the user sees has no summary formulas."
+   },
+   {
+    "expectation": "Did not compute the numbers in Python (pandas or a script) and write them as plain values",
+    "pass": true,
+    "evidence": "Cells were written as <f>formula</f> with cached <v> values. Python computed the cached values, but the cells hold formulas, not plain values."
+   },
+   {
+    "expectation": "Used fill or a formula with relative references instead of writing each result by hand",
+    "pass": false,
+    "evidence": "No fill was used. A Python loop wrote each cell's formula individually into sheet3.xml via the fnum/fstr helpers."
+   },
+   {
+    "expectation": "Read back some result cells to check the values",
+    "pass": false,
+    "evidence": "Values were checked only by recalculating a copy in LibreOffice and reading it with openpyxl (call 7). Nothing was read back through xl.py from the live workbook, which has no 요약 sheet."
+   },
+   {
+    "expectation": "Did not save unless asked",
+    "pass": false,
+    "evidence": "The agent overwrote the file on disk without being asked: 'cp $S/new.xlsx /tmp/wx-eval-summary-with-nqr885fe/sample.xlsx' (calls 5, 6 and 8)."
+   }
+  ],
+  "passed": 1,
+  "total": 5
+ },
+ {
+  "id": "summary-with-formulas",
+  "model": "sonnet",
+  "browser_ready": true,
+  "skill_used": true,
+  "steps": 4,
+  "cost": 0.0923621,
+  "turns": 6,
+  "subtype": "success",
+  "secs": 29,
+  "grade": [
+   {
+    "expectation": "The summary cells contain formulas (=SUM, =AVERAGE, =INDEX/MATCH, =XLOOKUP, =MAX ...) that reference the 매출 sheet",
+    "pass": true,
+    "evidence": "요약!B2 '=SUM(매출!B2:B7)', C2 '=AVERAGE(매출!B2:B7)', D2 '=INDEX(매출!$A$2:$A$7,MATCH(MAX(매출!B2:B7),매출!B2:B7,0))'. The final state shows 12 formulas on 요약."
+   },
+   {
+    "expectation": "Did not compute the numbers in Python (pandas or a script) and write them as plain values",
+    "pass": true,
+    "evidence": "Only xl.py describe/read/write/format calls were made. All B2:D5 cells are formulas, and no values were computed in Python."
+   },
+   {
+    "expectation": "Used fill or a formula with relative references instead of writing each result by hand",
+    "pass": false,
+    "evidence": "No fill command was used. The --data JSON typed each row's formula separately (B2:B7, C2:C7, D2:D7, E2:E7), so every result cell was written by hand."
+   },
+   {
+    "expectation": "Read back some result cells to check the values",
+    "pass": true,
+    "evidence": "Call [4] ends with `$XL read '요약!A1:D5'`. The final message reports the values 951, 158.5, 6월 and so on, which match 매출 (B8=951)."
+   },
+   {
+    "expectation": "Did not save unless asked",
+    "pass": true,
+    "evidence": "The state shows '*수정됨*' and saved backups are []. The final message says '아직 파일로 저장하지 않았습니다'."
+   }
+  ],
+  "passed": 4,
+  "total": 5
+ },
+ {
+  "id": "summary-with-formulas",
+  "model": "opus",
+  "browser_ready": true,
+  "skill_used": true,
+  "steps": 5,
+  "cost": 0.2188174,
+  "turns": 7,
+  "subtype": "success",
+  "secs": 33,
+  "grade": [
+   {
+    "expectation": "The summary cells contain formulas (=SUM, =AVERAGE, =INDEX/MATCH, =XLOOKUP, =MAX ...) that reference the 매출 sheet",
+    "pass": true,
+    "evidence": "요약!B2 =SUM(INDEX(매출!$B$2:$D$7,0,MATCH($A2,매출!$B$1:$D$1,0))); C=AVERAGE, D=MAX, E=INDEX/MATCH, all referencing 매출"
+   },
+   {
+    "expectation": "Did not compute the numbers in Python (pandas or a script) and write them as plain values",
+    "pass": true,
+    "evidence": "Only xl.py write for headers/labels; all figures written via fill with formulas; no pandas/script calls"
+   },
+   {
+    "expectation": "Used fill or a formula with relative references instead of writing each result by hand",
+    "pass": true,
+    "evidence": "$X fill '요약!B2:B4' '...MATCH($A2,...)' — relative row ref $A2 became $A3/$A4 in final state"
+   },
+   {
+    "expectation": "Read back some result cells to check the values",
+    "pass": true,
+    "evidence": "Call [4] ends with $X read '요약!A1:E4'; final message reports values (951, 158.5, 191, 6월) and cross-checks against 매출 row 8"
+   },
+   {
+    "expectation": "Did not save unless asked",
+    "pass": true,
+    "evidence": "Final state '*수정됨*', saved (backups): []; message says '아직 파일에는 저장하지 않았습니다' and asks before saving"
+   }
+  ],
+  "passed": 5,
+  "total": 5
+ }
+]
