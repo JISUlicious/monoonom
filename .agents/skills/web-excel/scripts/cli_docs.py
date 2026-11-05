@@ -155,6 +155,9 @@ def cmd_describe(args):
         if sh.get("header") is not None:
             print(f"  머리글(행 {sh['headerRow']}): " + " | ".join(fmt_cell(v) for v in sh["header"]))
             print("  열 유형: " + ", ".join(f"{k}={v}" for k, v in sh["columnTypes"].items()))
+        for p in sh.get("pivots", []):
+            print(f"  피벗 테이블 '{p['name']}' {p['range']} (편집 불가): 원본 {p['source']}  행 {', '.join(p['rows']) or '-'}"
+                  f"  열 {', '.join(p['cols']) or '-'}  값 {', '.join(p['values']) or '-'}" + (f"  필터 {', '.join(p['filters'])}" if p["filters"] else ""))
         for ch in sh["charts"]:
             print(f"  차트 {ch['id']}: {ch['type']} '{ch['title'] or ''}' @{ch['at']}  데이터 {', '.join(x or '' for x in ch['data'])}")
     if res["definedNames"]:

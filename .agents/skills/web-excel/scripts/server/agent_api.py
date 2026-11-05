@@ -15,6 +15,7 @@ import subprocess
 import time
 
 from . import a1 as A
+from . import pivots as PV
 from .app import SKILL_DIR, ApiError, route
 from .docs_api import REGISTRY, _doc, _wrap
 from . import refs
@@ -454,6 +455,12 @@ def build_ops(doc, edits):
                                     s[k] = rename_in_formula("=" + s[k], old, name)[1:]
                         ch["dirty"] = True
                     meta[other["id"]]["charts"] = new
+                pivots = copy.deepcopy(meta_of(other, "pivots") or [])
+                if any(p.get("source") and old.lower() in p["source"].lower() for p in pivots):
+                    for p in pivots:
+                        if p.get("source"):
+                            p["source"] = rename_in_formula("=" + p["source"], old, name)[1:]
+                    meta[other["id"]]["pivots"] = pivots
             names = {k: rename_in_formula(v if v.startswith("=") else "=" + v, old, name).lstrip("=")
                      for k, v in doc.defined_names.items()}
             ops.append({"op": "setWorkbook", "props": {"definedNames": names}})
@@ -600,6 +607,9 @@ def _axis_pos(spec, axis):
 
 def shift_ops(doc, sh, axis, at, count):
     """State ops for inserting (count>0) / deleting (count<0) rows/cols, mirroring Workbook.shift()."""
+    problem = PV.shift_problem(sh, axis, at, count)
+    if problem:
+        raise ApiError(409, problem)
     is_row = axis == "row"
     k = 0 if is_row else 1
     target = sh["name"]
@@ -689,6 +699,22 @@ def shift_ops(doc, sh, axis, at, count):
         if ch["anchor"].get(p, 0) >= at:
             ch["anchor"][p] = max(at, ch["anchor"][p] + count)
     meta["charts"] = charts
+    pivots = copy.deepcopy(sh.get("pivots") or [])
+    for p in pivots:  # the pivot moves as a whole (cutting through it was refused above)
+        nr = shift_range(p["ref"])
+        if nr:
+            p["ref"] = nr
+    meta["pivots"] = pivots
+    for other in doc.sheets:  # pivot sources on the shifted sheet (any sheet's pivots)
+        pvs = pivots if other is sh else copy.deepcopy(other.get("pivots") or [])
+        touched = False
+        for p in pvs:
+            if p.get("source"):
+                n = refs.adjust("=" + p["source"], other["name"], target, axis, at, count)[1:]
+                if n != p["source"]:
+                    p["source"], touched = n, True
+        if other is not sh and touched:
+            ops.append({"op": "setSheetMeta", "sheet": other["id"], "meta": {"pivots": pvs}})
     for other in doc.sheets:  # chart series referencing the shifted sheet (any sheet)
         chs = charts if other is sh else copy.deepcopy(other["charts"])
         touched = False
@@ -715,6 +741,9 @@ _RANK = lambda v: 4 if v is None or v == "" else 0 if isinstance(v, (int, float)
 def sort_ops(doc, sh, g, keys, header):
     """Sort rows of a range like the UI (visible rows only, blanks last, formulas follow their row)."""
     r1, c1, r2, c2 = clamp(sh, g)
+    pv = PV.overlapping(sh, (r1, c1, r2, c2))
+    if pv:
+        raise ApiError(409, f"피벗 테이블 '{pv[0]['name']}'({pv[0]['ref']})이 있는 범위는 정렬할 수 없습니다.")
     if header is None:
         top = [cell_value(doc, sh, r1, c, sh["cells"].get((r1, c)) or {}) for c in range(c1, c2 + 1)]
         nxt = [cell_value(doc, sh, r1 + 1, c, sh["cells"].get((r1 + 1, c)) or {}) for c in range(c1, c2 + 1)]
@@ -935,11 +964,14 @@ def r_describe(h, m, q, body):
                                 # per series: name cell, X (categories / scatter x) and Y (values) ranges
                                 "series": [{"name": s.get("name"), "nameRef": s.get("nameRef"), "x": s.get("cat") or _lit_label(s.get("catLit")), "y": s.get("val") or _lit_label(s.get("valLit")),
                                             **({"type": s["type"]} if s.get("type") else {})} for s in ch.get("series", [])]}
-                               for ch in sh["charts"]]}
+                               for ch in sh["charts"]],
+                    "pivots": [{"name": p["name"], "range": p["ref"], "source": p.get("source"), "rows": p.get("rows", []),
+                                "cols": p.get("cols", []), "values": [f"{v['fn']}({v['field']})" for v in p.get("values", [])],
+                                "filters": p.get("filters", [])} for p in sh.get("pivots") or []]}
             if mr >= 0:
                 r0, c0 = min(r for r, _ in sh["cells"]), min(c for _, c in sh["cells"])
                 info["used"] = A.range_a1(r0, c0, mr, mc)
-                tabs = RG.tables(sh)
+                tabs = [g for g in RG.tables(sh) if not PV.overlapping(sh, g)]  # a pivot's output is not a table
                 info["tables"] = []
                 for g in tabs:
                     body = RG.table_body(sh, g)

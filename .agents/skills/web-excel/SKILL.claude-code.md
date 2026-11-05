@@ -116,6 +116,11 @@ Tables do not have to start at A1. Give filter/sort/chart/dedupe a single cell o
 they use the table there (the contiguous block, without a 합계/Total row under it); an explicit
 multi-cell range is used as given. `describe` lists each table with its header and totals rows.
 
+Pivot tables in the file are kept and listed by `describe` (range, source, fields). Their output
+cells cannot be edited, sorted or cut through by row/column inserts (the command fails with exit
+code 4 and says why): change the pivot's source data instead; saving then makes Excel refresh the
+pivot when it opens the file. Inserting rows/columns above or left of a pivot moves it.
+
 Row/column inserts, deletes and sorts move formulas, chart ranges, merges and the filter range just
 like Excel, everywhere in the workbook. If the user edits cells at the same moment, their edits are
 moved to the shifted position automatically.

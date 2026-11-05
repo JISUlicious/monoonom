@@ -33,6 +33,7 @@ from openpyxl.worksheet.filters import (AutoFilter, CustomFilter, CustomFilters,
 from openpyxl.worksheet.cell_range import MultiCellRange
 from openpyxl.worksheet.formula import ArrayFormula
 
+from . import a1 as A
 from . import colors
 from .formula_compat import add_prefixes, prefix_map, strip_prefixes, unsupported_functions
 from .units import (DEFAULT_COL_PX, DEFAULT_ROW_PX, EMU_PER_PX, colw_to_px, pt_to_px,
@@ -326,6 +327,73 @@ def _filter_model(af):
     return out
 
 
+# ------------------------------------------------------------------ pivot tables (step 1: safeguards)
+# A pivot table's output is ordinary cells in the sheet; its definition (location, source range, fields)
+# and its cache stay in the file (openpyxl keeps them). The model describes each pivot so the app can
+# protect its area, move it with row/column inserts, and ask Excel to refresh it when its source changed.
+
+def _pivot_source(p, sheet_name):
+    ws_src = getattr(getattr(p.cache, "cacheSource", None), "worksheetSource", None)
+    if ws_src is None:
+        return None
+    if ws_src.name:  # a defined name or table
+        return ws_src.name
+    return f"{A.quote_sheet(ws_src.sheet or sheet_name)}!{ws_src.ref}"
+
+
+def _pivot_model(p, idx, sheet_name):
+    names = [f.name for f in (p.cache.cacheFields or [])] if p.cache is not None else []
+    nm = lambda i: names[i] if isinstance(i, int) and 0 <= i < len(names) else None  # noqa: E731 (-2 = "Values")
+    return {
+        "idx": idx, "name": p.name, "ref": p.location.ref,
+        "source": _pivot_source(p, sheet_name),
+        "rows": [nm(f.x) for f in (p.rowFields or []) if nm(f.x)],
+        "cols": [nm(f.x) for f in (p.colFields or []) if nm(f.x)],
+        "values": [{"name": d.name, "field": nm(d.fld), "fn": d.subtotal or "sum"} for d in (p.dataFields or [])],
+        "filters": [nm(f.fld) for f in (p.pageFields or []) if nm(f.fld)],
+    }
+
+
+def pivot_source_sig(sheets, source):
+    """Fingerprint of the source range's values and formulas (model sheets with cells as [r, c, item])."""
+    import hashlib
+    if not source or "!" not in source:
+        return None
+    sheet, ref = A.split_sheet(source)
+    sm = next((s for s in sheets if s["name"].lower() == (sheet or "").lower()), None)
+    if sm is None:
+        return None
+    try:
+        r1, c1, r2, c2 = A.parse_range(ref)
+    except ValueError:
+        return None
+    pts = sorted((r, c, item.get("v"), item.get("f")) for r, c, item in sm.get("cells", []) if r1 <= r <= r2 and c1 <= c <= c2
+                 and (item.get("v") is not None or item.get("f")))
+    return hashlib.sha1(repr(pts).encode("utf-8")).hexdigest()
+
+
+def _write_pivots(ws, sm, sheets):
+    """Keep each pivot's definition in step with the model: location and source after row/column
+    inserts, sheet renames; refreshOnLoad when the source data changed (Excel then rebuilds the
+    pivot when the file opens, so it never shows stale numbers)."""
+    pivots = getattr(ws, "_pivots", None) or []
+    for pm in sm.get("pivots") or []:
+        i = pm.get("idx")
+        if not isinstance(i, int) or not 0 <= i < len(pivots):
+            continue
+        p = pivots[i]
+        if pm.get("ref") and p.location.ref != pm["ref"]:
+            p.location.ref = pm["ref"]
+        src = getattr(getattr(p.cache, "cacheSource", None), "worksheetSource", None)
+        changed = pm.get("srcSig") is not None and pivot_source_sig(sheets, pm.get("source")) != pm["srcSig"]
+        if src is not None and not src.name and pm.get("source") and "!" in pm["source"]:
+            sheet, ref = A.split_sheet(pm["source"])
+            if (src.sheet or ws.title, src.ref) != (sheet, ref):
+                src.sheet, src.ref, changed = sheet, ref, True
+        if changed and p.cache is not None:
+            p.cache.refreshOnLoad = True
+
+
 def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
     wb = load_workbook(io.BytesIO(data), data_only=False, keep_vba=keep_vba)
     try:
@@ -431,6 +499,15 @@ def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
                 charts.append(_chart_model(ch, i, geom, warn, theme))
             except Exception as exc:  # pragma: no cover
                 warn.append(f"차트를 읽지 못했습니다: {exc}")
+        pivots = []
+        for i, p in enumerate(getattr(ws, "_pivots", None) or []):
+            try:
+                pivots.append(_pivot_model(p, i, ws.title))
+            except Exception as exc:  # pragma: no cover
+                warn.append(f"피벗 테이블을 읽지 못했습니다: {exc}")
+        if pivots:
+            warn.append(f"'{ws.title}' 시트의 피벗 테이블({', '.join(p['name'] for p in pivots)})은 보존되고 영역은 편집할 수 없습니다. "
+                        "원본 데이터를 바꾸면 Excel이 파일을 열 때 새로 고칩니다.")
         if getattr(ws, "_images", None):
             warn.append(f"'{ws.title}' 시트의 이미지는 화면에 표시되지 않지만 저장 시 보존됩니다.")
         if ws.conditional_formatting:
@@ -451,8 +528,13 @@ def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
             "freeze": ws.freeze_panes,
             "autoFilter": _filter_model(ws.auto_filter),
             "charts": charts,
+            "pivots": pivots,
             "showGrid": ws.sheet_view.showGridLines is not False,
         })
+
+    for sm in sheets:  # fingerprints of the pivots' source data, compared on save
+        for pm in sm["pivots"]:
+            pm["srcSig"] = pivot_source_sig(sheets, pm["source"])
 
     names = {}
     try:
@@ -853,6 +935,7 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
             ch.anchor = _anchor(cm.get("anchor", {}))
             new_charts.append(ch)
         ws._charts = new_charts
+        _write_pivots(ws, sm, model["sheets"])
 
     active = model.get("activeSheet", 0)
     if wb.worksheets:

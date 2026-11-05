@@ -353,6 +353,7 @@ def op_duplicate_sheet(ctx, e):
     sj.update(name=name, origName=None)
     for ch in sj["charts"]:
         ch.update(id=new_id("ch"), orig=None, dirty=True)
+    sj["pivots"] = []  # the copy's cells are plain values: the file's pivot stays on the original sheet
     sid = new_id("s")
     order = [s["id"] for s in doc.sheets]
     order.insert(order.index(src["id"]) + 1, sid)

@@ -6,6 +6,7 @@ import { translateFormula, refsWithPositions } from './formula.js';
 const TOTAL_LABEL = /^\s*(합\s*계|총\s*계|소\s*계|계|누\s*계|평\s*균|total|totals|grand total|sum|subtotal|average)\s*$/i;
 const AGG_FN = /\b(SUM|SUBTOTAL|AVERAGE|COUNT|COUNTA|MAX|MIN|AGGREGATE)\s*\(/i;
 import { cmp } from './engine.js';
+import { pivotsIn } from './model.js';
 
 const OPS = [
   ['equal', '같음'], ['notEqual', '같지 않음'], ['greaterThan', '보다 큼'], ['greaterThanOrEqual', '크거나 같음'],
@@ -183,6 +184,8 @@ export class Filters {
   /** sort rows of range by keys [{c, asc}] ; header row excluded if hasHeader */
   sort(sh, range, keys, hasHeader = false) {
     const wb = this.app.doc.wb;
+    const pv = pivotsIn(sh, range);
+    if (pv.length) throw new Error(`피벗 테이블 '${pv[0].name}'(${pv[0].ref})이 있는 범위는 정렬할 수 없습니다.`);
     const r1 = range.r1 + (hasHeader ? 1 : 0), r2 = Math.min(range.r2, sh.maxRow);
     if (r2 <= r1) return;
     const rows = [];

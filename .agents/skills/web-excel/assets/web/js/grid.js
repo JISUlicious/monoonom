@@ -1,5 +1,5 @@
 // Canvas-virtualized spreadsheet grid: rendering, hit-testing, selection, resizing, fill handle.
-import { key, colName, MAX_COLS, MAX_ROWS, normRange, inRange } from './address.js';
+import { key, colName, MAX_COLS, MAX_ROWS, normRange, inRange, parseRange } from './address.js';
 import { formatValue, COLOR_NAMES } from './numfmt.js';
 import { geom } from './geometry.js';
 
@@ -447,6 +447,22 @@ export class Grid {
       ctx.fillStyle = h.color + '1f'; ctx.fillRect(x, y, w, hh);
       ctx.strokeStyle = h.color; ctx.lineWidth = 2 / m.z; ctx.setLineDash([]);
       ctx.strokeRect(x + 1 / m.z, y + 1 / m.z, w - 2 / m.z, hh - 2 / m.z);
+    }
+    // pivot tables from the file: their output cannot be edited here (it changes through the source)
+    for (const p of m.sh.pivots || []) {
+      const g = parseRange(p.ref);
+      if (!g) continue;
+      const [x, y, w, hh] = rectOf(g);
+      ctx.fillStyle = '#7030A00d'; ctx.fillRect(x, y, w, hh);
+      ctx.strokeStyle = '#7030A0'; ctx.lineWidth = 1.5 / m.z; ctx.setLineDash([5 / m.z, 3 / m.z]);
+      ctx.strokeRect(x + 1 / m.z, y + 1 / m.z, w - 2 / m.z, hh - 2 / m.z);
+      ctx.setLineDash([]);
+      const label = `피벗 ${p.name} · 편집 불가`;
+      ctx.font = `${11 / m.z}px system-ui, sans-serif`;
+      const tw = ctx.measureText(label).width + 8 / m.z, th = 15 / m.z;
+      const ly = y >= th ? y - th : y;
+      ctx.fillStyle = '#7030A0'; ctx.fillRect(x, ly, tw, th);
+      ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.fillText(label, x + 4 / m.z, ly + th / 2);
     }
     // the selected chart's data ranges (series name / X / Y), like Excel's range finder
     for (const h of this.chartRanges) {
