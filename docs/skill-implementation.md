@@ -619,3 +619,32 @@ xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있�
 - 저장 파일의 차트·drawing 19개 파트를 ECMA-376 XSD로 검증해 모두 통과.
 - 전체 테스트 통과. 화면: `docs/chart-axes-preview.png`.
 - 실제 Excel 화면은 확인하지 못했다.
+
+## Agent Skills 컨벤션 진단과 Claude Code판 연결 (2026-11-05)
+**진단 기준**(원문 확인):
+- Agent Skills 규격(agentskills.io/specification)
+- Anthropic "Skill authoring best practices"
+- Claude Code "Skills" 문서
+- 공식 검증기 `skills-ref`(github.com/agentskills/agentskills). 처음으로 실제 실행했고, 두 skill 폴더 모두 "Valid skill"이었다.
+
+**충족**:
+- name이 폴더 이름과 같다.
+- description 548자, 3인칭, 무엇을·언제·쓰지 말아야 할 때를 적었다.
+- compatibility 442자로 500자 한도 안이다.
+- metadata는 문자열 맵이다.
+- 본문 127줄, 약 2.3k 토큰이다.
+- 참조는 한 단계 깊이이고, 98줄인 cli.md에도 목차가 있다.
+- Windows 경로가 없다.
+- 의존성과 종료 코드를 안내한다.
+- 평가 시나리오 6개와 트리거 질문 20개를 작성해 두었다.
+
+**고친 것**:
+1. `SKILL.claude-code.md`가 PR #12 이후 오래된 상태였다(`--switch` 누락).
+   - 생성 스크립트에 `--check`를 추가했다.
+   - `tests/skill_package.test.py`가 생성 결과와 커밋된 파일이 같은지 검사한다. frontmatter 한도, 링크, 참조 파일도 함께 검사한다.
+2. Claude Code판이 실제로는 쓰이지 않았다. `.claude/skills/web-excel`이 패키지 전체를 가리키는 링크라서 Claude Code가 이식판 `SKILL.md`를 읽었고, `allowed-tools`·상태 주입·`launch-config` 안내가 적용되지 않았다.
+   - 이제 `.claude/skills/web-excel/`은 실제 폴더다.
+   - `SKILL.md`는 생성된 Claude Code판(실제 파일)이고, `scripts`·`references`·`assets`·라이선스 파일은 패키지로 가는 링크다. Claude Code 문서는 skill 폴더 안의 링크를 지원한다.
+   - `${CLAUDE_SKILL_DIR}`는 `.claude/skills/web-excel`이 되고, `allowed-tools`의 `Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/xl.py *)`가 본문이 시키는 명령과 그대로 맞는다.
+   - xl.py는 `__file__`을 실제 경로로 풀지 않으므로 정적 파일과 서버 경로가 링크를 거쳐 동작한다(확인).
+   - "skill 폴더를 작업 폴더로 쓰면 거부" 검사는 링크된 폴더와 원본 패키지를 모두 본다.

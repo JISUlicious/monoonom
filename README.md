@@ -5,7 +5,7 @@
 
 ## 실행
 
-이 프로젝트는 **Agent Skill** 형태로 패키징되어 있습니다: `.agents/skills/web-excel/` (Claude Code용 링크: `.claude/skills/web-excel`).
+이 프로젝트는 **Agent Skill** 형태로 패키징되어 있습니다: `.agents/skills/web-excel/`(원본, 이식판 `SKILL.md`). Claude Code는 `.claude/skills/web-excel/`을 읽습니다. 이 폴더의 `SKILL.md`는 Claude Code판(`allowed-tools`, 서버 상태 주입, 데스크톱 미리보기 안내)이고, 나머지(`scripts`, `references`, `assets`, 라이선스 파일)는 원본으로 가는 링크입니다. 다른 프로젝트에 설치할 때는 패키지 폴더를 `.claude/skills/web-excel/`로 복사한 뒤 `SKILL.claude-code.md`를 `SKILL.md`로 바꿔 넣으면 됩니다.
 Python 패키지는 함께 넣지 않으므로 처음 한 번 설치합니다: `python -m pip install -r requirements.txt` (openpyxl 필수, xlrd는 .xls를 열 때만). 설치되어 있지 않으면 `xl.py serve`가 설치 명령을 안내하고 종료 코드 6으로 끝납니다.
 
 ```bash
@@ -106,9 +106,11 @@ API는 토큰이 필요합니다. CLI와 페이지 모두 `X-WebExcel-Token` 헤
     js/docsync.js                  서버 문서 동기화: 낙관적 적용, 대기 중 변경 추적, 창당 이벤트 스트림 1개, 계산값 보고
     js/numfmt.js, charts.js, filter.js, clipboard.js, dialogs.js, api.js
   references/cli.md, edits.md, troubleshooting.md
-.claude/skills/web-excel -> ../../.agents/skills/web-excel
+.claude/skills/web-excel/           Claude Code가 읽는 skill 폴더
+  SKILL.md                         Claude Code판 (생성됨: tools/build_claude_code_skill.py)
+  scripts, references, assets, LICENSE.txt, THIRD_PARTY_NOTICES.md -> ../../../.agents/skills/web-excel/…
 run.py                             개발용 포그라운드 실행
-tools/build_claude_code_skill.py   SKILL.md에서 SKILL.claude-code.md 생성
+tools/build_claude_code_skill.py   SKILL.md에서 SKILL.claude-code.md와 .claude/skills/web-excel/SKILL.md 생성 (--check: 최신인지 확인)
 tests/                             make_samples.py, test_roundtrip.py, engine.test.mjs, e2e.cjs, sync.e2e.cjs, agent_cli.test.py,
                                    agent_full.test.py, structural.test.py, refs_parity.test.py(+.mjs),
                                    excel_compat.test.py, preserve_formulas.test.py, preserve.e2e.cjs
