@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import io
+import re
 import warnings
 
 from openpyxl import Workbook, load_workbook
@@ -830,8 +831,39 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
                 vals[f"{get_column_letter(c + 1)}{r + 1}"] = item["cv"]
         if vals:
             cached[ws.title] = vals
-    data = out.getvalue()
+    data = fix_drawings(out.getvalue())
     return inject_cached_values(data, cached) if cached else data
+
+
+_A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
+_EMPTY_XFRM = re.compile(r"<((?:\w+:)?)xfrm\s*/>")
+
+
+def fix_drawings(data: bytes) -> bytes:
+    """Give every chart frame a full transform.
+
+    openpyxl writes each chart's <graphicFrame> with an empty <xfrm/>. Excel then reports
+    "Removed Part: /xl/drawings/drawingN.xml" and drops the drawing with every chart on that sheet
+    (openpyxl issue #824 shows the repaired file with <xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/>).
+    Write that form, as Excel itself does for charts on a sheet (the anchor holds the real position).
+    Only drawing parts change; everything else stays byte-identical.
+    """
+    import zipfile
+
+    zin = zipfile.ZipFile(io.BytesIO(data))
+    names = [n for n in zin.namelist() if n.startswith("xl/drawings/drawing") and n.endswith(".xml")]
+    if not names:
+        return data
+    full = lambda m: (f'<{m.group(1)}xfrm><a:off xmlns:a="{_A_NS}" x="0" y="0"/>'
+                      f'<a:ext xmlns:a="{_A_NS}" cx="0" cy="0"/></{m.group(1)}xfrm>')
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
+        for info in zin.infolist():
+            raw = zin.read(info.filename)
+            if info.filename in names:
+                raw = _EMPTY_XFRM.sub(full, raw.decode("utf-8")).encode("utf-8")
+            zout.writestr(info, raw)
+    return out.getvalue()
 
 
 _ERRORS = {"#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A", "#GETTING_DATA", "#SPILL!", "#CALC!"}

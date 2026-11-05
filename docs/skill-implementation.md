@@ -551,3 +551,9 @@ xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있�
 - 축 자동 범위가 다르다. 미리보기 값축은 항상 0부터 시작하는데, Excel은 데이터 범위가 좁으면 0이 아닌 값부터 시작한다. 모든 차트 종류에 해당하므로 따로 진행한다.
 - X가 날짜일 때 미리보기 축에 셀 서식이 적용되지 않는다.
 - 파일에 값이 직접 들어 있는 계열(`numLit`)을 읽지 못한다.
+
+### 빈 xfrm 때문에 Excel이 drawing을 제거하던 문제 (같은 PR)
+**증상**(사용자, Excel): 저장한 파일을 열면 "제거된 요소: /xl/drawings/drawing1.xml"이 뜨고, 그 시트의 차트가 사라진다.
+**원인**: openpyxl `SpreadsheetDrawing._chart_frame`이 빈 `GraphicFrame()`을 만들어 차트마다 `<xfrm/>`을 쓴다(openpyxl 3.1.5, 저장 파일에서 확인). openpyxl 이슈 #824에서 Excel이 복구한 파일에는 `<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>`이 들어 있다(검색 결과 요약 기준; 원문 사이트는 이 환경에서 접속 불가).
+**수정**: `xlsx_io.fix_drawings`가 저장 직후 drawing 파트의 빈 xfrm을 위 형태로 바꾼다. 위치는 앵커가 가지므로 0 값이어도 된다. 다른 파트는 바이트 그대로 둔다.
+**검증**: `chart_style.test.py`에 2개 추가(새 통합 문서, 원본 차트가 있는 통합 문서의 모든 차트 틀). 수정 전 코드에서 실패함을 확인했다. XML 파싱, openpyxl로 다시 읽기, LibreOffice로 열기 모두 정상이다. 실제 Excel에서는 확인하지 못했다.
