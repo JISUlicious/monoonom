@@ -67,7 +67,8 @@ def find_chart(doc, meta, meta_of, cid=None, sheet=None, index=None):
             if (cid and ch.get("id") == cid) or (not cid and index is not None and i == int(index)):
                 return sh, meta_of(sh, "charts"), i
     where = f"'{sheets[0]['name']}' 시트" if len(sheets) == 1 else "모든 시트"
-    raise ApiError(404, f"차트를 찾을 수 없습니다: {cid or f'#{index}'} ({where}에서 찾음, `xl.py chart ls`로 id 확인).")
+    raise ApiError(404, f"차트를 찾을 수 없습니다: {cid or f'#{index}'} ({where}에서 찾음). 차트 id는 파일을 다시 열거나 "
+                        "서버를 다시 시작하면 바뀝니다. `xl.py chart ls`로 현재 id를 확인하세요.")
 
 
 def used_extent(sh, pending=None):
