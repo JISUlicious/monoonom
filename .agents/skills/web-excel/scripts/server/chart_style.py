@@ -91,6 +91,11 @@ def style_axes(chart) -> None:
         ax.minorTickMark = "none"
         ax.delete = False  # openpyxl >= 3.1 hides axes otherwise in Excel 365
     scatter = getattr(chart, "tagname", "") == "scatterChart"
+    horizontal = getattr(chart, "tagname", "") == "barChart" and getattr(chart, "type", "col") == "bar"
+    if x is not None:
+        x.axPos = "l" if horizontal else "b"  # category / X axis: bottom (left for horizontal bars)
+    if y is not None:
+        y.axPos = "b" if horizontal else "l"
     if x is not None:
         x.spPr = GraphicalProperties(ln=_line(LINE))
         x.majorGridlines = ChartLines(spPr=GraphicalProperties(ln=_line(LINE))) if scatter else None

@@ -524,3 +524,36 @@ xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있�
 - 계열별 종류(혼합 차트의 꺾은선)와 계열별 색은 넘어가지 않는다(계열 수와 의미가 바뀌므로).
 **구현**: `charts.js` `ChartLayer.switchRowCol`(UI: 차트 오른쪽 클릭 '행/열 전환', 범위 패널의 '⇄ 행/열 전환' 버튼), `agent_more.py` `switch_row_col`(`chartUpdate`의 `switchRowCol`, CLI `chart set ID --switch`). 두 구현이 같은 결과를 내는지 테스트로 확인.
 **검증**: `chart_ranges.e2e.cjs`에 5개 추가(UI 전환 결과, 테두리 갱신, 서버가 보는 결과, 에이전트로 되돌리기, JS·Python 6개 사례 일치 — 오류 사례 포함). 저장한 xlsx에 6개 계열로 기록됨을 확인. 화면: `docs/chart-switch-preview.png`.
+
+## 분산형 차트 검토·수정 (2026-11-05)
+검토 결과 7건 가운데 1–4번을 수정했습니다. 남은 3건은 아래 "남은 것"에 적었습니다.
+
+1. **에이전트가 X 열을 계열로 넣음**
+   - 증상: `chart add A1:C5 --type scatter`(키, 몸무게, 나이)가 계열 3개를 만들고 X는 1, 2, 3…이 됨. UI(`fromRange`)는 숫자인 첫 열을 X로 쓰는데(Excel과 같음) Python `chart_from_range`에는 이 처리가 없었다.
+   - 수정: 같은 규칙을 추가. 두 경로의 결과가 같아짐.
+2. **X가 텍스트이면 미리보기에서 점이 사라짐**
+   - 원인: 텍스트 X가 `null`이 되어 Chart.js가 점을 건너뜀.
+   - 수정: X 범위에 텍스트가 하나라도 있으면 Excel처럼 X를 1, 2, 3…으로 그림.
+3. **저장 파일에 `scatterStyle` 누락**
+   - 원인: ECMA-376의 `CT_ScatterChart`에서 필수 요소인데, openpyxl 기본값(None)이라 기록되지 않았다.
+   - 수정: Excel이 '분산형'에 쓰는 `lineMarker` 값을 기록. 계열 선은 noFill이므로 표식만 보인다.
+4. **축 위치가 모두 왼쪽으로 기록됨**
+   - 원인: openpyxl이 모든 축을 `axPos="l"`로 기록한다. 막대·꺾은선도 마찬가지였다.
+   - 수정: `chart_style.style_axes`에서 항목/X축은 아래(`b`), 값축은 왼쪽(`l`)으로 기록. 가로 막대는 반대.
+
+**검증**:
+- `tests/scatter.test.py` 8개: 에이전트 X 열 처리, `scatterStyle`, 표식만, 분산형·세로 막대·가로 막대의 축 위치, LibreOffice로 열기. 수정 전 코드에서는 5개가 실패함을 확인했다.
+- `chart_style.e2e.cjs`에 텍스트 X·숫자 X·X 없음 사례 1개 추가.
+- 전체 테스트 통과.
+- 실제 Excel 화면은 확인하지 못했다.
+
+**남은 것**:
+- 축 자동 범위가 다르다. 미리보기 값축은 항상 0부터 시작하는데, Excel은 데이터 범위가 좁으면 0이 아닌 값부터 시작한다. 모든 차트 종류에 해당하므로 따로 진행한다.
+- X가 날짜일 때 미리보기 축에 셀 서식이 적용되지 않는다.
+- 파일에 값이 직접 들어 있는 계열(`numLit`)을 읽지 못한다.
+
+### 빈 xfrm 때문에 Excel이 drawing을 제거하던 문제 (같은 PR)
+**증상**(사용자, Excel): 저장한 파일을 열면 "제거된 요소: /xl/drawings/drawing1.xml"이 뜨고, 그 시트의 차트가 사라진다.
+**원인**: openpyxl `SpreadsheetDrawing._chart_frame`이 빈 `GraphicFrame()`을 만들어 차트마다 `<xfrm/>`을 쓴다(openpyxl 3.1.5, 저장 파일에서 확인). openpyxl 이슈 #824에서 Excel이 복구한 파일에는 `<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>`이 들어 있다(검색 결과 요약 기준; 원문 사이트는 이 환경에서 접속 불가).
+**수정**: `xlsx_io.fix_drawings`가 저장 직후 drawing 파트의 빈 xfrm을 위 형태로 바꾼다. 위치는 앵커가 가지므로 0 값이어도 된다. 다른 파트는 바이트 그대로 둔다.
+**검증**: `chart_style.test.py`에 2개 추가(새 통합 문서, 원본 차트가 있는 통합 문서의 모든 차트 틀). 수정 전 코드에서 실패함을 확인했다. XML 파싱, openpyxl로 다시 읽기, LibreOffice로 열기 모두 정상이다. 실제 Excel에서는 확인하지 못했다.

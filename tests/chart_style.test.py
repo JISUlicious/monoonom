@@ -114,6 +114,14 @@ try:
     xl("chart", "set", ids["slices"], "--title", "slices2", "--doc", "old.xlsx")
     xl("save", "--as", "old-out.xlsx", "--doc", "old.xlsx")
     c = charts_xml(os.path.join(ws, "old-out.xlsx"))
+    # chart frames: no empty <xfrm/> (Excel: "Removed Part: /xl/drawings/drawing1.xml"), Excel's off/ext form
+    for fn in ("fresh.xlsx", "old-out.xlsx"):
+        z = zipfile.ZipFile(os.path.join(ws, fn))
+        dr = [z.read(n).decode("utf-8") for n in z.namelist() if re.fullmatch(r"xl/drawings/drawing\d+\.xml", n)]
+        frames = sum(d.count("<graphicFrame") for d in dr)
+        full = sum(len(re.findall(r'<xfrm><a:off [^>]*x="0" y="0"/><a:ext [^>]*cx="0" cy="0"/></xfrm>', d)) for d in dr)
+        check(f"{fn}: every chart frame has a full <xfrm> (a:off + a:ext), none empty",
+              frames > 0 and full == frames and not any(re.search(r"<(?:\w+:)?xfrm\s*/>", d) for d in dr), f"{frames} frames, {full} full")
     sers = lambda s: re.findall(r"<ser>.*?<a:srgbClr val=\"([0-9A-F]{6})\"", s, re.S)  # noqa: E731
     check("new chart in an Office 2007-theme workbook uses that theme (as Excel would)", sers(c["새차트"])[:2] == ["4F81BD", "C0504D"], str(sers(c["새차트"])[:2]))
     check("edited chart keeps its own series colors (incl. accent6 darker 25 %)", sers(c["colored2"])[:2] == ["C00000", "E46C0A"], str(sers(c["colored2"])[:2]))
