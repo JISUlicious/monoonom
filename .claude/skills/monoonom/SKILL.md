@@ -16,7 +16,7 @@ metadata:
 allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/xl.py *) Bash(python ${CLAUDE_SKILL_DIR}/scripts/xl.py *)
 ---
 
-# MoNoonOm (Claude Code)
+# MoNooNoM (Claude Code)
 
 Server status right now (the preview URL with its token comes from `xl.py url`):
 !`python3 ${CLAUDE_SKILL_DIR}/scripts/xl.py status --brief || true`

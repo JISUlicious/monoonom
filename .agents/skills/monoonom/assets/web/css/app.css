@@ -1,5 +1,5 @@
 :root {
-  --accent: #4B7A55;      /* olive green (MoNoonOm) */
+  --accent: #4B7A55;      /* olive green (MoNooNoM) */
   --accent-2: #395D41;
   --accent-soft: #EAF1EA;
   --bg: #f3f3f3;
@@ -286,4 +286,3 @@ kbd { font: 11px Consolas, monospace; color: var(--muted); }
 .fld .combo { display: flex; width: 100%; }
 .fld .combo > .inp { flex: 1; width: 100%; min-width: 0; }
 .brand { display: flex; align-items: center; gap: 6px; }
-.brand img { background: #fff; border-radius: 5px; padding: 1px; }

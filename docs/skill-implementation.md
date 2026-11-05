@@ -799,7 +799,7 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 
 "compatible with / works with" 같은 호환성 설명은 가이드라인이 허용하므로 유지한다.
 
-**이름**: MoNoonOm. '모눈'을 영어로 쓰고 좌우 대칭으로 만든 이름이다(MoNoon + Om).
+**이름**: MoNooNoM. '모눈'을 영어로 쓰고 좌우 대칭으로 만든 이름이다(MoNooN + NooNoM).
 - skill 이름과 폴더: `monoonom`
 - npm·PyPI·GitHub에 같은 이름 없음(2026-11-05 확인). 정식 상표 검색은 하지 않았다.
 
@@ -812,10 +812,10 @@ UI와 에이전트가 같은 서버 코드로 만든다.
   - 환경 변수 `MONOONOM_ROOT/TOKEN/READ_HOOK/WRITE_HOOK`. 예전 `WEBEXCEL_*`도 계속 읽는다.
 - 상태 폴더: 작업 폴더에 예전 `.web-excel/`만 있으면 처음 실행할 때 `.monoonom/`으로 옮긴다. 토큰도 함께 옮겨지므로 예전 미리보기 주소가 그대로 동작한다. 예전 서버가 그 폴더의 포트에서 아직 대기 중이면 옮기지 않는다(프로세스 확인 대신 포트 확인: Windows에서 `os.kill(pid, 0)`은 안전하지 않다).
 - 강조색: 올리브 그린 `#4B7A55` / `#395D41` / `#EAF1EA`. 예전 값은 Excel 브랜드 녹색 `#217346`이었다.
-- 아이콘: `assets/web/img/monoonom.svg`, 16px용 `favicon.svg`(선을 굵게).
+- 아이콘: `assets/web/img/monoonom.svg`(올리브, 펜 몸통 흰색), 16px용 `favicon.svg`(선을 굵게), 색 배경용 `monoonom-white.svg`(흰 선, 펜 아래 격자선은 마스크로 지워 배경색이 그대로 보임 — 제목줄에서 사용). 세 파일 모두 `node tools/make_icons.cjs`로 생성.
   - 3×3 격자 위에 외곽선 펜(속은 흰색으로 채움)을 세워서 쓰는 각도로 둔다.
   - 오른쪽 위 펜은 가운데 행 오른쪽 칸에, 그 점대칭 짝은 가운데 행 왼쪽 칸에 쓴다.
-- README에 상표 고지를 넣었다("Microsoft, Excel은 Microsoft Corporation의 상표이며, MoNoonOm은 Microsoft와 관련이 없다").
+- README에 상표 고지를 넣었다("Microsoft, Excel은 Microsoft Corporation의 상표이며, MoNooNoM은 Microsoft와 관련이 없다").
 
 **그대로 둔 것**:
 - GitHub 저장소 주소: 저장소 이름은 소유자가 바꾼다.
