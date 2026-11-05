@@ -212,6 +212,69 @@ def op_filter_reapply(ctx, e):
 
 # ------------------------------------------------------------------ charts
 
+def _ref(text):
+    """"'S'!$B$2:$B$7" -> (sheet or None, r1, c1, r2, c2); None if it is not a plain range."""
+    if not text:
+        return None
+    sheet, rest = A.split_sheet(text)
+    try:
+        return (sheet, *A.parse_range(rest))
+    except ValueError:
+        return None
+
+
+def _line_of(refs):
+    """Cells (sheet, r, c, r, c) side by side in one row or one column, in order -> the range
+    spanning them, else None."""
+    if not refs or any(x is None or x[1] != x[3] or x[2] != x[4] or x[0] != refs[0][0] for x in refs):
+        return None
+    sh, r0, c0 = refs[0][0], refs[0][1], refs[0][2]
+    if all(x[1] == r0 and x[2] == c0 + i for i, x in enumerate(refs)):
+        return (sh, r0, c0, r0, c0 + len(refs) - 1)
+    if all(x[2] == c0 and x[1] == r0 + i for i, x in enumerate(refs)):
+        return (sh, r0, c0, r0 + len(refs) - 1, c0)
+    return None
+
+
+def _fmt(sheet, r1, c1, r2, c2):
+    return (f"{A.quote_sheet(sheet)}!" if sheet else "") + f"${A.col_name(c1)}${r1 + 1}" + (
+        f":${A.col_name(c2)}${r2 + 1}" if (r1, c1) != (r2, c2) else "")
+
+
+def switch_row_col(series):
+    """Excel's "Switch Row/Column": each row of the values block becomes a series (or each column).
+    The old series names become the categories and the old category cells the new names. Works on
+    the series' own references (no guessing), so switching twice gives the original back.
+    Same rules as ChartLayer.switchRowCol in assets/web/js/charts.js."""
+    if not series:
+        raise ApiError(400, "계열이 없는 차트입니다.")
+    vals = [_ref(s.get("val")) for s in series]
+    if any(v is None for v in vals) or len({v[0] for v in vals}) > 1:
+        raise ApiError(400, "행/열 전환: 모든 계열의 값이 같은 시트의 일반 범위여야 합니다.")
+    sh = vals[0][0]
+    n = len(vals)
+    if all(v[2] == v[4] and v[1:5:2] == vals[0][1:5:2] for v in vals) and all(v[2] == vals[0][2] + i for i, v in enumerate(vals)):
+        r1, r2, c1 = vals[0][1], vals[0][3], vals[0][2]  # series in columns -> one per row
+        new_vals = [(sh, r, c1, r, c1 + n - 1) for r in range(r1, r2 + 1)]
+    elif all(v[1] == v[3] and v[2:5:2] == vals[0][2:5:2] for v in vals) and all(v[1] == vals[0][1] + i for i, v in enumerate(vals)):
+        c1, c2, r1 = vals[0][2], vals[0][4], vals[0][1]  # series in rows -> one per column
+        new_vals = [(sh, r1, c, r1 + n - 1, c) for c in range(c1, c2 + 1)]
+    else:
+        raise ApiError(400, "행/열 전환: 계열의 값 범위가 같은 크기로 나란히 붙어 있어야 합니다(한 표).")
+    cats = [_ref(s.get("cat")) for s in series if s.get("cat")]  # a series without one shares the first's (Excel)
+    cat = cats[0] if cats else None
+    if cat is not None:
+        if any(c != cat for c in cats) or not (cat[1] == cat[3] or cat[2] == cat[4]):
+            raise ApiError(400, "행/열 전환: 계열마다 항목(X) 범위가 다릅니다.")
+        cells = [(cat[0], r, c, r, c) for r in range(cat[1], cat[3] + 1) for c in range(cat[2], cat[4] + 1)]
+        if len(cells) != len(new_vals):
+            raise ApiError(400, "행/열 전환: 항목(X) 범위와 값 범위의 길이가 다릅니다.")
+    names = [_ref(s.get("nameRef")) for s in series]
+    new_cat = _line_of(names) if all(names) else None
+    return [{"name": None, "nameRef": _fmt(*cells[j]) if cat else None,
+             "cat": _fmt(*new_cat) if new_cat else None, "val": _fmt(*v)} for j, v in enumerate(new_vals)]
+
+
 def op_chart_update(ctx, e):
     from .agent_api import chart_from_range, find_chart, parse_at, resolve
     sh, charts, idx = find_chart(ctx.doc, ctx.meta, ctx.meta_of, e.get("id"), e.get("sheet"), e.get("index"))
@@ -223,6 +286,10 @@ def op_chart_update(ctx, e):
         fresh = chart_from_range(ctx.doc, dsh, g, {"type": st.get("type", ch["type"]), "byRows": st.pop("byRows", None)},
                                  ctx.cellbuf.get(dsh["id"], {}))
         ch["series"] = fresh["series"]
+    if st.pop("switchRowCol", False):
+        if ch.get("type") == "scatter":
+            raise ApiError(400, "분산형 차트는 행/열 전환을 할 수 없습니다(X 값과 Y 값이 짝으로 묶여 있음).")
+        ch["series"] = switch_row_col(ch.get("series"))  # per-series types and colors do not carry over
     if "type" in st:
         t = st.pop("type")
         preset = {"barH": ("bar", "bar", "clustered"), "barStacked": ("bar", "col", "stacked")}.get(t)
@@ -243,7 +310,7 @@ def op_chart_update(ctx, e):
     if "varyColors" in st:
         ch["varyColors"] = bool(st.pop("varyColors"))
     if st:
-        raise ApiError(400, f"알 수 없는 차트 속성: {', '.join(st)} (type, data, title, legend, xTitle, yTitle, at, width, height, grouping, barDir, varyColors)")
+        raise ApiError(400, f"알 수 없는 차트 속성: {', '.join(st)} (type, data, switchRowCol, title, legend, xTitle, yTitle, at, width, height, grouping, barDir, varyColors)")
     ch["dirty"] = True
     if move_to is not None:
         ch["orig"] = None  # rebuilt on save: it no longer belongs to the original sheet's drawing

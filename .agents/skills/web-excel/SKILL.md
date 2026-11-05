@@ -103,7 +103,7 @@ values in.
 | Notes, links, autofit | `xl.py comment B2 '확인'`, `xl.py link A1 https://… --text 사이트`, `xl.py autofit A:F` |
 | Format copy, decimals | `xl.py format-copy A1:F1 A20:F20`, `xl.py decimals B2:B9 +1` |
 | Sheets | `xl.py sheet add 요약`, `rename Old New`, `rm`, `copy`, `move Name 1`, `hide`/`unhide`, `color Name #FF0000`, `gridlines Name off` |
-| Charts | `xl.py chart add 'A1:C13' --type line --title 'Monthly' --at H2`, `chart set ID --title … --to-type bar --data A1:D13`, `chart ls`, `chart rm ID`. Chart ids change whenever the file is reopened or the server restarts: run `chart ls` before `chart set/rm` instead of reusing an older id |
+| Charts | `xl.py chart add 'A1:C13' --type line --title 'Monthly' --at H2`, `chart set ID --title … --to-type bar --data A1:D13` (`--switch` swaps rows/columns), `chart ls`, `chart rm ID`. Chart ids change whenever the file is reopened or the server restarts: run `chart ls` before `chart set/rm` instead of reusing an older id |
 | Preview URL (with token) | `xl.py url` |
 | Show the user something | `xl.py goto 'Sheet2!B10'` (moves the preview), `xl.py view --zoom 150 --formulas` |
 | Follow mode | The preview follows your edits to their sheet and cells by default (`xl.py view --follow on\|off`); when off, your cells are only outlined |

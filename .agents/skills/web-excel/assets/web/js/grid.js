@@ -31,6 +31,7 @@ export class Grid {
     host.append(this.canvas, this.scroller);
     this.ctx = this.canvas.getContext('2d');
     this.refHighlights = [];
+    this.chartRanges = []; // data ranges of the selected chart: {sheet, range, color, dim}
     this.fillPreview = null;
     this.measureCache = new Map();
     this.marchOffset = 0;
@@ -446,6 +447,16 @@ export class Grid {
       ctx.fillStyle = h.color + '1f'; ctx.fillRect(x, y, w, hh);
       ctx.strokeStyle = h.color; ctx.lineWidth = 2 / m.z; ctx.setLineDash([]);
       ctx.strokeRect(x + 1 / m.z, y + 1 / m.z, w - 2 / m.z, hh - 2 / m.z);
+    }
+    // the selected chart's data ranges (series name / X / Y), like Excel's range finder
+    for (const h of this.chartRanges) {
+      if (h.sheet !== m.sh) continue;
+      const [x, y, w, hh] = rectOf(h.range);
+      ctx.globalAlpha = h.dim ? 0.35 : 1;
+      ctx.fillStyle = h.color + '24'; ctx.fillRect(x, y, w, hh);
+      ctx.strokeStyle = h.color; ctx.lineWidth = 2 / m.z; ctx.setLineDash([]);
+      ctx.strokeRect(x + 1 / m.z, y + 1 / m.z, w - 2 / m.z, hh - 2 / m.z);
+      ctx.globalAlpha = 1;
     }
     // cells the agent changed recently: outline + label, fading out (both follow modes)
     const now = performance.now();

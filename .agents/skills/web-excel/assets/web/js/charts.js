@@ -5,6 +5,9 @@ import { formatValue } from './numfmt.js';
 import { newId } from './model.js';
 import { geom } from './geometry.js';
 
+// Excel's range finder colors for a selected chart: series name, X / categories, Y / values
+const RANGE_COLORS = { name: '#008000', cat: '#7030A0', x: '#7030A0', val: '#0070C0' };
+
 // Office 2013-2022 theme accents: the palette when a workbook brings no theme of its own
 export const PALETTE = ['#4472C4', '#ED7D31', '#A5A5A5', '#FFC000', '#5B9BD5', '#70AD47', '#264478', '#9E480E', '#636363', '#997300'];
 
@@ -220,6 +223,12 @@ export class ChartLayer {
       }
       inst.el.classList.toggle('selected', this.selected === model.id);
     }
+    const sel = this.selected && this.instances.get(this.selected);
+    // grid.draw() calls layout(): redraw only when the outlines change, or it would loop every frame
+    const sig = (r) => JSON.stringify(r.map((h) => [h.sheet?.name, h.range, h.color, h.dim]));
+    const before = sig(this.grid.chartRanges);
+    if (sel) this.showRanges(sel); else this.hideRanges();
+    if (sig(this.grid.chartRanges) !== before) this.grid.render();
     for (const [id, inst] of [...this.instances]) if (!seen.has(id)) { inst.chart?.destroy(); inst.el.remove(); this.instances.delete(id); }
   }
 
@@ -236,6 +245,7 @@ export class ChartLayer {
       e.preventDefault(); this.select(inst.model.id);
       this.app.menu(e.clientX, e.clientY, [
         ['차트 편집…', () => this.app.chartDialog(inst.model)],
+        ['행/열 전환', () => this.switchChart(inst.model.id)],
         ['차트 삭제', () => this.remove(inst.model.id)],
         ['맨 앞으로 가져오기', () => this.reorder(inst.model.id, 1)],
         ['맨 뒤로 보내기', () => this.reorder(inst.model.id, -1)],
@@ -244,8 +254,127 @@ export class ChartLayer {
     return inst;
   }
 
-  select(id) { this.selected = id; this.app.editor?.active && this.app.editor.commit(); this.layout(); }
-  deselect() { if (this.selected) { this.selected = null; this.layout(); } }
+  select(id) {
+    if (this.selected !== id) this.focusSeries = null;
+    this.selected = id; this.app.editor?.active && this.app.editor.commit(); this.layout();
+  }
+  deselect() { if (this.selected) { this.selected = null; this.focusSeries = null; this.layout(); } }
+
+  /** Excel's "Switch Row/Column" on a chart's series references: each row of the values block
+   * becomes a series (or each column); old names -> categories, old category cells -> names.
+   * Returns the new series, or throws an Error with the reason. Same rules as switch_row_col in
+   * scripts/server/agent_more.py (the agent's `chart set ID --switch`). */
+  static switchRowCol(series) {
+    const fail = (m) => { throw new Error(`행/열 전환: ${m}`); };
+    if (!series?.length) fail('계열이 없는 차트입니다.');
+    const ref = (t) => { const p = t && parseSheetRef(t); return p ? { sheet: p.sheet, ...p.range } : null; };
+    const fmt = (x) => `${x.sheet ? quoteSheetName(x.sheet) + '!' : ''}${absRangeA1(x)}`;
+    const vals = series.map((s) => ref(s.val));
+    if (vals.some((v) => !v) || new Set(vals.map((v) => v.sheet)).size > 1) fail('모든 계열의 값이 같은 시트의 일반 범위여야 합니다.');
+    const v0 = vals[0], n = vals.length, sheet = v0.sheet;
+    let nv;
+    if (vals.every((v, i) => v.c1 === v.c2 && v.r1 === v0.r1 && v.r2 === v0.r2 && v.c1 === v0.c1 + i)) {
+      nv = []; for (let r = v0.r1; r <= v0.r2; r++) nv.push({ sheet, r1: r, c1: v0.c1, r2: r, c2: v0.c1 + n - 1 });
+    } else if (vals.every((v, i) => v.r1 === v.r2 && v.c1 === v0.c1 && v.c2 === v0.c2 && v.r1 === v0.r1 + i)) {
+      nv = []; for (let c = v0.c1; c <= v0.c2; c++) nv.push({ sheet, r1: v0.r1, c1: c, r2: v0.r1 + n - 1, c2: c });
+    } else fail('계열의 값 범위가 같은 크기로 나란히 붙어 있어야 합니다(한 표).');
+    const same = (a, b) => a.sheet === b.sheet && a.r1 === b.r1 && a.c1 === b.c1 && a.r2 === b.r2 && a.c2 === b.c2;
+    const cats = series.filter((s) => s.cat).map((s) => ref(s.cat)); // a series without one shares the first's (Excel)
+    const cat = cats[0] || null;
+    let cells = null;
+    if (cat) {
+      if (cats.some((c) => !c || !same(c, cat)) || !(cat.r1 === cat.r2 || cat.c1 === cat.c2)) fail('계열마다 항목(X) 범위가 다릅니다.');
+      cells = []; for (let r = cat.r1; r <= cat.r2; r++) for (let c = cat.c1; c <= cat.c2; c++) cells.push({ sheet: cat.sheet, r1: r, c1: c, r2: r, c2: c });
+      if (cells.length !== nv.length) fail('항목(X) 범위와 값 범위의 길이가 다릅니다.');
+    }
+    const names = series.map((s) => ref(s.nameRef));
+    let ncat = null;
+    if (names.every((x) => x && x.r1 === x.r2 && x.c1 === x.c2 && x.sheet === names[0].sheet)) {
+      const a = names[0];
+      if (names.every((x, i) => x.r1 === a.r1 && x.c1 === a.c1 + i)) ncat = { sheet: a.sheet, r1: a.r1, c1: a.c1, r2: a.r1, c2: a.c1 + n - 1 };
+      else if (names.every((x, i) => x.c1 === a.c1 && x.r1 === a.r1 + i)) ncat = { sheet: a.sheet, r1: a.r1, c1: a.c1, r2: a.r1 + n - 1, c2: a.c1 };
+    }
+    return nv.map((v, j) => ({ name: null, nameRef: cells ? fmt(cells[j]) : null, cat: ncat ? fmt(ncat) : null, val: fmt(v) }));
+  }
+
+  /** Switch rows/columns of a chart from the UI (context menu, range panel). */
+  switchChart(id) {
+    const m = this.app.doc.wb.sheet.charts.find((c) => c.id === id);
+    if (!m) return;
+    if (m.type === 'scatter') return this.app.toast('분산형 차트는 행/열 전환을 할 수 없습니다(X 값과 Y 값이 짝으로 묶여 있음).', 'warn');
+    let series;
+    try { series = ChartLayer.switchRowCol(m.series); } catch (e) { return this.app.toast(e.message, 'warn'); }
+    this.focusSeries = null;
+    this.app.saveChart({ ...structuredClone(m), series, dirty: true }, false);
+  }
+
+  /** The data ranges of a chart, per series: name (green), X / categories (purple), Y / values (blue),
+   * as Excel outlines them when a chart is selected. */
+  dataRanges(model) {
+    const wb = this.app.doc.wb, cur = wb.sheet;
+    const one = (ref, kind, i) => {
+      if (!ref) return null;
+      const p = parseSheetRef(ref);
+      const sheet = p ? (p.sheet ? wb.sheetByName(p.sheet) : cur) : null;
+      return { ref, kind, series: i, sheet, range: p?.range, color: RANGE_COLORS[kind] };
+    };
+    const xKind = model.type === 'scatter' ? 'x' : 'cat';
+    const nameOf = (s) => {
+      const nv = s.nameRef && this.resolveRef(s.nameRef, cur);
+      return nv?.length ? nv.map((x) => formatValue(x.v, x.nf).text).join(' ') : s.name;
+    };
+    return (model.series || []).map((s, i) => ({
+      index: i, name: nameOf(s), type: s.type || model.type,
+      parts: [one(s.nameRef, 'name', i), one(s.cat, xKind, i), one(s.val, 'val', i)].filter(Boolean),
+    }));
+  }
+
+  /** Outline the selected chart's ranges on the grid and list them in a panel under the chart. */
+  showRanges(inst) {
+    const series = this.dataRanges(inst.model);
+    const focus = this.focusSeries;
+    // one outline per range: series sharing the categories must not stack their fills
+    const seen = new Map();
+    for (const s of series) for (const p of s.parts) {
+      if (!p.sheet || !p.range) continue;
+      const k = `${p.sheet.name}|${p.color}|${p.range.r1},${p.range.c1},${p.range.r2},${p.range.c2}`;
+      const dim = focus != null && focus !== s.index;
+      const h = seen.get(k);
+      if (h) h.dim = h.dim && dim; else seen.set(k, { sheet: p.sheet, range: p.range, color: p.color, dim });
+    }
+    this.grid.chartRanges = [...seen.values()];
+    let panel = this.panel;
+    if (!panel) {
+      panel = this.panel = document.createElement('div');
+      panel.className = 'chart-ranges';
+      panel.addEventListener('pointerdown', (e) => e.stopPropagation());
+      panel.addEventListener('click', (e) => {
+        if (e.target.closest('[data-switch]')) return this.switchChart(this.selected);
+        const row = e.target.closest('[data-series]');
+        if (!row) return;
+        const i = +row.dataset.series;
+        this.focusSeries = this.focusSeries === i ? null : i; // click again: all series
+        this.layout();
+      });
+      this.layer.append(panel);
+    }
+    const esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const label = { name: '이름', cat: 'X(항목)', x: 'X(값)', val: 'Y(값)' };
+    const cur = this.app.doc.wb.sheet;
+    const chip = (p) => `<span class="cr-part"><i style="background:${p.color}"></i>${label[p.kind]} <code>${esc(p.ref)}</code>${!p.sheet ? ' <em>(시트 없음)</em>' : ''}</span>`;
+    panel.innerHTML = `<div class="cr-title">데이터 범위${inst.model.title ? ` — ${esc(inst.model.title)}` : ''}`
+      + `${inst.model.type !== 'scatter' ? '<button class="cr-switch" data-switch title="계열과 항목(X)을 맞바꿉니다">⇄ 행/열 전환</button>' : ''}</div>`
+      + series.map((s) => `<div class="cr-row${focus === s.index ? ' on' : ''}${focus != null && focus !== s.index ? ' dim' : ''}" data-series="${s.index}" title="클릭: 이 계열만 표시 / 다시 클릭: 모두">`
+        + `<b>${esc(s.name || `계열 ${s.index + 1}`)}</b>${s.type !== inst.model.type ? ` <small>(${esc(s.type)})</small>` : ''} ${s.parts.map(chip).join(' ')}</div>`).join('')
+      + (series.some((s) => s.parts.some((p) => p.sheet && p.sheet !== cur)) ? '<div class="cr-note">다른 시트의 범위는 이 시트에 표시되지 않습니다.</div>' : '');
+    const b = inst.el;
+    Object.assign(panel.style, { left: b.style.left, top: `calc(${b.style.top} + ${b.style.height} + 4px)`, minWidth: b.style.width, display: '' });
+  }
+
+  hideRanges() {
+    if (this.grid.chartRanges.length) this.grid.chartRanges = [];
+    if (this.panel) this.panel.style.display = 'none';
+  }
 
   onDown(e, inst) {
     if (e.button !== 0) return;
