@@ -60,13 +60,15 @@ const shownIs = (p, name) => until(p, (n) => window.webExcel.doc?.wb.name === n,
     check('typing: stays on a, keeps the half-typed text, marks b', s.shown === 'a.xlsx' && s.marked.includes('b.xlsx') && await p.evaluate(() => window.webExcel.editor.active && window.webExcel.editor.ta.value === '입력 중'), JSON.stringify(s));
     await p.keyboard.press('Escape');
 
-    // agent edits b while a is on screen: b's tab gets a marker; clicking it clears the marker
-    await p.evaluate(() => window.webExcel.docs.forEach((d) => { d.unseen = false; }));
+    // agent edits b while a is on screen, with follow-the-agent off (on would switch to b, see
+    // follow.e2e.cjs): b's tab gets a marker; clicking it clears the marker
+    await p.evaluate(() => { window.webExcel.setFollow(false); window.webExcel.docs.forEach((d) => { d.unseen = false; }); });
     xl('write', 'A40', '에이전트', '--doc', 'b.xlsx');
     check('background change: b marked, a still shown', await until(p, () => window.webExcel.docs.find((d) => d.wb.name === 'b.xlsx')?.unseen) && (await state(p)).shown === 'a.xlsx');
     check('…marker is drawn on the tab', await p.evaluate(() => !!document.querySelector('.doc-tab .dt-new')));
     await p.evaluate(() => window.webExcel.activateDoc(window.webExcel.docs.findIndex((d) => d.wb.name === 'b.xlsx')));
     check('…and cleared when the tab is opened', !(await state(p)).marked.length);
+    await p.evaluate(() => window.webExcel.setFollow(true));
 
     // reload: this window keeps the document it showed
     await p.evaluate(() => window.webExcel.activateDoc(window.webExcel.docs.findIndex((d) => d.wb.name === 'a.xlsx')));

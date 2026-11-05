@@ -369,13 +369,14 @@ export class Editor {
   updateHint() {
     const el = this.source;
     const before = el.value.slice(0, el.selectionStart);
-    // find innermost open function call
+    // find the innermost open function call and which argument the caret is in
     let depth = 0, name = null, argIdx = 0, inStr = false;
     for (let i = before.length - 1; i >= 0; i--) {
       const ch = before[i];
       if (ch === '"') inStr = !inStr;
       if (inStr) continue;
-      if (ch === ')') depth++;
+      if (ch === ')' || ch === '}') depth++;
+      else if (ch === '{') depth--;
       else if (ch === '(') {
         if (depth === 0) { const m = /([A-Za-z][A-Za-z0-9.]*)$/.exec(before.slice(0, i)); name = m ? m[1].toUpperCase() : null; break; }
         depth--;
@@ -383,15 +384,54 @@ export class Editor {
     }
     const h = name && FN_HELP[name];
     if (!h || !this.ac.classList.contains('hidden')) { this.hint.classList.add('hidden'); return; }
-    const sig = h[1];
-    const inner = sig.slice(sig.indexOf('(') + 1, sig.lastIndexOf(')')).split(',');
-    const idx = Math.min(argIdx, inner.length - 1);
-    this.hint.innerHTML = `${name}(${inner.map((a, i) => (i === idx ? `<b>${a.trim()}</b>` : a.trim())).join(', ')})`;
+    this.hint.innerHTML = renderSignature(h[1], argIdx) + `<div class="fn-hint-desc">${escHtml(h[2] || '')}</div>`;
     const rect = this.source.getBoundingClientRect();
     this.hint.style.left = rect.left + 'px';
     this.hint.style.top = rect.bottom + 2 + 'px';
     this.hint.classList.remove('hidden');
   }
+}
+
+const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** Parameters of 'NAME(a, [b], [c, d, ...], ...)', split on top-level commas only. */
+export function signatureParams(sig) {
+  const inner = sig.slice(sig.indexOf('(') + 1, sig.lastIndexOf(')'));
+  const out = [];
+  let depth = 0, cur = '';
+  for (const ch of inner) {
+    if (ch === '[') depth++;
+    else if (ch === ']') depth--;
+    if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; } else cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+/** The parameter the argument at argIdx stands for. Repeating arguments ('...') are named like Excel
+ * does: SUM's 3rd argument is [number3], SUMIFS's 4th is criteria_range2. */
+export function paramForArg(params, argIdx) {
+  const ell = params[params.length - 1] === '...';
+  const base = ell ? params.slice(0, -1) : params;
+  if (argIdx < base.length || !ell) return { list: base, idx: Math.min(argIdx, base.length - 1), extra: null };
+  const num = (p) => { const m = /(\d+)\]?$/.exec(p); return m ? +m[1] : null; };
+  const maxN = Math.max(...base.map((p) => num(p) ?? -1));
+  let k = base.length; while (k > 0 && num(base[k - 1]) === maxN) k--;
+  const unit = base.slice(k);
+  if (!unit.length || maxN < 0) return { list: base, idx: base.length - 1, extra: null };
+  const off = argIdx - k, rep = Math.floor(off / unit.length), p = unit[off % unit.length];
+  const name = p.replace(/^\[|\]$/g, '').replace(/\d+$/, String(maxN + rep));
+  return { list: base, idx: -1, extra: `[${name}]` };
+}
+
+function renderSignature(sig, argIdx) {
+  const name = sig.slice(0, sig.indexOf('('));
+  const params = signatureParams(sig);
+  const { list, idx, extra } = paramForArg(params, argIdx);
+  const parts = list.map((p, i) => (i === idx ? `<b>${escHtml(p)}</b>` : escHtml(p)));
+  if (extra) parts.push(`<b>${escHtml(extra)}</b>`);
+  if (params[params.length - 1] === '...') parts.push('...');
+  return `${escHtml(name)}(${parts.join(', ')})`;
 }
 
 /** Uppercase function names and references (Excel normalizes formula text). */

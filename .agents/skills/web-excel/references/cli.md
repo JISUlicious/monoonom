@@ -89,7 +89,7 @@ All edits are one batch per command, applied live and undoable with `undo BATCH`
 | `chart set ID [--to-type T] [--title] [--data RANGE] [--legend r\|b\|t\|l] [--at CELL] [--width] [--height] [--x-title] [--y-title]` | Edit an existing chart (ids from `chart ls`). |
 | `chart ls` / `chart rm ID [--sheet S]` | |
 | `goto RANGE [--sheet S]` | Moves the user's preview to the sheet/range (does not change the workbook). |
-| `view [--zoom PCT] [--formulas\|--no-formulas]` | Preview zoom and formula display. |
+| `view [--zoom PCT] [--formulas\|--no-formulas] [--follow on\|off]` | Preview zoom and formula display. `--follow`: whether open previews follow your edits (switch to the workbook/sheet and scroll to the cells; default on, the user can toggle it in the status bar). Off: the user works independently and your cells are outlined. |
 | `apply FILE\|- [--label TEXT]` | Several edits as one batch; see `edits.md`. |
 | `undo BATCH [--force]` | Refuses if those cells were changed again later, unless `--force`. |
 
