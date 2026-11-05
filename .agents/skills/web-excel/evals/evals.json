@@ -68,6 +68,21 @@
         "Did not give a bare http://localhost:PORT/ address",
         "Explained that the page needs the token in the URL to open workbooks"
       ]
+    },
+    {
+      "id": "summary-with-formulas",
+      "prompt": "sample.xlsx 매출 시트로 제품별 매출 합계와 평균, 매출이 가장 큰 달을 정리한 요약표를 '요약' 시트에 만들어줘.",
+      "files": [
+        "samples/sample.xlsx"
+      ],
+      "expected_output": "A '요약' sheet whose figures are Excel formulas referencing 매출 (e.g. SUM/AVERAGE/INDEX-MATCH or XLOOKUP with MAX), filled with relative references, values checked with read; no values computed in Python and pasted.",
+      "expectations": [
+        "The summary cells contain formulas (=SUM, =AVERAGE, =INDEX/MATCH, =XLOOKUP, =MAX ...) that reference the 매출 sheet",
+        "Did not compute the numbers in Python (pandas or a script) and write them as plain values",
+        "Used fill or a formula with relative references instead of writing each result by hand",
+        "Read back some result cells to check the values",
+        "Did not save unless asked"
+      ]
     }
   ]
 }

@@ -61,6 +61,27 @@ the token the page loads but no workbook opens. If you no longer have the URL, r
 Leave the server running when done so the user can keep working; it stops itself after an hour
 without clients. Use `xl.py stop` only on request (it refuses while there are unsaved changes).
 
+## Analysis and data processing: in the workbook, with formulas
+
+When the user asks to calculate, summarize, aggregate, look up, clean or reshape data, do it **in the
+workbook with Excel formulas** so the result stays live, can be checked in the preview and still
+works when the file is opened in Excel. Do not compute it in Python (pandas, scripts) and paste the
+values in.
+
+- Aggregates and summaries: `SUMIFS`, `COUNTIFS`, `AVERAGEIFS`, `MAXIFS`/`MINIFS`, `SUMPRODUCT`;
+  a summary table = a column of unique keys plus `SUMIFS` next to it (`fill` copies the formula down).
+- Lookups and joins: `XLOOKUP` (or `INDEX`/`MATCH`); ranking and top-N: `RANK.EQ`, `LARGE`/`SMALL`, `SORT`.
+- Cleaning and reshaping: `TRIM`, `CLEAN`, `UPPER`/`PROPER`, `SUBSTITUTE`, `LEFT`/`MID`/`RIGHT`,
+  `TEXTBEFORE`/`TEXTAFTER`, `VALUE`/`DATEVALUE`, `IF`/`IFS`/`IFERROR`; add helper columns rather
+  than overwriting the source data.
+- Write one formula with relative references and `fill` it over the range instead of writing each
+  cell; then `read` a few result cells to check the values.
+- Use only functions this engine calculates: `describe` reports unsupported ones, and a new formula
+  with one shows `#NAME?` here (Excel still calculates it). Prefer a supported equivalent.
+- Python is the exception: only when Excel functions cannot express it (e.g. fetching external data,
+  heavy statistics, more rows than a sheet allows) or the user asks for static values. Then say so,
+  and write the inputs and results into clearly labelled cells.
+
 ## Commands
 
 | Task | Command |
