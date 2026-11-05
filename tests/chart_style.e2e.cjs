@@ -99,6 +99,14 @@ wb.save(${JSON.stringify(path.join(ws, 'old.xlsx'))})
     });
     check('one series, varyColors off: one color, legend = series name', vary.offLegend.join() === '값' && vary.offColors === '#4472C4', JSON.stringify(vary));
     check('one series, varyColors on: a color per bar, legend = categories (as Excel)', vary.onLegend.join() === '1월,2월,3월,4월' && vary.onColors.slice(0, 2).join() === '#4472C4,#ED7D31', JSON.stringify(vary));
+    // scatter: text X values -> Excel plots X = 1, 2, 3 (points must not vanish); numeric X kept
+    const sc = await p.evaluate(() => {
+      const a = window.webExcel, d = a.docs.find((x) => x.wb.name.startsWith('fresh')), sh = d.wb.sheet;
+      const pts = (cat) => a.charts.config({ type: 'scatter', series: [{ val: 'Sheet1!$B$2:$B$5', cat }] }, sh).data.datasets[0].data;
+      return { text: pts('Sheet1!$A$2:$A$5'), num: pts('Sheet1!$C$2:$C$5'), none: pts(null) };
+    });
+    check('scatter: text X -> points at X 1..4 (Excel), numeric X as is, no X -> 1..4',
+      sc.text.map((q) => q.x).join() === '1,2,3,4' && sc.text.every((q) => q.y != null) && sc.num.map((q) => q.x).join() === '4,2,6,5' && sc.none.map((q) => q.x).join() === '1,2,3,4', JSON.stringify(sc));
     c = await cfgs('old');
     const colored = c.find((x) => x.title === 'colored'), slices = c.find((x) => x.title === 'slices');
     check('chart with its own colors: first series C00000, second from the workbook theme (Office 2007 accent2)', JSON.stringify(colored.colors) === JSON.stringify(['#C00000', '#C0504D']), JSON.stringify(colored.colors));

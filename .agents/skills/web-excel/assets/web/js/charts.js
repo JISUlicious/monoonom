@@ -77,7 +77,9 @@ export class ChartLayer {
       const vals = (s.val && this.resolveRef(s.val, sheet)) || [];
       let name = s.name;
       if (s.nameRef) { const nv = this.resolveRef(s.nameRef, sheet); if (nv?.length) name = nv.map((x) => formatValue(x.v, x.nf).text).join(' '); }
-      const cats = s.cat ? this.resolveRef(s.cat, sheet) : null;
+      let cats = s.cat ? this.resolveRef(s.cat, sheet) : null;
+      // scatter: if any X value is text, Excel plots the points at X = 1, 2, 3, ... instead
+      if (cats && model.type === 'scatter' && cats.some((x) => typeof x.v === 'string' && x.v !== '')) cats = cats.map((_, j) => ({ v: j + 1 }));
       return {
         name: name || `계열${i + 1}`,
         type: s.type || model.type,

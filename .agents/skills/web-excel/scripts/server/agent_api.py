@@ -554,6 +554,10 @@ def chart_from_range(doc, sh, g, e, pending=None):
         for r in range(dr1, r2 + 1):
             series.append({"name": None, "nameRef": q(r, c1, r, c1) if header_col else None, "cat": cat, "val": q(r, dc1, r, c2)})
     ctype = e.get("type", "bar")
+    if ctype == "scatter" and len(series) > 1 and not header_col:
+        x = series.pop(0)  # numeric first column = X values of every series (Excel; same as the UI's fromRange)
+        for s in series:
+            s["cat"] = x["val"]
     preset = {"barH": ("bar", "bar", "clustered"), "barStacked": ("bar", "col", "stacked")}.get(ctype)
     t, bar_dir, grouping = preset or (ctype, "col", "standard" if ctype in ("line", "area") else "clustered")
     if t not in ("bar", "line", "area", "pie", "doughnut", "scatter", "radar"):

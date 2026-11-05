@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-05: 분산형 차트 검토·수정 4건 — 에이전트가 X 열을 계열로 넣던 문제, X가 텍스트면 미리보기에 점이 안 그려지던 문제, 저장 파일에 필수 요소 `scatterStyle` 누락, 모든 차트의 축 위치가 왼쪽(`axPos=l`)으로 기록되던 문제 (→ docs/skill-implementation.md)
 - 2026-11-05: 차트 행/열 전환 — 미리보기(차트 오른쪽 클릭 메뉴, 범위 패널 버튼)와 `xl.py chart set ID --switch`. 계열 참조만으로 정확히 바꿔 두 번 하면 원래대로, JS·Python 같은 규칙 (→ docs/skill-implementation.md)
 - 2026-11-05: 차트를 선택하면 데이터 범위 표시 — 격자에 계열 이름(초록)·X/항목(보라)·Y/값(파랑) 테두리, 차트 아래에 계열별 범위 목록(행 클릭 시 그 계열만 강조). `chart ls`도 계열별 이름·X·Y 출력 (→ docs/skill-implementation.md)
 - 2026-11-05: 한 계열 막대 차트가 Excel에서 막대마다 다른 색·범례에 항목 이름으로 보이던 문제 — `varyColors`를 항상 기록(빠지면 Excel이 켜짐으로 읽음), 파일의 값을 읽어 미리보기도 같게, `chart set --vary-colors on|off` (→ docs/skill-implementation.md)

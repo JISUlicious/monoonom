@@ -583,6 +583,8 @@ def _build_chart(m: dict, theme: list[str] | None = None):
         # varyColors is always written: Excel treats a missing element as "vary colors by point", so a
         # one-series column chart got a color per bar and a legend of category names. Pies vary unless
         # the file said otherwise; other charts only when the original chart did.
+        if t == "scatter":
+            ch.scatterStyle = "lineMarker"  # what Excel writes for "Scatter"; lines are noFill -> markers only
         pie_like = t in ("pie", "doughnut")
         vary = m.get("varyColors") is not False if pie_like else m.get("varyColors") is True
         ch.varyColors = vary
