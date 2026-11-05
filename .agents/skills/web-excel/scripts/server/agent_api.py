@@ -41,6 +41,35 @@ def resolve(doc, ref, sheet=None):
         raise ApiError(400, str(e))
 
 
+def parse_at(doc, at):
+    """'E2' or 'Sheet!E2' -> (sheet dict or None, r, c); bad input is a 400, not a server error."""
+    sname, rng = A.split_sheet(at)
+    try:
+        r, c = A.parse_range(rng)[:2]
+    except ValueError as e:
+        raise ApiError(400, f"차트 위치(--at)가 잘못됐습니다: {at} ({e})")
+    return (doc.sheet(sname) if sname else None), r, c
+
+
+def find_chart(doc, meta, meta_of, cid=None, sheet=None, index=None):
+    """(sheet, charts list, index) of a chart. Chart ids are unique in the workbook, so without --sheet
+    every sheet is searched (`chart ls` lists all sheets); an index needs a sheet (default: active)."""
+    if sheet:
+        sheets = [doc.sheet(sheet)]
+    elif cid:
+        sheets = list(doc.sheets)
+    else:
+        sheets = [doc.sheets[min(doc.active_sheet, len(doc.sheets) - 1)]]
+    for sh in sheets:
+        # look without registering a change for every sheet searched (that would emit no-op sheet ops)
+        current = meta.get(sh["id"], {}).get("charts", sh["charts"])
+        for i, ch in enumerate(current):
+            if (cid and ch.get("id") == cid) or (not cid and index is not None and i == int(index)):
+                return sh, meta_of(sh, "charts"), i
+    where = f"'{sheets[0]['name']}' 시트" if len(sheets) == 1 else "모든 시트"
+    raise ApiError(404, f"차트를 찾을 수 없습니다: {cid or f'#{index}'} ({where}에서 찾음, `xl.py chart ls`로 id 확인).")
+
+
 def used_extent(sh, pending=None):
     keys = list(sh["cells"]) + [k for k, v in (pending or {}).items() if v]
     if not keys:
@@ -378,20 +407,17 @@ def build_ops(doc, edits):
         elif kind == "chart":
             sh_data, g = resolve(doc, e.get("data"), sheet)
             g, _ = RG.auto_range(sh_data, g, cur)
-            target = doc.sheet(e["sheet"]) if e.get("sheet") else sh_data
+            at_sheet = parse_at(doc, e["at"])[0] if e.get("at") else None
+            if at_sheet and e.get("sheet") and doc.sheet(e["sheet"]) is not at_sheet:
+                raise ApiError(400, "--sheet와 --at의 시트가 다릅니다.")
+            target = doc.sheet(e["sheet"]) if e.get("sheet") else at_sheet or sh_data
             chart = chart_from_range(doc, sh_data, g, e, cellbuf.get(sh_data["id"], {}))
             charts = meta_of(target, "charts")
             charts.append(chart)
             summary.append(f"{target['name']} 차트 추가({chart['type']}, id={chart['id']})")
         elif kind == "deleteChart":
-            sh = doc.sheet(sheet) if sheet else doc.sheets[doc.active_sheet]
-            charts = meta_of(sh, "charts")
-            cid = e.get("id")
-            idx = e.get("index")
-            new = [ch for i, ch in enumerate(charts) if not (ch.get("id") == cid or i == idx)]
-            if len(new) == len(charts):
-                raise ApiError(404, "차트를 찾을 수 없습니다.")
-            meta[sh["id"]]["charts"] = new
+            sh, charts, idx = find_chart(doc, meta, meta_of, e.get("id"), sheet, e.get("index"))
+            meta[sh["id"]]["charts"] = [ch for i, ch in enumerate(charts) if i != idx]
             summary.append(f"{sh['name']} 차트 삭제")
         elif kind == "addSheet":
             name = (e.get("name") or "").strip() or _unique_name(doc, "Sheet")
@@ -532,7 +558,7 @@ def chart_from_range(doc, sh, g, e, pending=None):
     if t not in ("bar", "line", "area", "pie", "doughnut", "scatter", "radar"):
         raise ApiError(400, "차트 종류: bar, barH, barStacked, line, area, pie, doughnut, scatter, radar")
     at = e.get("at")
-    ar, ac = (A.parse_range(at)[:2] if at else (r1, min(c2 + 2, A.MAX_COLS - 10)))
+    ar, ac = (parse_at(doc, at)[1:] if at else (r1, min(c2 + 2, A.MAX_COLS - 10)))
     return {"id": new_id("ch"), "type": t, "barDir": bar_dir, "grouping": grouping, "title": e.get("title"),
             "legend": e.get("legend", "r" if (len(series) > 1 or t in ("pie", "doughnut")) else None),
             "xTitle": e.get("xTitle"), "yTitle": e.get("yTitle"), "series": series, "dirty": True,

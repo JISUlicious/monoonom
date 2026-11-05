@@ -136,6 +136,7 @@ python3 tests/agent_cli.test.py           # 에이전트 CLI 시나리오 39개 
 python3 tests/structural.test.py          # 행/열 삽입·삭제·정렬·충돌 좌표 변환 20개
 python3 tests/region.test.py              # A1이 아닌 곳에서 시작하는 표(제목·빈 행·합계 행)
 python3 tests/agent_full.test.py          # UI 기능 전부를 에이전트 명령으로 (대응표: docs/agent-coverage.md)
+python3 tests/chart_ids.test.py           # 차트 id로 set/rm(다른 시트의 차트), --at '시트!셀', 시트 간 이동
 python3 tests/refs_parity.test.py         # 수식 참조 재작성 JS↔Python 동등성 (무작위 1만 건)
 python3 tests/preserve_formulas.test.py    # 계산할 수 없는 함수: 열 때 경고, 고치지 않은 수식은 원래대로 저장
 node tests/preserve.e2e.cjs               # 같은 내용을 미리보기에서 (경고 표시, F2+Enter, 수식 수정 경고)

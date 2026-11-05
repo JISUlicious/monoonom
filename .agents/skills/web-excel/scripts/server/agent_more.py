@@ -213,13 +213,10 @@ def op_filter_reapply(ctx, e):
 # ------------------------------------------------------------------ charts
 
 def op_chart_update(ctx, e):
-    from .agent_api import chart_from_range, resolve
-    sh = ctx.sheet_of(e)
-    charts = ctx.meta_of(sh, "charts")
-    idx = next((i for i, ch in enumerate(charts) if ch.get("id") == e.get("id")), e.get("index"))
-    if idx is None or not 0 <= int(idx) < len(charts):
-        raise ApiError(404, "차트를 찾을 수 없습니다(chart ls로 id 확인).")
-    ch = copy.deepcopy(charts[int(idx)])
+    from .agent_api import chart_from_range, find_chart, parse_at, resolve
+    sh, charts, idx = find_chart(ctx.doc, ctx.meta, ctx.meta_of, e.get("id"), e.get("sheet"), e.get("index"))
+    ch = copy.deepcopy(charts[idx])
+    move_to = None
     st = dict(e.get("set") or {})
     if "data" in st:
         dsh, g = resolve(ctx.doc, st.pop("data"), sh["name"])
@@ -233,8 +230,10 @@ def op_chart_update(ctx, e):
         for s in ch.get("series", []):
             s.pop("type", None)
     if "at" in st:
-        r, c = A.parse_range(st.pop("at"))[:2]
+        at_sheet, r, c = parse_at(ctx.doc, st.pop("at"))
         ch["anchor"].update(r=r, c=c, dx=0, dy=0)
+        if at_sheet and at_sheet is not sh:
+            move_to = at_sheet  # 'Other!E2' moves the chart to that sheet
     for k in ("width", "height"):
         if k in st:
             ch["anchor"]["w" if k == "width" else "h"] = int(st.pop(k))
@@ -244,7 +243,13 @@ def op_chart_update(ctx, e):
     if st:
         raise ApiError(400, f"알 수 없는 차트 속성: {', '.join(st)} (type, data, title, legend, xTitle, yTitle, at, width, height, grouping, barDir)")
     ch["dirty"] = True
-    charts[int(idx)] = ch
+    if move_to is not None:
+        ch["orig"] = None  # rebuilt on save: it no longer belongs to the original sheet's drawing
+        del charts[idx]
+        ctx.meta_of(move_to, "charts").append(ch)
+        ctx.summary.append(f"{sh['name']} 차트 {ch['id']} → '{move_to['name']}' 시트로 이동")
+        return
+    charts[idx] = ch
     ctx.summary.append(f"{sh['name']} 차트 {ch['id']} 수정")
 
 

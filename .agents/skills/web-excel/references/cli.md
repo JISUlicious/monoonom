@@ -85,9 +85,9 @@ All edits are one batch per command, applied live and undoable with `undo BATCH`
 | `sheet add NAME` / `sheet rename OLD NEW` / `sheet rm NAME` | Rename rewrites formulas, chart ranges and defined names. |
 | `sheet copy NAME [NEW]` / `sheet move NAME POS\|BEFORE_SHEET` | |
 | `sheet hide NAME` / `sheet unhide NAME` / `sheet color NAME #RRGGBB\|none` / `sheet gridlines NAME on\|off` | |
-| `chart add DATA [--type T] [--title] [--at CELL] [--sheet S] [--legend r\|b\|t\|l] [--width PX] [--height PX]` | First row = series names, first text/date column = categories (like Excel). |
-| `chart set ID [--to-type T] [--title] [--data RANGE] [--legend r\|b\|t\|l] [--at CELL] [--width] [--height] [--x-title] [--y-title]` | Edit an existing chart (ids from `chart ls`). |
-| `chart ls` / `chart rm ID [--sheet S]` | |
+| `chart add DATA [--type T] [--title] [--at CELL] [--sheet S] [--legend r\|b\|t\|l] [--width PX] [--height PX]` | First row = series names, first text/date column = categories (like Excel). The chart goes on the data's sheet, or on the sheet of `--at 'Sheet!E2'` / `--sheet`. |
+| `chart set ID [--to-type T] [--title] [--data RANGE] [--legend r\|b\|t\|l] [--at CELL] [--width] [--height] [--x-title] [--y-title]` | Edit an existing chart (ids from `chart ls`; found on any sheet, `--sheet` only narrows the search). `--at 'Other!K2'` moves it to another sheet. |
+| `chart ls` / `chart rm ID [--sheet S]` | `ls` lists every sheet's charts; `rm` finds the id on any sheet. |
 | `goto RANGE [--sheet S]` | Moves the user's preview to the sheet/range (does not change the workbook). |
 | `view [--zoom PCT] [--formulas\|--no-formulas]` | Preview zoom and formula display. |
 | `apply FILE\|- [--label TEXT]` | Several edits as one batch; see `edits.md`. |
