@@ -8,7 +8,7 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const XL = path.join(ROOT, '.agents', 'skills', 'web-excel', 'scripts', 'xl.py');
+const XL = path.join(ROOT, '.agents', 'skills', 'monoonom', 'scripts', 'xl.py');
 let fails = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); if (!ok) fails++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -40,16 +40,16 @@ const XSD = process.env.WX_SML_XSD; // optional: ECMA-376 Part 4 transitional sm
     const p = await browser.newPage({ viewport: { width: 1300, height: 800 } });
     p.on('pageerror', (er) => errors.push(er.message));
     await p.goto(xl('url', '--bare').trim());
-    await p.waitForFunction(() => window.webExcel?.doc?.wb.sheets.some((s) => s.name === '요약')); await sleep(300);
+    await p.waitForFunction(() => window.monoonom?.doc?.wb.sheets.some((s) => s.name === '요약')); await sleep(300);
     // the dialog: rows 제품, columns 지역, values 매출 (sum), filter 분기, new sheet
-    await p.evaluate(() => { const a = window.webExcel; a.activateSheet(0); a.select(0, 0); a.exec('pivotDialog'); });
+    await p.evaluate(() => { const a = window.monoonom; a.activateSheet(0); a.select(0, 0); a.exec('pivotDialog'); });
     await p.waitForSelector('.pivot-dialog .pv-row');
     const set = async (f, role) => p.selectOption(`.pivot-dialog .pv-row[data-f="${f}"] [data-role]`, role);
     await set('지역', 'cols'); await set('제품', 'rows'); await set('분기', 'filters'); await set('매출', 'values');
     await p.fill('.pivot-dialog [data-k=sheet]', '제품별');
     await p.click('.pivot-dialog .modal-btns .primary');
-    await p.waitForFunction(() => window.webExcel.doc.wb.sheet.name === '제품별', null, { timeout: 6000 }).catch(() => {});
-    const ui = await p.evaluate(() => { const s = window.webExcel.doc.wb.sheet; const v = (r, c) => s.get(r, c)?.v ?? null;
+    await p.waitForFunction(() => window.monoonom.doc.wb.sheet.name === '제품별', null, { timeout: 6000 }).catch(() => {});
+    const ui = await p.evaluate(() => { const s = window.monoonom.doc.wb.sheet; const v = (r, c) => s.get(r, c)?.v ?? null;
       return { sheet: s.name, pivot: s.pivots?.[0]?.ref, filter: [v(2, 0), v(2, 1)], head: [v(5, 0), v(5, 1), v(5, 4)], a: [v(6, 1), v(6, 2), v(6, 3), v(6, 4)], grand: v(8, 4) }; });
     check('dialog: pivot on a new sheet, shown; filter row (분기 / (모두)) above it', ui.sheet === '제품별' && ui.pivot === 'A5:E9' && ui.filter.join() === '분기,(모두)', JSON.stringify(ui));
     check('…product A row: 대구 85, 부산 125, 서울 250, total 460; grand 860', ui.a.join() === '85,125,250,460' && ui.grand === 860 && ui.head.join() === '제품,대구,총합계', JSON.stringify(ui));
@@ -59,8 +59,8 @@ const XSD = process.env.WX_SML_XSD; // optional: ECMA-376 Part 4 transitional sm
     xl('write', '데이터!D2', '1000');
     const ref = JSON.parse(xl('pivot', 'refresh', '--json'));
     check('refresh: the created pivots update (서울 A Q1 120 -> 1000)', ref.pivots.filter((x) => x.changed > 0).map((x) => x.name).sort().join() === '피벗 테이블1,피벗 테이블2,피벗1', JSON.stringify(ref.pivots));
-    await p.waitForFunction(() => window.webExcel.doc.wb.sheets.find((s) => s.name === '제품별').get(6, 3)?.v === 1130, null, { timeout: 4000 }).catch(() => {});
-    check('…and the preview shows it (서울 A 1130)', await p.evaluate(() => window.webExcel.doc.wb.sheets.find((s) => s.name === '제품별').get(6, 3)?.v === 1130));
+    await p.waitForFunction(() => window.monoonom.doc.wb.sheets.find((s) => s.name === '제품별').get(6, 3)?.v === 1130, null, { timeout: 4000 }).catch(() => {});
+    check('…and the preview shows it (서울 A 1130)', await p.evaluate(() => window.monoonom.doc.wb.sheets.find((s) => s.name === '제품별').get(6, 3)?.v === 1130));
     check('no page errors', errors.length === 0, errors.join('; '));
   } finally {
     await browser.close();

@@ -1,7 +1,7 @@
 """Skill package checks: python3 tests/skill_package.test.py
 
 - the Claude Code SKILL files are rebuilt from SKILL.md (tools/build_claude_code_skill.py --check)
-- .claude/skills/web-excel is the Claude Code skill: generated SKILL.md + links into the package
+- .claude/skills/monoonom is the Claude Code skill: generated SKILL.md + links into the package
 - frontmatter within the Agent Skills spec limits (https://agentskills.io/specification); the full
   check is the official validator: skills-ref validate <dir>
 """
@@ -13,8 +13,8 @@ import sys
 import yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PKG = os.path.join(ROOT, ".agents", "skills", "web-excel")
-CC = os.path.join(ROOT, ".claude", "skills", "web-excel")
+PKG = os.path.join(ROOT, ".agents", "skills", "monoonom")
+CC = os.path.join(ROOT, ".claude", "skills", "monoonom")
 fails = 0
 
 
@@ -26,9 +26,9 @@ def check(name, cond, extra=""):
 
 
 p = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "build_claude_code_skill.py"), "--check"], capture_output=True, text=True)
-check("SKILL.claude-code.md and .claude/skills/web-excel/SKILL.md are up to date with SKILL.md", p.returncode == 0, p.stdout.strip())
+check("SKILL.claude-code.md and .claude/skills/monoonom/SKILL.md are up to date with SKILL.md", p.returncode == 0, p.stdout.strip())
 
-check(".claude/skills/web-excel is a folder (its SKILL.md is the Claude Code version)", os.path.isdir(CC) and not os.path.islink(CC))
+check(".claude/skills/monoonom is a folder (its SKILL.md is the Claude Code version)", os.path.isdir(CC) and not os.path.islink(CC))
 check("…its SKILL.md is a file, not a link", os.path.isfile(os.path.join(CC, "SKILL.md")) and not os.path.islink(os.path.join(CC, "SKILL.md")))
 for e in ("scripts", "references", "assets", "LICENSE.txt", "THIRD_PARTY_NOTICES.md"):
     path = os.path.join(CC, e)
@@ -40,7 +40,7 @@ for label, path in (("package SKILL.md", os.path.join(PKG, "SKILL.md")), ("Claud
     allowed = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
     check(f"{label}: only spec fields in the frontmatter", set(m) <= allowed, str(sorted(set(m) - allowed)))
     check(f"{label}: name = folder name, lowercase/digits/hyphens, <= 64",
-          m["name"] == "web-excel" and re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", m["name"]) and len(m["name"]) <= 64)
+          m["name"] == "monoonom" and re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", m["name"]) and len(m["name"]) <= 64)
     d = m["description"].strip()
     check(f"{label}: description 1–1024 chars, no XML tags, third person", 0 < len(d) <= 1024 and not re.search(r"<[^>]+>", d) and not re.match(r"(I|You)\b", d), f"{len(d)} chars")
     check(f"{label}: compatibility <= 500 chars", len(m.get("compatibility", "").strip()) <= 500, f"{len(m.get('compatibility', '').strip())} chars")

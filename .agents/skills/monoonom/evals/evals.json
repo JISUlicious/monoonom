@@ -1,0 +1,88 @@
+{
+  "skill_name": "monoonom",
+  "evals": [
+    {
+      "id": "add-margin-column",
+      "prompt": "samples/sample.xlsx 열어서 매출 시트에 '이익률' 열을 추가해줘. 합계의 30%로 계산하고 소수 첫째 자리까지 보이게. 나도 화면에서 보고 싶어.",
+      "expected_output": "Server started (or reused) and the preview URL given to the user; G1 header and G2:G7 formulas =E2*0.3..=E7*0.3 with number format showing one decimal; file not saved unless asked.",
+      "files": [
+        "samples/sample.xlsx"
+      ],
+      "expectations": [
+        "Ran xl.py serve and gave the user the printed URL verbatim, including its #t= token",
+        "Used describe or read before editing",
+        "Wrote formulas with fill (relative references), not hard-coded numbers",
+        "Applied a number format with one decimal (nf like #,##0.0 or 0.0)",
+        "Did not run xl.py save because the user did not ask to save"
+      ]
+    },
+    {
+      "id": "react-to-user-selection",
+      "prompt": "내가 지금 미리보기에서 선택한 부분을 굵게 하고 노란색 배경으로 바꿔줘.",
+      "expected_output": "Agent queries xl.py selection, then formats exactly that range (b=true, bg yellow).",
+      "files": [
+        "samples/sample.xlsx"
+      ],
+      "expectations": [
+        "Called xl.py selection to find the user's current range",
+        "Formatted only that range with b=true and a yellow bg",
+        "Reported the batch id or how to undo"
+      ]
+    },
+    {
+      "id": "insert-and-sort-then-save",
+      "prompt": "sample.xlsx 매출 시트 3월 아래에 빈 행 하나 넣고, 데이터를 제품A 기준 내림차순으로 정렬한 다음 저장해줘.",
+      "expected_output": "rows insert 5, sort of the data range by B descending with the header kept, then save with backup; totals formulas still correct.",
+      "files": [
+        "samples/sample.xlsx"
+      ],
+      "expectations": [
+        "Used xl.py rows insert (not manual cell moves)",
+        "Used xl.py sort with --by B:desc (header row excluded)",
+        "Ran xl.py save and mentioned the backup",
+        "Verified totals with read after the changes"
+      ]
+    },
+    {
+      "id": "user-edits-meanwhile",
+      "prompt": "방금 내가 화면에서 몇 군데 고쳤는데, 뭘 바꿨는지 정리해줘.",
+      "expected_output": "Agent runs xl.py changes --actor user and summarizes the user's edits by range.",
+      "files": [
+        "samples/sample.xlsx"
+      ],
+      "expectations": [
+        "Called xl.py changes with --actor user",
+        "Summarized ranges and values without modifying the workbook"
+      ]
+    },
+    {
+      "id": "give-preview-url",
+      "prompt": "엑셀 미리보기 화면 좀 띄워줘. 아까 주소로 열었더니 메뉴만 나오고 파일이 안 보여.",
+      "files": [
+        "samples/sample.xlsx"
+      ],
+      "expected_output": "Server started or reused; the user gets the full URL printed by xl.py serve / xl.py url (http://localhost:PORT/#t=TOKEN), copied verbatim; the agent explains the earlier address lacked the token.",
+      "expectations": [
+        "Ran xl.py serve or xl.py url to get the URL instead of writing it from memory",
+        "The URL given to the user ends with #t= followed by the token exactly as printed",
+        "Did not give a bare http://localhost:PORT/ address",
+        "Explained that the page needs the token in the URL to open workbooks"
+      ]
+    },
+    {
+      "id": "summary-with-formulas",
+      "prompt": "sample.xlsx 매출 시트로 제품별 매출 합계와 평균, 매출이 가장 큰 달을 정리한 요약표를 '요약' 시트에 만들어줘.",
+      "files": [
+        "samples/sample.xlsx"
+      ],
+      "expected_output": "A '요약' sheet whose figures are Excel formulas referencing 매출 (e.g. SUM/AVERAGE/INDEX-MATCH or XLOOKUP with MAX), filled with relative references, values checked with read; no values computed in Python and pasted.",
+      "expectations": [
+        "The summary cells contain formulas (=SUM, =AVERAGE, =INDEX/MATCH, =XLOOKUP, =MAX ...) that reference the 매출 sheet",
+        "Did not compute the numbers in Python (pandas or a script) and write them as plain values",
+        "Used fill or a formula with relative references instead of writing each result by hand",
+        "Read back some result cells to check the values",
+        "Did not save unless asked"
+      ]
+    }
+  ]
+}

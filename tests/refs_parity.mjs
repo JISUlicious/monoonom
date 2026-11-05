@@ -1,5 +1,5 @@
 // Reads JSON lines {f, op, args} and prints the JS result for each (used by refs_parity.test.py).
-import { translateFormula, adjustFormula, renameSheetInFormula } from '../.agents/skills/web-excel/assets/web/js/formula.js';
+import { translateFormula, adjustFormula, renameSheetInFormula } from '../.agents/skills/monoonom/assets/web/js/formula.js';
 import { createInterface } from 'readline';
 const rl = createInterface({ input: process.stdin });
 const out = [];

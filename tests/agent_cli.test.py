@@ -10,7 +10,7 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-XL = os.path.join(ROOT, ".agents", "skills", "web-excel", "scripts", "xl.py")
+XL = os.path.join(ROOT, ".agents", "skills", "monoonom", "scripts", "xl.py")
 sys.path.insert(0, ROOT)
 from openpyxl import load_workbook  # noqa: E402
 from tests.make_samples import make_xlsx  # noqa: E402
@@ -82,7 +82,7 @@ try:
 
     # documented batch example (references/edits.md) on a fresh sheet: later edits see earlier cells
     xl(ws, "sheet", "add", "예제")
-    ex = open(os.path.join(ROOT, ".agents", "skills", "web-excel", "references", "edits.md"), encoding="utf-8").read()
+    ex = open(os.path.join(ROOT, ".agents", "skills", "monoonom", "references", "edits.md"), encoding="utf-8").read()
     edits = json.loads(ex.split("```json")[1].split("```")[0].replace("Sheet1!", "예제!"))
     for e in edits:
         e.setdefault("sheet", "예제")
@@ -137,7 +137,7 @@ try:
 
     # token handling
     import json as _json, socket
-    stp = os.path.join(ws, ".web-excel", "server.json")
+    stp = os.path.join(ws, ".monoonom", "server.json")
     st = _json.load(open(stp))
     p = xl(ws, "status")
     check("status prints the URL with #t=", f"#t={st['token']}" in p.stdout)
@@ -154,7 +154,7 @@ try:
     check("state from an older server: status still prints the token URL", f"#t={st['token']}" in xl(ws, "status").stdout)
     _json.dump(old, open(stp, "w"))
     s = socket.create_connection(("127.0.0.1", st["port"]))
-    s.sendall(f"GET /api/docs HTTP/1.1\r\nHost: localhost:{st['port']}\r\nX-WebExcel-Token: tok\xe9\r\nConnection: close\r\n\r\n".encode("latin-1"))
+    s.sendall(f"GET /api/docs HTTP/1.1\r\nHost: localhost:{st['port']}\r\nX-Monoonom-Token: tok\xe9\r\nConnection: close\r\n\r\n".encode("latin-1"))
     raw = b""
     while True:
         c = s.recv(4096)
@@ -165,7 +165,7 @@ try:
 
     # xl.py runs from the workspace; the skill folder as workspace is refused
     skill = os.path.dirname(os.path.dirname(XL))
-    env = {k: v for k, v in os.environ.items() if k not in ("WEBEXCEL_ROOT", "CLAUDE_PROJECT_DIR")}
+    env = {k: v for k, v in os.environ.items() if k not in ("MONOONOM_ROOT", "CLAUDE_PROJECT_DIR")}
     p = subprocess.run([sys.executable, XL, "status"], cwd=skill, env=env, capture_output=True, text=True, encoding="utf-8")
     check("run from the skill folder -> exit 2 with a hint", p.returncode == 2 and "작업 폴더" in p.stderr, p.stderr.strip()[:80])
     p = subprocess.run([sys.executable, XL, "status", "--root", os.path.join(skill, "scripts")], env=env, capture_output=True, text=True, encoding="utf-8")
@@ -178,7 +178,7 @@ try:
     xl(ws, "write", "A30", "미저장")
     check("stop refuses with unsaved changes", xl(ws, "stop", ok=False).returncode == 4)
     check("stop --force", xl(ws, "stop", "--force").returncode == 0)
-    tok0 = open(os.path.join(ws, ".web-excel", "token")).read()
+    tok0 = open(os.path.join(ws, ".monoonom", "token")).read()
     xl(ws, "serve", "--port", "8811")
     check("restart keeps the workspace token", f"#t={tok0}" in xl(ws, "status").stdout)
     xl(ws, "stop", "--force")
@@ -190,7 +190,7 @@ try:
     code = f"import sys; sys.path.insert(0, {os.path.dirname(XL)!r}); import xl; print(xl.workspace_token({fresh!r}))"
     procs = [subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True) for _ in range(12)]
     toks = {p_.communicate()[0].strip() for p_ in procs}
-    check("concurrent token creation agrees on one token", len(toks) == 1 and open(os.path.join(fresh, ".web-excel", "token")).read() in toks, str(toks))
+    check("concurrent token creation agrees on one token", len(toks) == 1 and open(os.path.join(fresh, ".monoonom", "token")).read() in toks, str(toks))
     shutil.rmtree(fresh, ignore_errors=True)
     check("status after stop", xl(ws, "status", ok=False).returncode == 3)
 finally:

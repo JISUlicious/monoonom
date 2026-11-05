@@ -1,13 +1,13 @@
-# web-excel skill 평가
+# monoonom skill 평가
 
 실행기: `tools/run_skill_evals.py`(`trigger` / `scenarios` / `report`). Claude Code CLI(`claude -p`) 2.1.318으로 실행.
-실행마다 새 작업 폴더를 만들고, Claude Code가 읽는 형태(`.claude/skills/web-excel`: 생성된 SKILL.md + 패키지 링크)로 skill을 설치한다.
+실행마다 새 작업 폴더를 만들고, Claude Code가 읽는 형태(`.claude/skills/monoonom`: 생성된 SKILL.md + 패키지 링크)로 skill을 설치한다.
 결과 원본: `docs/evals/<날짜>/`(trigger.json, scenarios.json, report.md).
 
 ## 2026-11-05 (첫 실행, Haiku·Sonnet·Opus)
 
 ### 트리거 (질문 20개: 써야 함 10, 쓰면 안 됨 10; 모델별 1회)
-설정: Bash 금지, 3턴 이내에 Skill 도구로 web-excel을 부르면 "호출"로 센다. 같은 환경에 claude.ai의 `anthropic-skills:xlsx` 등 다른 skill도 설치되어 있어 실제 경쟁 조건이다.
+설정: Bash 금지, 3턴 이내에 Skill 도구로 monoonom을 부르면 "호출"로 센다. 같은 환경에 claude.ai의 `anthropic-skills:xlsx` 등 다른 skill도 설치되어 있어 실제 경쟁 조건이다.
 
 | 모델 | 써야 할 때 호출 | 쓰면 안 될 때 안 부름 | 정확도 | 비용 |
 |---|---|---|---|---|
@@ -41,9 +41,9 @@
 - **작은 문제**: Opus는 편집 후 되돌리는 방법을 사용자에게 알리지 않은 적이 있다(react-to-user-selection).
 
 ### 첫 시나리오 실행이 무효였던 이유 (같은 날 재실행)
-- Claude Code판 SKILL.md에는 `allowed-tools`가 있다. 그래서 **skill을 호출하는 것 자체가 권한 요청이 된다**(stream-json에 `permission_denied … "Execute skill: web-excel"`).
+- Claude Code판 SKILL.md에는 `allowed-tools`가 있다. 그래서 **skill을 호출하는 것 자체가 권한 요청이 된다**(stream-json에 `permission_denied … "Execute skill: monoonom"`).
 - `-p` 실행에서 `--allowedTools`에 `Skill`이 없으면 이 요청이 거부되고, 에이전트는 지시 없이 작업했다. 그 결과 XML을 직접 고치거나 원본을 덮어썼다.
-- 이식판(`allowed-tools` 없음)은 정상 로드되고, `allowed-tools` 줄만 빼도 정상 로드됨을 확인했다. `Skill` 또는 `Skill(web-excel)`을 허용하면 해결된다.
+- 이식판(`allowed-tools` 없음)은 정상 로드되고, `allowed-tools` 줄만 빼도 정상 로드됨을 확인했다. `Skill` 또는 `Skill(monoonom)`을 허용하면 해결된다.
 - 대화형 세션에서는 사용자에게 "Execute skill" 허용을 묻는다. 비대화형(`-p`, SDK, CI)에서는 아무 표시 없이 실패하므로 사용자 안내가 필요하다.
 - 무효였던 결과는 저장하지 않았다. 트리거 결과는 skill을 고르는 판단이 로드보다 먼저라서 유효하다.
 
@@ -52,7 +52,7 @@
 
 | # | 항목 | 근거 | 영향 |
 |---|---|---|---|
-| A | 비대화형 실행 안내: README에 "`-p`/SDK/CI에서는 `Skill(web-excel)`을 허용"을 적고, 이 저장소 `.claude/settings.json`에 허용 규칙을 넣는다 | Claude Code판의 `allowed-tools` 때문에 skill 호출이 권한 요청이 되고, 비대화형에서는 아무 표시 없이 거부됨(위 "첫 시나리오 실행이 무효였던 이유") | 대화형 세션은 사용자에게 한 번 허용을 묻는 것으로 끝나므로 문제없음. 자동화에서만 해당 |
+| A | 비대화형 실행 안내: README에 "`-p`/SDK/CI에서는 `Skill(monoonom)`을 허용"을 적고, 이 저장소 `.claude/settings.json`에 허용 규칙을 넣는다 | Claude Code판의 `allowed-tools` 때문에 skill 호출이 권한 요청이 되고, 비대화형에서는 아무 표시 없이 거부됨(위 "첫 시나리오 실행이 무효였던 이유") | 대화형 세션은 사용자에게 한 번 허용을 묻는 것으로 끝나므로 문제없음. 자동화에서만 해당 |
 | B | description 보강: "통합 문서를 openpyxl/XML로 직접 고치는 대신 이 skill을 쓸 것, 차트·서식이 보존되고 사용자가 화면으로 확인 가능" | 트리거 평가에서 화면 언급이 없는 단순 편집 요청을 놓침. Haiku는 skill을 부르지 않고 원본 파일을 덮어씀. 오발동은 0건이라 여유가 있음 | 트리거 동작이 바뀌므로 고치면 트리거 평가를 다시 돌릴 것 |
 | C | 이식판 SKILL.md의 `python scripts/xl.py`를 `python3`(Windows는 `python`)로 | macOS·Linux에는 `python` 명령이 없는 경우가 많음(Claude Code판은 이미 `python3`) | 에이전트가 대개 스스로 고쳐 실행하므로 작음 |
 | D | `xl.py changes --since VERSION`의 VERSION이 마지막 명령 출력의 `vN`임을 명시 | 본문에 정의가 없음 | 작음 |

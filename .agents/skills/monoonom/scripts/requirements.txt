@@ -1,0 +1,5 @@
+# monoonom Python dependencies:  python -m pip install -r requirements.txt
+# The server code uses openpyxl internals tested with 3.1.x, hence the upper bound.
+openpyxl>=3.1.2,<3.2
+# Optional: only needed to open legacy .xls files (read-only; they are saved as .xlsx).
+xlrd>=2.0.1,<3

@@ -20,5 +20,5 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Third-party components bundled in .agents/skills/web-excel/ keep their own
-licenses; see .agents/skills/web-excel/THIRD_PARTY_NOTICES.md.
+Third-party components bundled in .agents/skills/monoonom/ keep their own
+licenses; see .agents/skills/monoonom/THIRD_PARTY_NOTICES.md.

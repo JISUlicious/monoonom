@@ -8,7 +8,7 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const XL = path.join(ROOT, '.agents', 'skills', 'web-excel', 'scripts', 'xl.py');
+const XL = path.join(ROOT, '.agents', 'skills', 'monoonom', 'scripts', 'xl.py');
 let fails = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); if (!ok) fails++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -50,9 +50,9 @@ wb.save(${JSON.stringify(path.join(ws, 'axes.xlsx'))})
     const p = await browser.newPage({ viewport: { width: 1400, height: 900 } });
     p.on('pageerror', (e) => errors.push(e.message));
     await p.goto(xl('url', '--bare').trim());
-    await p.waitForFunction(() => window.webExcel?.doc?.wb.sheet.charts.length === 4); await sleep(600);
+    await p.waitForFunction(() => window.monoonom?.doc?.wb.sheet.charts.length === 4); await sleep(600);
     const ax = await p.evaluate(() => {
-      const a = window.webExcel, sh = a.doc.wb.sheet, out = {};
+      const a = window.monoonom, sh = a.doc.wb.sheet, out = {};
       for (const m of sh.charts) {
         const ch = a.charts.instances.get(m.id).chart, y = ch.scales.y, x = ch.scales.x;
         out[m.title] = { yMin: y.min, yMax: y.max, xMin: x.min, xMax: x.max, xTicks: x.ticks.map((t) => t.label), yTicks: y.ticks.map((t) => t.label), data: ch.data.datasets[0].data, labels: ch.data.labels };
@@ -69,7 +69,7 @@ wb.save(${JSON.stringify(path.join(ws, 'axes.xlsx'))})
     check('scatter with dates as X: X labels in the cells\' date format', d.xTicks.length > 1 && d.xTicks.every((t) => /^\d{4}-\d{2}-\d{2}$/.test(t)), JSON.stringify(d.xTicks));
     check('…X axis does not start at 0 (1900) but near the first date (5/6 rule on X)', d.xMin > 46000, String(d.xMin));
     check('values stored in the chart are drawn (7, 9, 8 at 가, 나, 다)', JSON.stringify(lit.data) === '[7,9,8]' && lit.labels.join() === '가,나,다', JSON.stringify(lit));
-    await p.evaluate(() => { const a = window.webExcel; a.charts.select(a.doc.wb.sheet.charts.find((m) => m.title === 'literal').id); }); await sleep(200);
+    await p.evaluate(() => { const a = window.monoonom; a.charts.select(a.doc.wb.sheet.charts.find((m) => m.title === 'literal').id); }); await sleep(200);
     const panel = await p.evaluate(() => document.querySelector('.chart-ranges')?.textContent || '');
     check('range panel: the stored values are listed (no cells to outline)', panel.includes('Y(값) {7, 9, 8}') && panel.includes('차트에 저장된 값'), panel);
     if (process.env.SHOT) await p.screenshot({ path: process.env.SHOT });

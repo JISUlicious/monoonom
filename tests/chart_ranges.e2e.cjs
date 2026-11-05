@@ -8,7 +8,7 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const XL = path.join(ROOT, '.agents', 'skills', 'web-excel', 'scripts', 'xl.py');
+const XL = path.join(ROOT, '.agents', 'skills', 'monoonom', 'scripts', 'xl.py');
 let fails = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); if (!ok) fails++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -28,9 +28,9 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
     const p = await browser.newPage({ viewport: { width: 1300, height: 760 } });
     p.on('pageerror', (e) => errors.push(e.message));
     await p.goto(xl('url', '--bare').trim());
-    await p.waitForFunction(() => window.webExcel?.doc?.wb.sheet.charts.length > 0); await sleep(300);
+    await p.waitForFunction(() => window.monoonom?.doc?.wb.sheet.charts.length > 0); await sleep(300);
     const st = () => p.evaluate(() => {
-      const a = window.webExcel, pnl = document.querySelector('.chart-ranges');
+      const a = window.monoonom, pnl = document.querySelector('.chart-ranges');
       return {
         ranges: a.grid.chartRanges.map((h) => ({ c: h.color, r: [h.range.r1, h.range.c1, h.range.r2, h.range.c2], dim: !!h.dim })),
         panel: pnl && pnl.style.display !== 'none' ? pnl.textContent : null,
@@ -38,7 +38,7 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
       };
     });
     check('nothing outlined before a chart is selected', (await st()).ranges.length === 0);
-    await p.evaluate(() => { const a = window.webExcel; a.charts.select(a.doc.wb.sheet.charts[0].id); });
+    await p.evaluate(() => { const a = window.monoonom; a.charts.select(a.doc.wb.sheet.charts[0].id); });
     await sleep(200);
     let s = await st();
     const has = (c, r) => s.ranges.some((h) => h.c === c && h.r.join() === r.join());
@@ -47,7 +47,7 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
     check('values outlined blue (B2:B7 … E2:E7)', [1, 2, 3, 4].every((c) => has('#0070C0', [1, c, 6, c])));
     check('panel lists 4 series with their refs', s.rows === 4 && s.panel.includes("Y(값) '매출'!$C$2:$C$7") && s.panel.includes('(line)') && s.panel.includes('제품A') && s.panel.includes('합계'), s.panel);
     const frames = await p.evaluate(() => new Promise((res) => {
-      const g = window.webExcel.grid, d = g.draw.bind(g); let n = 0;
+      const g = window.monoonom.grid, d = g.draw.bind(g); let n = 0;
       g.draw = () => { n++; d(); }; setTimeout(() => { g.draw = d; res(n); }, 500);
     }));
     check('a selected chart does not redraw the grid every frame', frames <= 1, `${frames} draws in 500 ms`);
@@ -62,31 +62,31 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
     await sleep(150);
     check('clicking it again: all series bright', (await st()).ranges.every((h) => !h.dim));
     // deselect
-    await p.evaluate(() => window.webExcel.charts.deselect()); await sleep(150);
+    await p.evaluate(() => window.monoonom.charts.deselect()); await sleep(150);
     s = await st();
     check('deselect: outlines and panel go away', s.ranges.length === 0 && s.panel === null, JSON.stringify(s));
     // pie on another sheet
-    await p.evaluate(() => { const a = window.webExcel; a.activateSheet(a.doc.wb.sheets.findIndex((x) => x.name === '비중')); });
+    await p.evaluate(() => { const a = window.monoonom; a.activateSheet(a.doc.wb.sheets.findIndex((x) => x.name === '비중')); });
     await sleep(200);
-    await p.evaluate(() => { const a = window.webExcel; a.charts.select(a.doc.wb.sheet.charts[0].id); }); await sleep(200);
+    await p.evaluate(() => { const a = window.monoonom; a.charts.select(a.doc.wb.sheet.charts[0].id); }); await sleep(200);
     s = await st();
     check('pie: name, categories and values outlined', s.ranges.length === 3 && s.rows === 1, JSON.stringify(s));
 
     // ---- switch rows / columns
-    await p.evaluate(() => window.webExcel.activateSheet(0)); await sleep(150);
-    await p.evaluate(() => { const a = window.webExcel; a.charts.select(a.doc.wb.sheet.charts[0].id); }); await sleep(150);
+    await p.evaluate(() => window.monoonom.activateSheet(0)); await sleep(150);
+    await p.evaluate(() => { const a = window.monoonom; a.charts.select(a.doc.wb.sheet.charts[0].id); }); await sleep(150);
     await p.click('.chart-ranges [data-switch]'); await sleep(400);
-    const sw = await p.evaluate(() => window.webExcel.doc.wb.sheet.charts[0].series.map((x) => [x.nameRef, x.cat, x.val].map((t) => t && t.replace(/'/g, '')).join(' ')));
+    const sw = await p.evaluate(() => window.monoonom.doc.wb.sheet.charts[0].series.map((x) => [x.nameRef, x.cat, x.val].map((t) => t && t.replace(/'/g, '')).join(' ')));
     check('UI 행/열 전환: 6 series (one per month), names A2..A7, X = B1:E1, Y = a row',
       sw.length === 6 && sw[0] === '매출!$A$2 매출!$B$1:$E$1 매출!$B$2:$E$2' && sw[5] === '매출!$A$7 매출!$B$1:$E$1 매출!$B$7:$E$7', JSON.stringify(sw));
     s = await st();
     check('…the outlines follow (names A2:A7 green, X B1:E1 purple)', has('#008000', [1, 0, 1, 0]) && has('#7030A0', [0, 1, 0, 4]) && has('#0070C0', [6, 1, 6, 4]), JSON.stringify(s.ranges));
     const agentSees = xl('chart', 'ls');
     check('…the server (agent) sees the switched chart', /계열 6: 이름 '?매출'?!\$A\$7 {2}X '?매출'?!\$B\$1:\$E\$1 {2}Y '?매출'?!\$B\$7:\$E\$7/.test(agentSees), agentSees);
-    const cid = await p.evaluate(() => window.webExcel.doc.wb.sheet.charts[0].id);
+    const cid = await p.evaluate(() => window.monoonom.doc.wb.sheet.charts[0].id);
     xl('chart', 'set', cid, '--switch');
-    await p.waitForFunction(() => window.webExcel.doc.wb.sheet.charts[0].series.length === 4, null, { timeout: 4000 }).catch(() => {});
-    const back = await p.evaluate(() => window.webExcel.doc.wb.sheet.charts[0].series.map((x) => [x.nameRef, x.cat, x.val].map((t) => t && t.replace(/'/g, '')).join(' ')));
+    await p.waitForFunction(() => window.monoonom.doc.wb.sheet.charts[0].series.length === 4, null, { timeout: 4000 }).catch(() => {});
+    const back = await p.evaluate(() => window.monoonom.doc.wb.sheet.charts[0].series.map((x) => [x.nameRef, x.cat, x.val].map((t) => t && t.replace(/'/g, '')).join(' ')));
     check('agent `chart set --switch` switches it back; the preview shows the original ranges',
       back.length === 4 && back[0] === '매출!$B$1 매출!$A$2:$A$7 매출!$B$2:$B$7' && back[3] === '매출!$E$1 매출!$A$2:$A$7 매출!$E$2:$E$7', JSON.stringify(back));
     // the same rules in JS (UI) and Python (agent)
@@ -98,9 +98,9 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
       [{ val: 'S!$B$2:$B$4', cat: 'S!$A$2:$A$4' }, { val: 'S!$C$2:$C$4', cat: 'S!$E$2:$E$4' }],
       [{ val: 'S!$B$2:$B$4', cat: 'S!$A$2:$A$3' }],
     ];
-    const js = await p.evaluate((cs) => cs.map((c) => { try { return window.webExcel.charts.constructor.switchRowCol(c); } catch (e) { return 'ERR ' + e.message; } }), cases);
+    const js = await p.evaluate((cs) => cs.map((c) => { try { return window.monoonom.charts.constructor.switchRowCol(c); } catch (e) { return 'ERR ' + e.message; } }), cases);
     const py = JSON.parse(execFileSync('python3', ['-c', `
-import json, sys; sys.path.insert(0, ${JSON.stringify(path.join(ROOT, '.agents', 'skills', 'web-excel', 'scripts'))})
+import json, sys; sys.path.insert(0, ${JSON.stringify(path.join(ROOT, '.agents', 'skills', 'monoonom', 'scripts'))})
 from server.agent_more import switch_row_col
 out = []
 for c in json.loads(sys.argv[1]):
