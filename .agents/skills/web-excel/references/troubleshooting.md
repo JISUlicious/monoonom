@@ -7,6 +7,11 @@ on a connected machine run `pip download -r scripts/requirements.txt -d wheels`,
 `pip install --no-index --find-links wheels -r scripts/requirements.txt`. If `.xls` files fail to open
 with "xlrd가 필요합니다", only xlrd is missing.
 
+## "차트를 찾을 수 없습니다" (HTTP 404) for an id from an earlier `chart ls`
+Chart ids are assigned when the workbook is loaded and are not saved in the file, so they change
+after the workbook is reopened or the server restarts (it stops itself after an hour without use).
+Run `xl.py chart ls` and use the current id.
+
 ## Preview shows the menus but no workbook opens ("인증 정보가 없습니다", HTTP 401)
 The page was opened without its token (the page shows a panel saying so). Give the user the URL from
 `xl.py url`, verbatim, including `#t=…`.
