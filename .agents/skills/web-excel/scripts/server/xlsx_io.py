@@ -840,12 +840,14 @@ _EMPTY_XFRM = re.compile(r"<((?:\w+:)?)xfrm\s*/>")
 
 
 def fix_drawings(data: bytes) -> bytes:
-    """Give every chart frame a full transform.
+    """Give every chart frame a full transform (precaution, not a known fix).
 
-    openpyxl writes each chart's <graphicFrame> with an empty <xfrm/>. Excel then reports
-    "Removed Part: /xl/drawings/drawingN.xml" and drops the drawing with every chart on that sheet
-    (openpyxl issue #824 shows the repaired file with <xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/>).
-    Write that form, as Excel itself does for charts on a sheet (the anchor holds the real position).
+    openpyxl writes each chart's <graphicFrame> with an empty <xfrm/>. That is valid: in ECMA-376
+    CT_Transform2D, <a:off> and <a:ext> are both optional (minOccurs=0), and every chart openpyxl
+    writes has it. It was suspected for Excel's "Removed Part: /xl/drawings/drawingN.xml", but XSD
+    checks found the scatter chart's missing <scatterStyle> instead (see docs/skill-implementation.md);
+    Excel reports chart-part errors as a removed drawing. This writes the form Excel itself saves,
+    <xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xfrm> (the anchor holds the real position).
     Only drawing parts change; everything else stays byte-identical.
     """
     import zipfile
