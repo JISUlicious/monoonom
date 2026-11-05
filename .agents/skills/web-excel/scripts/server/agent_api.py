@@ -528,6 +528,14 @@ def _unique_name(doc, base):
     return f"{base}{i}"
 
 
+def _lit_label(xs):
+    """A series' own list of values (no cell range), as `chart ls` shows it."""
+    if not xs:
+        return None
+    shown = ", ".join("" if x is None else (f"{x:g}" if isinstance(x, float) else str(x)) for x in xs[:3])
+    return f"{{{shown}{', …' if len(xs) > 3 else ''}}} (차트에 저장된 값 {len(xs)}개)"
+
+
 def chart_from_range(doc, sh, g, e, pending=None):
     """Same heuristics as the UI (first row = series names, first text/date column = categories)."""
     pending = pending or {}
@@ -925,7 +933,7 @@ def r_describe(h, m, q, body):
                                 "at": A.a1(ch["anchor"].get("r", 0), ch["anchor"].get("c", 0)),
                                 "data": [s.get("val") for s in ch.get("series", [])][:6],
                                 # per series: name cell, X (categories / scatter x) and Y (values) ranges
-                                "series": [{"name": s.get("name"), "nameRef": s.get("nameRef"), "x": s.get("cat"), "y": s.get("val"),
+                                "series": [{"name": s.get("name"), "nameRef": s.get("nameRef"), "x": s.get("cat") or _lit_label(s.get("catLit")), "y": s.get("val") or _lit_label(s.get("valLit")),
                                             **({"type": s["type"]} if s.get("type") else {})} for s in ch.get("series", [])]}
                                for ch in sh["charts"]]}
             if mr >= 0:
