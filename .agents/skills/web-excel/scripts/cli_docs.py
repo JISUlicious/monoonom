@@ -310,6 +310,33 @@ def cmd_sheet(args):
     raise CliError("sheet add|rename|rm|move|copy|hide|unhide|color|gridlines", EXIT_USAGE)
 
 
+def cmd_pivot(args):
+    st, d = ctx(args)
+    if args.action == "ls":
+        res = request(st, "GET", f"/api/docs/{d['docId']}/describe")
+        if args.json:
+            return out_json([dict(p, sheet=sh["name"]) for sh in res["sheets"] for p in sh.get("pivots", [])])
+        found = False
+        for sh in res["sheets"]:
+            for p in sh.get("pivots", []):
+                found = True
+                print(f"{sh['name']}  '{p['name']}'  {p['range']}  원본 {p['source']}  행 {', '.join(p['rows']) or '-'}  "
+                      f"열 {', '.join(p['cols']) or '-'}  값 {', '.join(p['values']) or '-'}" + (f"  필터 {', '.join(p['filters'])}" if p["filters"] else ""))
+        if not found:
+            print("피벗 테이블이 없습니다.")
+        return 0
+    res = request(st, "POST", f"/api/docs/{d['docId']}/pivots/refresh", {"name": args.name, "sheet": args.sheet})
+    if args.json:
+        return out_json(res)
+    for p in res["pivots"]:
+        print(f"{p['sheet']}  '{p['name']}'  {p['range']}: 값 {p['changed']}개 바뀜")
+    for n in res.get("notes", []):
+        print("  주의: " + n)
+    if res.get("batchId"):
+        print(f"v{res['version']}  batch={res['batchId']}  (되돌리기: xl.py undo {res['batchId']})")
+    return 0
+
+
 def cmd_chart(args):
     if args.action == "add":
         e = {"op": "chart", "data": args.target, "type": args.type, "title": args.title, "at": args.at,
@@ -550,6 +577,8 @@ def register(sub):
     p.add_argument("--sheet")
     p = add("sheet", cmd_sheet, "시트 add NAME | rename OLD NEW | rm NAME | move NAME POS | copy NAME [NEW] | hide|unhide NAME | color NAME #RRGGBB|none | gridlines NAME on|off")
     p.add_argument("action", choices=["add", "rename", "rm", "move", "copy", "hide", "unhide", "color", "gridlines"]); p.add_argument("names", nargs="*")
+    p = add("pivot", cmd_pivot, "피벗 테이블 ls | refresh [NAME] (원본에서 값을 다시 계산)"); p.add_argument("action", choices=["ls", "refresh"]); p.add_argument("name", nargs="?")
+    p.add_argument("--sheet")
     p = add("chart", cmd_chart, "차트 add DATA | set ID --title … | rm ID | ls"); p.add_argument("action", choices=["add", "set", "rm", "ls"]); p.add_argument("target", nargs="?")
     p.add_argument("--type", default="bar", help="bar, barH, barStacked, line, area, pie, doughnut, scatter, radar")
     p.add_argument("--to-type", dest="type_set", help="set: 차트 종류 변경"); p.add_argument("--data", help="set: 데이터 범위 변경")

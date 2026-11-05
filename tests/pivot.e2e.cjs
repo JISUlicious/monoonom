@@ -47,7 +47,7 @@ const py = (code) => execFileSync('python3', ['-c', code], { encoding: 'utf8' })
     await sleep(300);
     check('preview: the sheet knows its pivot', await p.evaluate(() => window.webExcel.doc.wb.sheet.pivots?.[0]?.ref === 'A5:D10'));
     const toasts = () => p.evaluate(() => [...document.querySelectorAll('.toast')].map((t) => t.textContent));
-    const val = (r, c) => p.evaluate(([r, c]) => window.webExcel.doc.wb.sheet.get(r, c)?.v ?? null, [r, c]);
+    const val = (r, c) => p.evaluate(([r, c]) => window.webExcel.doc.wb.sheets.find((s) => s.name === '피벗').get(r, c)?.v ?? null, [r, c]);
     // typing into a pivot cell
     const before = await val(6, 1);
     await p.evaluate(() => { const a = window.webExcel; a.select(6, 1); a.focusGrid(); });
@@ -80,12 +80,34 @@ const py = (code) => execFileSync('python3', ['-c', code], { encoding: 'utf8' })
       return { status: r.status, body: await r.text() };
     });
     check('server: a raw op into the pivot is refused (409)', raw.status === 409 && raw.body.includes('피벗'), JSON.stringify(raw).slice(0, 200));
+    // step 2: refresh in place — the agent changes the source, the user refreshes from the context menu
+    xl('write', '데이터!D2', '1000');  // 서울 A Q1: 120 -> 1000
+    await sleep(500);
+    check('before refresh the pivot still shows the old value (서울 A 250)', (await val(9, 1)) === 250, String(await val(9, 1)));
+    // (follow mode moved the view to the agent's sheet): back to the pivot
+    await p.evaluate(() => { const a = window.webExcel; a.activateSheet(a.doc.wb.sheets.findIndex((s) => s.name === '피벗')); a.select(9, 1); });
+    await sleep(200);
+    const box = await p.evaluate(() => { const g = window.webExcel.grid, m = g.metrics(); return { x: g.xOf(1, m) + 20, y: g.yOf(9, m) + 8, rect: g.canvas.getBoundingClientRect().toJSON() }; }).catch(() => null);
+    let usedMenu = false;
+    if (box) {
+      await p.mouse.click(box.rect.x + box.x, box.rect.y + box.y, { button: 'right' }); await sleep(200);
+      const item = p.locator('.ctx-menu button', { hasText: '피벗 새로 고침' }).first();
+      if (await item.count()) { await item.click(); usedMenu = true; }
+    }
+    if (!usedMenu) await p.evaluate(() => window.webExcel.exec('pivotRefresh'));
+    await p.waitForFunction(() => window.webExcel.doc.wb.sheets.find((s) => s.name === '피벗').get(9, 1)?.v === 1130, null, { timeout: 5000 }).catch(() => {});
+    check(`preview refresh${usedMenu ? ' (context menu)' : ' (command)'}: 서울 A 1130, 서울 total 1280, grand 1740`,
+      (await val(9, 1)) === 1130 && (await val(9, 3)) === 1280 && (await val(10, 3)) === 1740, `${await val(9, 1)} ${await val(9, 3)} ${await val(10, 3)}`);
+    check('…the toast says how many values changed', (await toasts()).some((t) => /피벗 새로 고침: 피벗1 — 값 4개 바뀜/.test(t)), JSON.stringify(await toasts()));
+    const agentSees = xl('read', '피벗!B10:D11');
+    check('…the agent reads the refreshed values', /1130/.test(agentSees) && /1740/.test(agentSees), agentSees);
+    const ref = JSON.parse(xl('pivot', 'refresh', '--json'));
+    check('agent `pivot refresh` right after: nothing left to change', ref.pivots[0].changed === 0 && !ref.batchId, JSON.stringify(ref));
     check('no page errors', errors.length === 0, errors.join('; '));
   } finally {
     await browser.close();
   }
-  // change the source, save: Excel is asked to refresh; location kept in step
-  xl('write', '데이터!D2', '999');
+  // the source changed (above), save: Excel is asked to refresh; location kept in step
   xl('save', '--as', 'out.xlsx');
   const r = JSON.parse(py(`
 import json, openpyxl

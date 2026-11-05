@@ -1,6 +1,6 @@
 // Application controller: documents/tabs/windows, commands, ribbon, keyboard shortcuts.
 import { key, keyRow, keyCol, MAX_ROWS, MAX_COLS, a1, rangeA1, parseRange, parseSheetRef, colName, normRange, inRange } from './address.js';
-import { Workbook, blankWorkbook, internStyle, newId } from './model.js';
+import { Workbook, blankWorkbook, internStyle, newId, pivotAt } from './model.js';
 import { translateFormula, quoteSheetName } from './formula.js';
 import { formatValue, parseInput, isDateFormat, dateToSerial } from './numfmt.js';
 import { Grid, ptToPx } from './grid.js';
@@ -1118,7 +1118,9 @@ class App {
 
   contextMenu(x, y, type) {
     const rows = this.fullRows(), cols = this.fullCols();
+    const a = this.view().active, pv = pivotAt(this.doc.wb.sheet, a.r, a.c);
     const items = [
+      ...(pv ? [[`피벗 새로 고침 (${pv.name})`, () => this.refreshPivots(pv.name)], null] : []),
       ['잘라내기', () => this.clipboard.copyCommand(true), { key: 'Ctrl+X' }], ['복사', () => this.clipboard.copyCommand(false), { key: 'Ctrl+C' }],
       ['붙여넣기', () => this.clipboard.pasteCommand(), { key: 'Ctrl+V' }], ['선택하여 붙여넣기…', () => D.pasteSpecialDialog(this), { key: 'Ctrl+Alt+V' }], null,
       rows ? ['행 삽입', () => this.insert('row'), { key: 'Ctrl++' }] : cols ? ['열 삽입', () => this.insert('col'), { key: 'Ctrl++' }] : ['삽입…', () => this.insertDialog(false), { key: 'Ctrl++' }],
@@ -1185,6 +1187,7 @@ class App {
       sortAsc: () => this.filters.sortSelection(true), sortDesc: () => this.filters.sortSelection(false), sortDialog: () => D.sortDialog(this),
       filter: () => this.filters.toggle(), filterClear: () => this.filters.clearAll(), filterReapply: () => this.filters.reapply(),
       removeDuplicates: () => this.removeDuplicates(),
+      pivotRefresh: (name) => this.refreshPivots(name),
       find: () => D.findDialog(this, false), replace: () => D.findDialog(this, true),
       chart: (t) => (t ? this.quickChart(t) : this.chartDialog(null)), chartDialog: () => this.chartDialog(null),
       insertFunction: () => D.insertFunctionDialog(this), comment: () => this.editComment(), link: () => this.editLink(),
@@ -1219,6 +1222,19 @@ class App {
     else this.selectRange(all, v.active, { scroll: false });
   }
 
+  /** Recompute pivot tables from their sources on the server (one undoable batch; the result comes
+   * back on the event stream like any other client's edit). */
+  async refreshPivots(name = null) {
+    const doc = this.doc;
+    if (!doc.wb.sheets.some((s) => s.pivots?.length)) return this.toast('이 문서에는 피벗 테이블이 없습니다.', 'info');
+    for (let i = 0; i < 50 && doc.sync.pending.size; i++) await new Promise((r) => setTimeout(r, 100)); // our edits first
+    try {
+      const res = await api.pivotRefresh(doc.wb.docId, { name, actor: 'user', clientId: `${this.clientId}-pivot` });
+      const n = res.pivots.reduce((a, p) => a + p.changed, 0);
+      this.toast(`피벗 새로 고침: ${res.pivots.map((p) => p.name).join(', ')} — 값 ${n}개 바뀜`, 'info');
+      for (const note of res.notes || []) this.toast(note, 'warn', 8000);
+    } catch (e) { this.toast(e.message, 'error'); }
+  }
   removeDuplicates() {
     const wb = this.doc.wb, sh = wb.sheet;
     let g = this.selection();

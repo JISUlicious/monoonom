@@ -231,7 +231,7 @@ class DocSession:
 
     # ------------------------------------------------------------ ops
     def apply(self, ops, *, actor="user", client_id=None, batch_id=None, label="",
-              base_version=None, structural=False, shifts=None, transformable=None) -> int:
+              base_version=None, structural=False, shifts=None, transformable=None, pivot_write=False) -> int:
         """Apply a batch. A stale batch (base_version < version) is:
         - rejected (409) if it is itself structural and others changed the document meanwhile;
         - transformed through intervening row/column shifts if it only sets cells (P3);
@@ -261,7 +261,7 @@ class DocSession:
                         for sh in e.get("shifts", []):
                             ops = self._transform(ops, sh)
                     transformed = True
-            if not structural:
+            if not structural and not pivot_write:  # pivot_write: a pivot refresh computed by the server
                 self._guard_pivots(ops)
             undo = self._snapshot_for(ops)
             for op in ops:
