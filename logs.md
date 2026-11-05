@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-05: SKILL.md에 '분석·가공은 엑셀 수식으로' 지침(Python으로 계산해 붙여넣지 말 것, 권장 함수 28개는 모두 엔진 지원 확인), 평가 시나리오 `summary-with-formulas` 추가
 - 2026-11-05: 차트 id가 다시 열기·서버 재시작 때 바뀐다는 점을 SKILL.md·cli.md·troubleshooting과 404 메시지에 명시(`chart set/rm` 전에 `chart ls`) (→ docs/skill-implementation.md)
 - 2026-11-05: `chart set/rm`이 다른 시트의 차트에서 404 나던 버그 수정(활성 시트만 찾던 문제), `--at '시트!셀'` 지원과 500 오류 수정, 시트 간 차트 이동 (→ docs/skill-implementation.md)
 - 2026-11-05: 함수 인자 힌트(218개 전부, 반복 인자 이름, 설명), 에이전트 따라가기 켬/끔(상태 표시줄, `xl.py view --follow`), 에이전트 작업 셀 강조와 시트 탭 표시 (→ docs/skill-implementation.md)
