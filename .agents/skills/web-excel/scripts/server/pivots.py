@@ -193,3 +193,115 @@ def refresh(doc, sh, p, value_at):
         notes.append(f"'{p['name']}': 원본에 새 항목이 있습니다({'; '.join(f'{f}: ' + ', '.join(v[:5]) for f, v in new_items.items())}). "
                      "이 항목의 행·열은 Excel에서 새로 고쳐야 생깁니다(저장하면 열 때 새로 고침). 총합계에는 포함했습니다.")
     return out, notes
+
+
+# ------------------------------------------------------------------ step 3: create
+FN_KO = {"sum": "합계", "count": "개수", "average": "평균", "max": "최대", "min": "최소", "product": "곱",
+         "countNums": "숫자 개수", "stdDev": "표준 편차", "stdDevp": "표준 편차(전체)", "var": "분산", "varp": "분산(전체)"}
+FN_NAMES = {k.lower(): k for k in FN_KO}
+GRAND, ALL = "총합계", "(모두)"
+
+
+def _sort_key(v):
+    return (0, float(v), "") if _num(v) else (1, 0.0, str(v))
+
+
+def build(source_rows, header, rows, cols, values, filters):
+    """Lay out a new pivot table in tabular form (Excel: Show in Tabular Form, subtotals at the bottom
+    of each outer group, grand totals). source_rows: list of dicts by header name. Returns
+    {"grid": [[value, ...], ...] (the whole output, filters on top), "table_top": rows above the
+    table, "layout": {...like xlsx_io._pivot_layout}, "items": {field: sorted items}, "values": [...]}.
+    Raises ValueError with a message for unsupported or invalid specs."""
+    names = list(header)
+    for f in rows + cols + filters + [v["field"] for v in values]:
+        if f not in names:
+            raise ValueError(f"원본에 '{f}' 열이 없습니다. 머리글: {', '.join(map(str, names))}")
+    if not rows:
+        raise ValueError("행 필드(--rows)가 하나 이상 필요합니다.")
+    if not values:
+        raise ValueError("값 필드(--values)가 하나 이상 필요합니다.")
+    if len(cols) > 1:
+        raise ValueError("열 필드는 하나까지 만들 수 있습니다.")
+    if cols and len(values) > 1:
+        raise ValueError("열 필드가 있을 때 값 필드는 하나까지 만들 수 있습니다.")
+    used = rows + cols + filters
+    if len(set(used)) != len(used):
+        raise ValueError("한 필드를 행·열·필터에 두 번 쓸 수 없습니다.")
+    for v in values:
+        fn = FN_NAMES.get((v.get("fn") or "sum").lower())
+        if fn is None:
+            raise ValueError(f"집계 함수 '{v.get('fn')}'는 지원하지 않습니다: {', '.join(FN_KO)}")
+        v["fn"] = fn
+        v.setdefault("name", f"{FN_KO[fn]} : {v['field']}")
+    items = {f: sorted({r.get(f) for r in source_rows if r.get(f) not in (None, "")}, key=_sort_key) for f in rows + cols + filters}
+
+    def agg(v, flt):
+        vals = [r.get(v["field"]) for r in source_rows if all(_same(r.get(f), x) for f, x in flt.items())]
+        return aggregate(v["fn"], vals)
+
+    # rows (tabular form): every combination present, a subtotal row after each outer group, grand total
+    def gen(depth, prefix, flt):
+        f = rows[depth]
+        for x in items[f]:
+            here = {**flt, f: x}
+            if not any(all(_same(r.get(k), y) for k, y in here.items()) for r in source_rows):
+                continue
+            if depth == len(rows) - 1:
+                yield "data", prefix + [x], here
+            else:
+                yield from gen(depth + 1, prefix + [x], here)
+                yield "sub", prefix + [x], here
+
+    def common(a, b):
+        n = 0
+        while n < min(len(a), len(b)) and _same(a[n], b[n]):
+            n += 1
+        return n
+
+    row_lines, prev, prev_data = [], [], []
+    for kind, tup, flt in gen(0, [], {}):
+        r = common(prev, tup) if kind == "data" else len(tup) - 1
+        r = min(r, len(tup) - 1)
+        if kind == "data":
+            shown = common(prev_data, tup)
+            labels = [None] * shown + tup[shown:]
+            prev_data = tup
+        else:
+            labels = [None] * len(rows)
+            labels[len(tup) - 1] = f"{tup[-1]} 요약"
+        row_lines.append((labels, flt, {"t": "data" if kind == "data" else "default", "r": r, "i": 0, "x": tup[r:]}))
+        prev = tup
+    row_lines.append(([GRAND] + [None] * (len(rows) - 1), {}, {"t": "grand", "r": 0, "i": 0, "x": [None]}))
+
+    if cols:
+        col_lines = [({cols[0]: x}, {"t": "data", "r": 0, "i": 0, "x": [x]}, x) for x in items[cols[0]]] + [({}, {"t": "grand", "r": 0, "i": 0, "x": [None]}, GRAND)]
+    elif len(values) > 1:
+        col_lines = [({}, {"t": "data", "r": 0, "i": k, "x": [None], "d": k}, v["name"]) for k, v in enumerate(values)]
+    else:
+        col_lines = [({}, {"t": "data", "r": 0, "i": 0, "x": [None]}, values[0]["name"])]
+
+    grid = []
+    for f in filters:
+        grid.append([f, ALL] + [None] * max(0, len(rows) + len(col_lines) - 2))
+    if filters:
+        grid.append([None] * (len(rows) + len(col_lines)))
+    top = len(grid)
+    width = len(rows) + len(col_lines)
+    sigma = not cols and len(values) > 1  # several data fields across the columns: a "값" header row (Excel, LibreOffice)
+    if cols:
+        grid.append([values[0]["name"]] + [None] * (len(rows) - 1) + [cols[0]] + [None] * (len(col_lines) - 1))
+    elif sigma:
+        grid.append([None] * len(rows) + ["값"] + [None] * (len(col_lines) - 1))
+    grid.append(list(rows) + [lab for _, _, lab in col_lines])
+    first_data_row = len(grid) - top
+    for labels, rflt, _ in row_lines:
+        line = list(labels)
+        for k, (cflt, it, _) in enumerate(col_lines):
+            v = values[it.get("d", 0)]
+            line.append(agg(v, {**rflt, **cflt}))
+        grid.append(line)
+    layout = {"rowFields": list(rows), "colFields": (list(cols) if cols else (["Σ"] if len(values) > 1 else [])),
+              "rowItems": [it for _, _, it in row_lines], "colItems": [it for _, it, _ in col_lines],
+              "hidden": {}, "firstHeaderRow": 1 if (cols or sigma) else 0, "firstDataRow": first_data_row, "firstDataCol": len(rows),
+              "items": {f: v for f, v in items.items()}, "fields": names}
+    return {"grid": grid, "table_top": top, "width": width, "layout": layout, "items": items, "values": values}

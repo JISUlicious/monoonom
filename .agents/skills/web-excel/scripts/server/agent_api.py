@@ -904,6 +904,103 @@ def r_pivot_refresh(h, m, q, body):
     return {"version": v, "batchId": batch, "pivots": done, "notes": notes, "calc": calc}
 
 
+@route("POST", r"/api/docs/([\w-]+)/pivots")
+@_wrap
+def r_pivot_create(h, m, q, body):
+    """Create a pivot table: body {source, rows: [field], cols: [field], values: [{field, fn, name?}],
+    filters: [field], at: 'Sheet!A3' (a missing sheet is created), name?}. Fields are the source's
+    header names. Written in tabular form (pivots.build); saving writes a real pivot definition and
+    cache (xlsx_io._create_pivot) that Excel rebuilds when it opens the file."""
+    doc = _doc(m)
+    calc = ensure_calc(doc)
+    with doc.lock:
+        cur = doc.sheets[min(doc.active_sheet, len(doc.sheets) - 1)]
+        ssh, g = resolve(doc, body.get("source"), cur["name"])
+        g, _ = RG.auto_range(ssh, g, None, trim_totals=True)  # one cell / whole columns -> the table there
+        r1, c1, r2, c2 = clamp(ssh, g)
+        if r2 <= r1:
+            raise ApiError(400, "원본 범위에 머리글 행과 데이터 행이 필요합니다.")
+        val = lambda r, c: cell_value(doc, ssh, r, c, ssh["cells"].get((r, c)) or {})  # noqa: E731
+        header = [val(r1, c) for c in range(c1, c2 + 1)]
+        if any(hv in (None, "") for hv in header):
+            raise ApiError(400, "원본의 첫 행(머리글)에 빈 칸이 있습니다. 모든 열에 이름이 있어야 합니다.")
+        header = [str(hv) for hv in header]
+        recs = [{header[j]: val(r, c1 + j) for j in range(len(header))} for r in range(r1 + 1, r2 + 1)]
+        recs = [x for x in recs if any(v not in (None, "") for v in x.values())]
+        parse_vals = []
+        for v in body.get("values") or []:
+            parse_vals.append(dict(v) if isinstance(v, dict) else dict(zip(("field", "fn"), (str(v).split(":", 1) + ["sum"])[:2])))
+        try:
+            built = PV.build(recs, header, list(body.get("rows") or []), list(body.get("cols") or []), parse_vals, list(body.get("filters") or []))
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        at = body.get("at") or ""
+        sname, cell = A.split_sheet(at) if at else (None, "A3")
+        try:
+            tr, tc = A.parse_range(cell or "A3")[:2]
+        except ValueError as e:
+            raise ApiError(400, f"피벗 위치(--at)가 잘못됐습니다: {at} ({e})")
+        if not at:
+            sname = None
+        ops, structural = [], False
+        tsh = None
+        if sname:
+            tsh = next((s for s in doc.sheets if s["name"].lower() == sname.lower()), None)
+        new_sheet = tsh is None
+        if new_sheet:
+            sname = sname or _unique_name(doc, "피벗")
+            _check_sheet_name(doc, sname)
+            sid = new_id("s")
+            sj = {"id": sid, "name": sname, "cells": [], "charts": [], "pivots": [], "merges": [], "cols": {}, "rows": {}}
+            order = [x["id"] for x in doc.sheets]
+            order.insert(order.index(ssh["id"]) + 1 if ssh["id"] in order else len(order), sid)
+            ops.append({"op": "sheets", "order": order, "add": {sid: sj}})
+            structural = True
+        grid = built["grid"]
+        height, width = len(grid), max(len(x) for x in grid)
+        area = (tr, tc, tr + height - 1, tc + width - 1)
+        if tsh is not None:
+            busy = [k for k in tsh["cells"] if area[0] <= k[0] <= area[2] and area[1] <= k[1] <= area[3]
+                    and (tsh["cells"][k].get("v") not in (None, "") or tsh["cells"][k].get("f"))]
+            if busy or PV.overlapping(tsh, area):
+                raise ApiError(409, f"피벗을 놓을 영역 {A.range_a1(*area)}에 데이터가 있습니다. 빈 곳이나 새 시트(--at '새시트!A3')를 지정하세요.")
+        names = {p["name"].lower() for x in doc.sheets for p in x.get("pivots") or []}
+        name = (body.get("name") or "").strip() or next(f"피벗 테이블{i}" for i in range(1, 999) if f"피벗 테이블{i}".lower() not in names)
+        if name.lower() in names:
+            raise ApiError(409, f"같은 이름의 피벗 테이블이 있습니다: {name}")
+        top = built["table_top"]
+        bold = {"b": True}
+        header_rows = built["layout"]["firstDataRow"]
+        cells = []
+        for i, line in enumerate(grid):
+            for j, v in enumerate(line):
+                if v is None:
+                    continue
+                cell = {"v": v}
+                n_rows = len(body.get("rows") or [])
+                is_header = top <= i < top + header_rows
+                is_total = any(isinstance(x, str) and (x.endswith(" 요약") or x == PV.GRAND) for x in line[:n_rows])
+                if is_header or is_total or (i < top and j == 0):
+                    cell["s"] = dict(bold)
+                cells.append([tr + i, tc + j, cell])
+        source = f"{A.quote_sheet(ssh['name'])}!{A.range_a1(r1, c1, r2, c2)}"
+        pm = {"name": name, "ref": A.range_a1(tr + top, tc, tr + height - 1, tc + width - 1), "source": source,
+              "rows": list(body.get("rows") or []), "cols": list(body.get("cols") or []), "filters": list(body.get("filters") or []),
+              "values": [{"name": v["name"], "field": v["field"], "fn": v["fn"]} for v in built["values"]],
+              "layout": built["layout"], "create": True}
+        sheets_now = [{"name": x["name"], "cells": [[r, c, it] for (r, c), it in x["cells"].items()]} for x in doc.sheets]
+        from .xlsx_io import pivot_source_sig
+        pm["srcSig"] = pivot_source_sig(sheets_now, source)
+        target_id = tsh["id"] if tsh is not None else sid
+        ops.append({"op": "setCells", "sheet": target_id, "cells": cells})
+        ops.append({"op": "setSheetMeta", "sheet": target_id, "meta": {"pivots": (list(tsh.get("pivots") or []) if tsh else []) + [pm]}})
+        batch = new_id("b")
+        v = doc.apply(ops, actor=body.get("actor", "agent"), client_id=body.get("clientId", "agent-cli"), batch_id=batch,
+                      label=f"피벗 테이블 만들기: {name}", structural=structural, pivot_write=True)
+    return {"version": v, "batchId": batch, "name": name, "sheet": sname or tsh["name"], "range": pm["ref"],
+            "area": A.range_a1(*area), "source": source, "calc": calc}
+
+
 # ------------------------------------------------------------------ reads
 
 @route("GET", r"/api/docs/([\w-]+)/range")

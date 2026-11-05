@@ -71,6 +71,7 @@ export const api = {
   calc: (id, payload) => call('POST', `${D(id)}/calc`, payload),
   saveDoc: (id, opts) => call('POST', `${D(id)}/save`, opts),
   pivotRefresh: (id, payload) => call('POST', `${D(id)}/pivots/refresh`, payload),
+  pivotCreate: (id, payload) => call('POST', `${D(id)}/pivots`, payload),
   closeDoc: (id, force = false) => call('DELETE', D(id), { force }),
   streamTicket: () => call('POST', '/api/stream/ticket', {}),
   subscribe: (payload) => call('POST', '/api/stream/subscribe', payload),

@@ -2,7 +2,8 @@
 import { api } from './api.js';
 import { FORMAT_PRESETS, formatValue } from './numfmt.js';
 import { CHART_TYPES, ChartLayer } from './charts.js';
-import { parseSheetRef, parseRange, rangeA1, colName, key } from './address.js';
+import { parseSheetRef, parseRange, rangeA1, colName, key, a1 } from './address.js';
+import { quoteSheetName } from './formula.js';
 import { FN_HELP } from './fnhelp.js';
 import { FUNCTION_NAMES } from './engine.js';
 
@@ -471,5 +472,70 @@ export function insertFunctionDialog(app) {
       fill();
     },
     onOk: (el) => { const n = el.querySelector('[data-k=list]').value; if (n) app.insertFunction(n); },
+  }).done;
+}
+
+// ------------------------------------------------------------------ pivot table dialog
+const PIVOT_FNS = [['sum', '합계'], ['count', '개수'], ['average', '평균'], ['max', '최대'], ['min', '최소'], ['product', '곱'], ['countNums', '숫자 개수'],
+  ['stdDev', '표준 편차'], ['stdDevp', '표준 편차(전체)'], ['var', '분산'], ['varp', '분산(전체)']];
+
+/** Insert → PivotTable: source range, a role per field (rows / columns / values / filter), where to put it.
+ * The server builds it (POST /pivots, same as `xl.py pivot add`), so the agent and the preview make the
+ * same pivot; saving writes a real pivot table that Excel rebuilds when it opens the file. */
+export function pivotDialog(app) {
+  const wb = app.doc.wb, sh = wb.sheet, v = app.view();
+  let g = v.sel;
+  if (g.r1 === g.r2 && g.c1 === g.c2) g = app.filters.tableAt(sh, g.r1, g.c1);
+  g = { ...g, r2: Math.min(g.r2, sh.maxRow), c2: Math.min(g.c2, sh.maxCol) };
+  const source0 = `${quoteSheetName(sh.name)}!${rangeA1(g)}`;
+  const n = wb.sheets.length + 1;
+  const body = `
+    <label class="fld">원본 범위<input class="inp" data-k="source" value="${esc(source0)}"></label>
+    <div class="pv-fields" data-k="fields"></div>
+    <div class="grid2">
+      <label class="chk"><input type="radio" name="pv-dest" value="new" checked> 새 시트 <input class="inp" data-k="sheet" value="피벗${n}" style="width:110px"></label>
+      <label class="chk"><input type="radio" name="pv-dest" value="here"> 기존 위치 <input class="inp" data-k="at" value="${esc(sh.name)}!${a1(v.active.r, v.active.c)}" style="width:140px"></label>
+    </div>
+    <p class="muted small">각 필드를 행·열·값·필터 중 하나에 놓으세요. 저장하면 Excel이 파일을 열 때 원본에서 피벗을 다시 만듭니다.</p>
+    <p class="err small" data-k="err" style="color:#c00000"></p>`;
+  const headers = (src) => {
+    const p = parseSheetRef(src);
+    const s = p && (p.sheet ? wb.sheetByName(p.sheet) : sh);
+    if (!s) return [];
+    const out = [];
+    for (let c = p.range.c1; c <= Math.min(p.range.c2, p.range.c1 + 60); c++) {
+      const h = wb.value(s, p.range.r1, c);
+      if (h !== null && h !== undefined && h !== '') out.push(String(h));
+    }
+    return out;
+  };
+  const fieldRows = (names) => names.map((f, i) => `<div class="pv-row" data-f="${esc(f)}"><span class="pv-name">${esc(f)}</span>
+      <select class="inp" data-role><option value="">—</option><option value="rows"${i === 0 ? ' selected' : ''}>행</option><option value="cols">열</option><option value="values"${i === names.length - 1 ? ' selected' : ''}>값</option><option value="filters">필터</option></select>
+      <select class="inp" data-fn>${PIVOT_FNS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></div>`).join('');
+  return modal({
+    title: '피벗 테이블 만들기', body, width: 520, className: 'pivot-dialog',
+    onOpen: (el) => {
+      const box = el.querySelector('[data-k=fields]');
+      const fill = () => { box.innerHTML = fieldRows(headers(el.querySelector('[data-k=source]').value)); };
+      fill();
+      el.querySelector('[data-k=source]').addEventListener('change', fill);
+    },
+    onOk: async (el) => {
+      const q = (k) => el.querySelector(`[data-k="${k}"]`);
+      const spec = { source: q('source').value.trim(), rows: [], cols: [], values: [], filters: [] };
+      for (const row of el.querySelectorAll('.pv-row')) {
+        const role = row.querySelector('[data-role]').value, f = row.dataset.f;
+        if (!role) continue;
+        if (role === 'values') spec.values.push({ field: f, fn: row.querySelector('[data-fn]').value });
+        else spec[role].push(f);
+      }
+      const dest = el.querySelector('input[name=pv-dest]:checked').value;
+      spec.at = dest === 'new' ? `${q('sheet').value.trim() || `피벗${n}`}!A3` : q('at').value.trim();
+      try {
+        const res = await app.createPivot(spec);
+        app.toast(`피벗 테이블 '${res.name}'을(를) ${res.sheet}!${res.range}에 만들었습니다. 저장하면 Excel이 열 때 새로 고칩니다.`, 'info');
+        return true;
+      } catch (e) { q('err').textContent = e.message; return false; }
+    },
   }).done;
 }

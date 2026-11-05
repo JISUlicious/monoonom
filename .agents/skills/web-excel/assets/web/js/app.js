@@ -1188,6 +1188,7 @@ class App {
       filter: () => this.filters.toggle(), filterClear: () => this.filters.clearAll(), filterReapply: () => this.filters.reapply(),
       removeDuplicates: () => this.removeDuplicates(),
       pivotRefresh: (name) => this.refreshPivots(name),
+      pivotDialog: () => D.pivotDialog(this),
       find: () => D.findDialog(this, false), replace: () => D.findDialog(this, true),
       chart: (t) => (t ? this.quickChart(t) : this.chartDialog(null)), chartDialog: () => this.chartDialog(null),
       insertFunction: () => D.insertFunctionDialog(this), comment: () => this.editComment(), link: () => this.editLink(),
@@ -1222,6 +1223,18 @@ class App {
     else this.selectRange(all, v.active, { scroll: false });
   }
 
+  /** Create a pivot table on the server (same as `xl.py pivot add`); shows its sheet once it arrives. */
+  async createPivot(spec) {
+    const doc = this.doc;
+    for (let i = 0; i < 50 && doc.sync.pending.size; i++) await new Promise((r) => setTimeout(r, 100)); // our edits first
+    const res = await api.pivotCreate(doc.wb.docId, { ...spec, actor: 'user', clientId: `${this.clientId}-pivot` });
+    for (let i = 0; i < 40; i++) {
+      const idx = doc.wb.sheets.findIndex((s) => s.name === res.sheet && s.pivots?.some((p) => p.name === res.name));
+      if (idx >= 0) { if (doc === this.doc) { this.activateSheet(idx); this.selectRange(parseRange(res.range)); } break; }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return res;
+  }
   /** Recompute pivot tables from their sources on the server (one undoable batch; the result comes
    * back on the event stream like any other client's edit). */
   async refreshPivots(name = null) {
