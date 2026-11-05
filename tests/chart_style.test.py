@@ -114,7 +114,7 @@ try:
     xl("chart", "set", ids["slices"], "--title", "slices2", "--doc", "old.xlsx")
     xl("save", "--as", "old-out.xlsx", "--doc", "old.xlsx")
     c = charts_xml(os.path.join(ws, "old-out.xlsx"))
-    # chart frames: no empty <xfrm/> (Excel: "Removed Part: /xl/drawings/drawing1.xml"), Excel's off/ext form
+    # chart frames: Excel's off/ext form instead of openpyxl's empty <xfrm/> (valid; precaution, see fix_drawings)
     for fn in ("fresh.xlsx", "old-out.xlsx"):
         z = zipfile.ZipFile(os.path.join(ws, fn))
         dr = [z.read(n).decode("utf-8") for n in z.namelist() if re.fullmatch(r"xl/drawings/drawing\d+\.xml", n)]
