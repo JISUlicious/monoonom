@@ -12,7 +12,9 @@ trigger:   evals/trigger_queries.json. The agent may look around (Glob, Read) bu
            so nothing runs; a run "triggers" when it calls the Skill tool for web-excel within 3 turns.
 scenarios: evals/evals.json. A server is started for the workspace and the preview is open in a
            headless browser for the whole run (the "user"); some scenarios first act as the user
-           (select a range, edit cells). The agent then works without limits on Bash. A grader
+           (select a range, edit cells). The agent then works without limits on Bash. `Skill` must be in
+           --allowedTools: the Claude Code SKILL.md has allowed-tools, which makes invoking the skill a
+           permission request, denied in a -p run otherwise ("permission_denied ... Execute skill"). A grader
            (claude -p, opus) judges each expectation from the transcript and the workbook state.
 Results: DIR/trigger.json, DIR/scenarios.json, DIR/transcripts/*.jsonl; `report` prints a summary.
 """
@@ -158,7 +160,7 @@ def run_scenarios(models, out, only=None):
         br = subprocess.Popen(["node", bjs, url, PREP.get(e["id"], "")], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
         ready = br.stdout.readline().strip() == "READY"
         log = os.path.join(out, "transcripts", f"scenario-{e['id']}-{m}.jsonl")
-        evs, secs = claude(e["prompt"], ws, m, ["--max-turns", "40", "--allowedTools", "Bash Read Glob Grep Write Edit", "--max-budget-usd", "3"], 1200, log)
+        evs, secs = claude(e["prompt"], ws, m, ["--max-turns", "40", "--allowedTools", "Skill Bash Read Glob Grep Write Edit", "--max-budget-usd", "3"], 1200, log)
         # workbook state for the grader
         state = {
             "describe": xl(ws, "describe"),
