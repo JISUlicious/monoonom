@@ -106,6 +106,7 @@ export class ChartLayer {
       const one = model.varyColors === false ? (s.color || pal[0]) : null;
       datasets = [{ label: s.name, data: s.values, backgroundColor: s.values.map((_, i) => one || s.pointColors?.[i] || pal[i % pal.length]), borderColor: '#fff', borderWidth: ST.pieBorderPt * PX, pointStyle: 'rect' }];
     } else {
+      const varyPoints = model.varyColors === true && series.length === 1 && !stacked;
       const totals = pct ? labels.map((_, i) => series.reduce((a, s) => a + Math.abs(s.values[i] || 0), 0)) : null;
       // Excel column spacing: gap width and overlap are % of one bar's width
       const nBars = series.filter((s) => (s.type || t) === 'bar').length || 1;
@@ -122,6 +123,9 @@ export class ChartLayer {
         // Excel's default line chart has no markers
         if (st === 'line') return { ...base, type: 'line', data, fill: false, tension: 0, pointRadius: 0, pointHoverRadius: 4, borderWidth: lineW, borderCapStyle: 'round', order: 0, pointStyle: 'line' };
         if (st === 'area') return { ...base, type: 'line', data, fill: stacked ? (i === 0 ? 'origin' : '-1') : 'origin', pointRadius: 0, borderWidth: 0, tension: 0, order: 1, pointStyle: 'rect' };
+        // one series with "vary colors by point" (varyColors, Excel's default when a file omits it):
+        // a color per category, and the legend lists the categories
+        if (varyPoints && (st === 'bar' || !st)) return { ...base, type: 'bar', data, borderWidth: 0, order: 2, pointStyle: 'rect', ...barSpacing, backgroundColor: labels.map((_, k) => s.pointColors?.[k] || pal[k % pal.length]), borderColor: labels.map((_, k) => s.pointColors?.[k] || pal[k % pal.length]) };
         if (st === 'radar') return { ...base, type: 'radar', data, backgroundColor: 'transparent', pointRadius: 0, borderWidth: lineW, pointStyle: 'line' };
         return { ...base, type: 'bar', data, borderWidth: 0, order: 2, pointStyle: 'rect', ...barSpacing };
       });
@@ -134,6 +138,7 @@ export class ChartLayer {
     const side = model.legend === 'r' || model.legend === 'l' || model.legend === 'tr';
     // Excel lists a side legend bottom-up when the series are drawn bottom-up (stacked, horizontal);
     // the datasets of flipped charts are already in reverse
+    const varyLegend = !pieLike && model.varyColors === true && series.length === 1 && !stacked;
     const legendReversed = (side && !pieLike && (stacked || horizontal)) !== flipped;
     const legendPos = { r: 'right', l: 'left', t: 'top', b: 'bottom', tr: 'right' }[model.legend] || null;
     const family = `"${wb?.defaultFont?.name || 'Malgun Gothic'}", "Malgun Gothic", Calibri, sans-serif`;
@@ -146,7 +151,12 @@ export class ChartLayer {
           display: !!legendPos, position: legendPos || 'right',
           reverse: legendReversed,
           // symbols as in Excel: a line for lines, a square for bars, areas and pie slices
-          labels: { usePointStyle: true, pointStyle: pieLike ? 'rect' : undefined, boxWidth: 8, boxHeight: 8, color: ST.text, font: text, sort: (a, b) => (a.datasetIndex - b.datasetIndex) || (a.index - b.index) },
+          labels: {
+            usePointStyle: true, pointStyle: pieLike || varyLegend ? 'rect' : undefined, boxWidth: 8, boxHeight: 8, color: ST.text, font: text,
+            sort: (a, b) => (a.datasetIndex - b.datasetIndex) || (a.index - b.index),
+            // varied colors: one entry per category, like a pie
+            ...(varyLegend ? { generateLabels: (ch) => ch.data.labels.map((l, k) => { const c = [].concat(ch.data.datasets[0]?.backgroundColor || [])[k] || pal[k % pal.length]; return { text: String(l), fillStyle: c, strokeStyle: c, lineWidth: 0, pointStyle: 'rect', datasetIndex: 0, index: k, fontColor: ST.text }; }) } : {}),
+          },
         },
         title: { display: !!model.title, text: model.title || '', font: { family, size: ST.titlePt * PX, weight: 'normal' }, color: ST.text },
         tooltip: { callbacks: pct ? { label: (c) => `${c.dataset.label}: ${c.parsed.y?.toFixed?.(1) ?? c.parsed.x?.toFixed?.(1)}%` } : {} },

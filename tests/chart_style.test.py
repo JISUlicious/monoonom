@@ -159,6 +159,35 @@ try:
     from server.app import read_workbook
     m = read_workbook(os.path.join(ws, "onecolor.xlsx"))["sheets"][0]["charts"][0]
     check("reader keeps varyColors=0 and the series color", m.get("varyColors") is False and m["series"][0].get("color") == "#C00000", str(m.get("varyColors")))
+
+    # ---- 4) varyColors: one-series column charts (the "항목 / 값" table)
+    xl("new", "--name", "vary")
+    xl("write", "A1", "--data", '[["항목","값"],["행 수",8000],["층 수 평균",276],["면적 평균",54]]', "--doc", "vary")
+    xl("chart", "add", "A1:B4", "--title", "요약", "--legend", "r", "--doc", "vary")
+    xl("chart", "add", "A1:B4", "--type", "pie", "--title", "요약원형", "--at", "H20", "--doc", "vary")
+    xl("save", "--as", "vary.xlsx", "--doc", "vary")
+    c = charts_xml(os.path.join(ws, "vary.xlsx"))
+    check("column chart: varyColors=0 written (a missing element makes Excel color each bar and list categories)", attrs(c["요약"], "varyColors") == ["0"], str(attrs(c["요약"], "varyColors")))
+    check("pie: varyColors=1", attrs(c["요약원형"], "varyColors") == ["1"])
+    # a file written without the element (as the previous version and openpyxl did) is read as Excel shows it
+    wb3 = Workbook()
+    s3 = wb3.active
+    for r_ in [["항목", "값"], ["행 수", 8000], ["층 수 평균", 276]]:
+        s3.append(r_)
+    bc = BarChart()
+    bc.title = "누락"
+    bc.add_data(Reference(s3, min_col=2, min_row=1, max_row=3), titles_from_data=True)
+    s3.add_chart(bc, "D2")
+    wb3.save(os.path.join(ws, "novary.xlsx"))
+    from server.app import read_workbook as rw
+    mm = rw(os.path.join(ws, "novary.xlsx"))["sheets"][0]["charts"][0]
+    check("missing varyColors is read as on (as Excel draws it)", mm.get("varyColors") is True)
+    xl("open", "novary.xlsx")
+    cid = json.loads(xl("describe", "--json", "--doc", "novary.xlsx").stdout)["sheets"][0]["charts"][0]["id"]
+    xl("chart", "set", cid, "--vary-colors", "off", "--doc", "novary.xlsx")
+    xl("save", "--as", "novary-out.xlsx", "--doc", "novary.xlsx")
+    c = charts_xml(os.path.join(ws, "novary-out.xlsx"))
+    check("chart set --vary-colors off writes varyColors=0", attrs(c["누락"], "varyColors") == ["0"], str(attrs(c["누락"], "varyColors")))
 finally:
     xl("stop", "--force")
     shutil.rmtree(ws, ignore_errors=True)

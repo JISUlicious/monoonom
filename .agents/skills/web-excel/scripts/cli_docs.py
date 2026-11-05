@@ -321,7 +321,8 @@ def cmd_chart(args):
     if args.action == "set":
         st = {k: v for k, v in (("type", args.type_set), ("title", args.title), ("at", args.at), ("legend", args.legend),
                                 ("width", args.width), ("height", args.height), ("data", args.data), ("xTitle", args.x_title),
-                                ("yTitle", args.y_title)) if v is not None}
+                                ("yTitle", args.y_title),
+                                ("varyColors", None if args.vary_colors is None else args.vary_colors == "on")) if v is not None}
         return edit(args, [{"op": "chartUpdate", "id": args.target, "sheet": args.sheet, "set": st}])
     st, d = ctx(args)
     res = request(st, "GET", f"/api/docs/{d['docId']}/describe")
@@ -545,6 +546,7 @@ def register(sub):
     p.add_argument("--type", default="bar", help="bar, barH, barStacked, line, area, pie, doughnut, scatter, radar")
     p.add_argument("--to-type", dest="type_set", help="set: 차트 종류 변경"); p.add_argument("--data", help="set: 데이터 범위 변경")
     p.add_argument("--x-title"); p.add_argument("--y-title")
+    p.add_argument("--vary-colors", choices=["on", "off"], help="한 계열 차트를 항목마다 다른 색으로(범례에 항목 표시)")
     p.add_argument("--title"); p.add_argument("--at", help="왼쪽 위 셀"); p.add_argument("--sheet"); p.add_argument("--legend")
     p.add_argument("--width", type=int); p.add_argument("--height", type=int)
     for name in ("rows", "cols"):

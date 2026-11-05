@@ -89,6 +89,16 @@ wb.save(${JSON.stringify(path.join(ws, 'old.xlsx'))})
     check('clustered columns: side legend A,B,C', lg.clusteredRight.join() === 'A,B,C', lg.clusteredRight.join());
     check('horizontal bars: first category and first series at the bottom; side legend C,B,A, bottom legend A,B,C',
       lg.barHCatReversed && lg.barHGroupTopDown.join() === 'C,B,A' && lg.barHRight.join() === 'C,B,A' && lg.barHBottom.join() === 'A,B,C', JSON.stringify(lg));
+    // one series: legend = the series name unless "vary colors by point" is on (then categories, colored bars)
+    const vary = await p.evaluate(() => {
+      const a = window.webExcel, d = a.docs.find((x) => x.wb.name.startsWith('fresh')), sh = d.wb.sheet;
+      const one = [{ val: 'Sheet1!$B$2:$B$5', cat: 'Sheet1!$A$2:$A$5', name: '값' }];
+      const legend = (c) => { const ch = { data: c.data }; const gl = c.options.plugins.legend.labels.generateLabels; return gl ? gl(ch).map((x) => x.text) : c.data.datasets.map((x) => x.label); };
+      const off = a.charts.config({ type: 'bar', legend: 'r', series: one }, sh), on = a.charts.config({ type: 'bar', legend: 'r', varyColors: true, series: one }, sh);
+      return { offLegend: legend(off), offColors: off.data.datasets[0].backgroundColor, onLegend: legend(on), onColors: on.data.datasets[0].backgroundColor };
+    });
+    check('one series, varyColors off: one color, legend = series name', vary.offLegend.join() === '값' && vary.offColors === '#4472C4', JSON.stringify(vary));
+    check('one series, varyColors on: a color per bar, legend = categories (as Excel)', vary.onLegend.join() === '1월,2월,3월,4월' && vary.onColors.slice(0, 2).join() === '#4472C4,#ED7D31', JSON.stringify(vary));
     c = await cfgs('old');
     const colored = c.find((x) => x.title === 'colored'), slices = c.find((x) => x.title === 'slices');
     check('chart with its own colors: first series C00000, second from the workbook theme (Office 2007 accent2)', JSON.stringify(colored.colors) === JSON.stringify(['#C00000', '#C0504D']), JSON.stringify(colored.colors));

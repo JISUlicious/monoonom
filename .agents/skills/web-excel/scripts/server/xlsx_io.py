@@ -268,8 +268,8 @@ def _chart_model(chart, idx, geom, warn, theme=None):
         "anchor": _anchor_model(chart.anchor, geom),
         "orig": idx,
     }
-    if main_type in ("pie", "doughnut") and getattr(chart, "varyColors", None) is False:
-        m["varyColors"] = False
+    vary = getattr(chart, "varyColors", None)
+    m["varyColors"] = True if vary is None else bool(vary)  # Excel reads a missing element as on
     if main_type == "bar":
         m["barDir"] = getattr(chart, "barDir", "col") or "col"
         m["grouping"] = getattr(chart, "grouping", "clustered") or "clustered"
@@ -580,9 +580,12 @@ def _build_chart(m: dict, theme: list[str] | None = None):
         elif t in ("line", "area"):
             g = m.get("grouping", "standard")
             ch.grouping = g if g in ("standard", "stacked", "percentStacked") else "standard"
-        vary = m.get("varyColors") is not False  # a pie may be one color (varyColors=0 in the file)
-        if t in ("pie", "doughnut"):
-            ch.varyColors = vary
+        # varyColors is always written: Excel treats a missing element as "vary colors by point", so a
+        # one-series column chart got a color per bar and a legend of category names. Pies vary unless
+        # the file said otherwise; other charts only when the original chart did.
+        pie_like = t in ("pie", "doughnut")
+        vary = m.get("varyColors") is not False if pie_like else m.get("varyColors") is True
+        ch.varyColors = vary
         for s in series:
             if not s.get("val"):
                 continue
