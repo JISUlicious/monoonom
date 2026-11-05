@@ -192,7 +192,14 @@ def r_save_doc(h, m, q, body):
                 ch = dict(ch)
                 ch["orig"], ch["dirty"] = i, False
                 charts.append(ch)
-            meta_ops.append({"op": "setSheetMeta", "sheet": sh["id"], "meta": {"origName": sh["name"], "charts": charts}})
+            # pivots created in the app are now in the file, after the ones it had (xlsx_io._create_pivot)
+            pivots, n = [], sum(1 for p in sh.get("pivots") or [] if not p.get("create"))
+            for p in sh.get("pivots") or []:
+                p = dict(p)
+                if p.pop("create", None):
+                    p["idx"], n = n, n + 1
+                pivots.append(p)
+            meta_ops.append({"op": "setSheetMeta", "sheet": sh["id"], "meta": {"origName": sh["name"], "charts": charts, "pivots": pivots}})
         doc.apply(meta_ops, actor="system", label="저장")
         doc.dirty = False
         doc.audit({"event": "save", "to": path, "format": fmt, "backup": backup})

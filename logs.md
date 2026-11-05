@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-05: 피벗 3단계(만들기) — `xl.py pivot add`·삽입 탭 '피벗 테이블' 대화상자, 표 형식(부분합·총합계·값 머리글·보고서 필터), 저장 시 실제 피벗 정의·캐시(refreshOnLoad), XSD·LibreOffice로 검증. openpyxl의 피벗 저장 문제 2건 수정: 규격에 없는 `r:id`, 시트 순서가 바뀌면 캐시 records 링크가 어긋나 다음 열기에서 실패 (→ docs/skill-implementation.md)
 - 2026-11-05: 피벗 2단계(앱 안에서 새로 고침) — 파일의 배치(rowItems/colItems) 그대로 원본에서 값 재계산(11개 집계 함수, 부분합·총합계·필터·값 필드 여러 개), 배치 정보가 없는 LibreOffice 파일은 단순 피벗만, 새 항목은 안내. `xl.py pivot ls|refresh`, 데이터 탭 버튼·오른쪽 클릭 메뉴 (→ docs/skill-implementation.md)
 - 2026-11-05: 피벗 1단계(안전장치) — 피벗 인식·`describe` 표시, 영역 편집·정렬·가로지르는 삽입/삭제 거부(서버·미리보기), 위·왼쪽 삽입 시 위치 이동, 원본 범위 이동·시트 이름 변경 반영, 원본이 바뀌면 저장 시 `refreshOnLoad`, 미리보기 영역 표시, 실제 피벗 샘플(`samples/pivot.xlsx`) (→ docs/skill-implementation.md)
 - 2026-11-05: skill 평가 첫 실행(Haiku·Sonnet·Opus) — 트리거 오발동 0, 놓침은 화면 언급 없는 단순 편집 요청; 시나리오 Sonnet·Opus 21/23, Haiku 12/23(skill 미호출 시 XML 직접 수정·원본 덮어쓰기). Claude Code판의 `allowed-tools` 때문에 skill 호출이 권한 요청이 되어 `-p`에서 거부됨을 발견 (→ docs/skill-evals.md)

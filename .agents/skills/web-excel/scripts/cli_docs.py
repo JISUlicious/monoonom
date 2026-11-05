@@ -325,6 +325,18 @@ def cmd_pivot(args):
         if not found:
             print("피벗 테이블이 없습니다.")
         return 0
+    if args.action == "add":
+        split = lambda s: [x.strip() for x in (s or "").split(",") if x.strip()]  # noqa: E731
+        body = {"source": args.name, "rows": split(args.rows), "cols": split(args.cols), "filters": split(args.filters),
+                "values": [dict(zip(("field", "fn"), (v.split(":", 1) + ["sum"])[:2])) for v in split(args.values)],
+                "at": args.at, "name": args.title}
+        res = request(st, "POST", f"/api/docs/{d['docId']}/pivots", body)
+        if args.json:
+            return out_json(res)
+        print(f"v{res['version']}  batch={res['batchId']}  피벗 테이블 '{res['name']}' → {res['sheet']}!{res['range']} (원본 {res['source']})")
+        print("  저장하면 Excel이 파일을 열 때 원본에서 다시 만듭니다(새로 고침).")
+        print(f"(되돌리기: xl.py undo {res['batchId']})")
+        return 0
     res = request(st, "POST", f"/api/docs/{d['docId']}/pivots/refresh", {"name": args.name, "sheet": args.sheet})
     if args.json:
         return out_json(res)
@@ -577,8 +589,12 @@ def register(sub):
     p.add_argument("--sheet")
     p = add("sheet", cmd_sheet, "시트 add NAME | rename OLD NEW | rm NAME | move NAME POS | copy NAME [NEW] | hide|unhide NAME | color NAME #RRGGBB|none | gridlines NAME on|off")
     p.add_argument("action", choices=["add", "rename", "rm", "move", "copy", "hide", "unhide", "color", "gridlines"]); p.add_argument("names", nargs="*")
-    p = add("pivot", cmd_pivot, "피벗 테이블 ls | refresh [NAME] (원본에서 값을 다시 계산)"); p.add_argument("action", choices=["ls", "refresh"]); p.add_argument("name", nargs="?")
-    p.add_argument("--sheet")
+    p = add("pivot", cmd_pivot, "피벗 테이블 ls | refresh [NAME] | add SOURCE --rows F --values F:sum [--cols F] [--filters F] [--at 'S!A3']")
+    p.add_argument("action", choices=["ls", "refresh", "add"]); p.add_argument("name", nargs="?", help="refresh: 피벗 이름, add: 원본 범위")
+    p.add_argument("--sheet"); p.add_argument("--rows", help="add: 행 필드(쉼표로 여러 개)"); p.add_argument("--cols", help="add: 열 필드(하나)")
+    p.add_argument("--values", help="add: 값 필드:함수(sum, count, average, max, min, product, countNums, stdDev, stdDevp, var, varp), 쉼표로 여러 개")
+    p.add_argument("--filters", help="add: 보고서 필터 필드"); p.add_argument("--at", help="add: 왼쪽 위 셀, 예: '피벗!A3' (없는 시트는 새로 만듦)")
+    p.add_argument("--title", help="add: 피벗 이름")
     p = add("chart", cmd_chart, "차트 add DATA | set ID --title … | rm ID | ls"); p.add_argument("action", choices=["add", "set", "rm", "ls"]); p.add_argument("target", nargs="?")
     p.add_argument("--type", default="bar", help="bar, barH, barStacked, line, area, pie, doughnut, scatter, radar")
     p.add_argument("--to-type", dest="type_set", help="set: 차트 종류 변경"); p.add_argument("--data", help="set: 데이터 범위 변경")

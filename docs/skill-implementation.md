@@ -728,3 +728,41 @@ xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있�
   - 다시 새로 고치면 바뀔 값 0개
 - LibreOffice 샘플은 원본을 바꾸기 전 새로 고침에서 바뀐 값이 0개다. 우리 계산이 LibreOffice 결과와 같다.
 - 실제 Excel 파일로는 확인하지 못했다. Excel 형태는 규격과 합성 파일로만 검증했다.
+
+## 피벗 테이블 3단계: 만들기 (2026-11-05)
+**사용**:
+- 에이전트: `xl.py pivot add SOURCE --rows … --values 필드:함수 [--cols …] [--filters …] [--at '시트!A3']`
+- 미리보기: 삽입 탭 "피벗 테이블" 대화상자(원본, 필드별 역할·집계 함수, 새 시트/기존 위치)
+- API: `POST /api/docs/<id>/pivots`
+
+UI와 에이전트가 같은 서버 코드로 만든다.
+
+**레이아웃** (`pivots.build`):
+- 표 형식이다. 행 필드는 여러 개 가능하고, 바깥 그룹마다 "X 요약" 부분합, 맨 끝에 "총합계"를 둔다.
+- 열 필드는 0~1개다.
+- 값 필드는 여러 개 가능하다. 열 필드가 없으면 Σ를 열에 두고 "값" 머리글 행을 넣는다. 열 필드와 함께 쓸 때는 1개만 허용한다.
+- 보고서 필터는 표 위에 "(모두)"로 표시한다.
+- 이름은 한국어 Excel 표기("합계 : 매출")를 따른다.
+- 대상 영역에 값이 있으면 거부한다. 없는 시트는 만든다.
+
+**저장** (`xlsx_io._create_pivot`):
+- 피벗 정의(pivotFields·rowFields·colFields·pageFields·dataFields·rowItems·colItems, 스타일 PivotStyleLight16)와 캐시를 쓴다.
+- 캐시는 필드 항목만 담고 레코드는 넣지 않는다(`saveData=0`). `refreshOnLoad=1`로 Excel이 열 때 원본에서 다시 만들게 한다.
+- `cacheId`는 파일 안에서 겹치지 않게 정한다.
+- 저장 후 모델의 `create` 표시를 지우고 파일 안 순번(`idx`)을 매긴다. 다시 저장해도 중복으로 만들지 않는다.
+
+**openpyxl 피벗 저장 문제 2건** (1단계부터 보존하던 피벗에도 해당):
+1. `TableDefinition._write_rels`가 `<pivotTableDefinition>`에 `r:id`를 붙인다. ECMA-376 `CT_pivotTableDefinition`에 없는 속성이라 XSD 검증에서 실패하고, 지우면 통과한다. 저장 직후 이 속성만 지운다(`fix_pivot_tables`).
+2. 캐시 번호는 저장할 때 시트 순서대로 새로 매겨진다. 그런데 `CacheDefinition._write_rels`는 번호를 바꾸기 **전에** records 링크를 쓴다. 그래서 시트·피벗 순서가 바뀌면 링크가 없는 records 파일을 가리키고, 그 파일을 다시 열 때 실패한다. 새 시트를 앞에 넣고 두 번 저장하는 e2e 테스트로 재현했다. 저장 직전에 openpyxl과 같은 순서로 records 번호를 맞춘다(`_number_pivot_records`).
+
+**검증** (`tests/pivot_create.e2e.cjs` 17개):
+- 에이전트로 만들기: 행 필드 2개, 값 필드 2개, 새 시트
+- 거부해야 하는 경우: 데이터 위, 없는 필드, 열 필드와 값 필드 여러 개
+- 만든 피벗도 보호됨
+- 대화상자로 만들기: 열 필드와 필터, 새 시트로 이동
+- 새로 고침
+- 두 번 저장: 중복 없음, `r:id` 없음
+- 피벗·캐시·workbook.xml이 ECMA-376 `sml.xsd` 통과(환경 변수 `WX_SML_XSD`가 있을 때)
+- LibreOffice가 두 피벗을 같은 위치·같은 필드로 인식하고, 열 때 다시 계산한 숫자가 우리가 쓴 숫자와 같음
+
+실제 Excel에서는 확인하지 못했다. 화면: `docs/pivot-create.png`.

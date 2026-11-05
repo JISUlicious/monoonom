@@ -447,6 +447,9 @@ def _write_pivots(ws, sm, sheets):
     pivot when the file opens, so it never shows stale numbers)."""
     pivots = getattr(ws, "_pivots", None) or []
     for pm in sm.get("pivots") or []:
+        if pm.get("create"):  # made in the app: write its definition (once; the save assigns its idx)
+            pm["savedIdx"] = _create_pivot(ws.parent, ws, pm)
+            continue
         i = pm.get("idx")
         if not isinstance(i, int) or not 0 <= i < len(pivots):
             continue
@@ -461,6 +464,82 @@ def _write_pivots(ws, sm, sheets):
                 src.sheet, src.ref, changed = sheet, ref, True
         if changed and p.cache is not None:
             p.cache.refreshOnLoad = True
+
+
+def _create_pivot(wb, ws, pm):
+    """A pivot table created in the app (pivots.build): a pivot definition and cache in Excel's form.
+    The cache holds the field items but no records (saveData=0) and asks to be rebuilt when the
+    file opens (refreshOnLoad=1), so Excel always shows it computed from the source; the layout
+    records (rowItems/colItems) match the cells written here, for refreshing in the app."""
+    from openpyxl.pivot.cache import CacheDefinition, CacheField, CacheSource, SharedItems, WorksheetSource
+    from openpyxl.pivot.fields import Index, Number, Text
+    from openpyxl.pivot.table import (DataField, FieldItem, Location, PageField, PivotField, PivotTableStyle,
+                                      RowColField, RowColItem, TableDefinition)
+    lay = pm["layout"]
+    fields = lay["fields"]
+    items = lay["items"]
+    sheet, ref = A.split_sheet(pm["source"])
+    rows, cols, filters = pm["rows"], pm["cols"], pm.get("filters") or []
+    axis = {**{f: "axisRow" for f in rows}, **{f: "axisCol" for f in cols}, **{f: "axisPage" for f in filters}}
+    data_fields = {v["field"] for v in pm["values"]}
+
+    def shared(vals):
+        el = [Number(v=v) if isinstance(v, (int, float)) and not isinstance(v, bool) else Text(v=str(v)) for v in vals]
+        nums = [v for v in vals if isinstance(v, (int, float)) and not isinstance(v, bool)]
+        return SharedItems(_fields=el, count=len(el), containsString=False if nums and len(nums) == len(vals) else None,
+                           containsSemiMixedTypes=False if nums and len(nums) == len(vals) else None,
+                           containsNumber=True if nums else None)
+
+    cache = CacheDefinition(
+        refreshOnLoad=True, saveData=False, createdVersion=6, refreshedVersion=6, minRefreshableVersion=3,
+        cacheSource=CacheSource(type="worksheet", worksheetSource=WorksheetSource(ref=ref, sheet=sheet)),
+        cacheFields=[CacheField(name=str(f), numFmtId=0, sharedItems=shared(items[f]) if f in axis else SharedItems())
+                     for f in fields])
+    pfields = []
+    for f in fields:
+        if f in axis:
+            pfields.append(PivotField(axis=axis[f], showAll=False, compact=False, outline=False,
+                                      items=[FieldItem(x=k) for k in range(len(items[f]))] + [FieldItem(t="default")]))
+        else:
+            pfields.append(PivotField(dataField=True if f in data_fields else None, showAll=False, compact=False, outline=False))
+    fidx = {f: k for k, f in enumerate(fields)}
+
+    def rc_items(lines, axis_fields):
+        out = []
+        for it in lines:
+            if it["t"] == "grand":
+                out.append(RowColItem(t="grand", x=[Index()]))
+                continue
+            xs = []
+            for j, v in enumerate(it["x"]):
+                f = axis_fields[it["r"] + j]
+                xs.append(Index(v=it.get("d", 0)) if f == "Σ" else Index(v=next(k for k, y in enumerate(items[f]) if y == v)))
+            out.append(RowColItem(t=it["t"], r=it["r"] or 0, i=it.get("i") or 0, x=xs))
+        return out
+
+    col_axis = lay["colFields"]
+    pt = TableDefinition(
+        name=pm["name"], cacheId=1 + max([p.cacheId or 0 for w in wb.worksheets for p in getattr(w, "_pivots", [])] or [0]),
+        dataCaption="값", grandTotalCaption="총합계",
+        updatedVersion=6, minRefreshableVersion=3, createdVersion=6, useAutoFormatting=True, itemPrintTitles=True,
+        indent=0, compact=False, compactData=False, outline=False, outlineData=False, gridDropZones=False,
+        applyNumberFormats=False, applyBorderFormats=False, applyFontFormats=False, applyPatternFormats=False,
+        applyAlignmentFormats=False, applyWidthHeightFormats=True,
+        location=Location(ref=pm["ref"], firstHeaderRow=lay["firstHeaderRow"], firstDataRow=lay["firstDataRow"],
+                          firstDataCol=lay["firstDataCol"], rowPageCount=len(filters) or None, colPageCount=1 if filters else None),
+        pivotFields=pfields,
+        rowFields=[RowColField(x=fidx[f]) for f in rows],
+        rowItems=rc_items(lay["rowItems"], rows),
+        colFields=[RowColField(x=-2 if f == "Σ" else fidx[f]) for f in col_axis],
+        colItems=rc_items(lay["colItems"], col_axis),
+        pageFields=[PageField(fld=fidx[f], hier=-1) for f in filters],
+        dataFields=[DataField(name=v["name"], fld=fidx[v["field"]], subtotal=v["fn"], baseField=0, baseItem=0) for v in pm["values"]],
+        pivotTableStyleInfo=PivotTableStyle(name="PivotStyleLight16", showRowHeaders=True, showColHeaders=True,
+                                            showRowStripes=False, showColStripes=False, showLastColumn=True),
+    )
+    pt.cache = cache
+    ws._pivots.append(pt)
+    return len(ws._pivots) - 1
 
 
 def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
@@ -1013,6 +1092,7 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
             ws.sheet_view.tabSelected = ws is wb.active
     wb.calculation.fullCalcOnLoad = True  # Excel still recalculates on open
 
+    _number_pivot_records(wb)
     out = io.BytesIO()
     wb.save(out)
     cached = {}
@@ -1025,7 +1105,7 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
                 vals[f"{get_column_letter(c + 1)}{r + 1}"] = item["cv"]
         if vals:
             cached[ws.title] = vals
-    data = fix_drawings(out.getvalue())
+    data = fix_pivot_tables(fix_drawings(out.getvalue()))
     return inject_cached_values(data, cached) if cached else data
 
 
@@ -1033,6 +1113,45 @@ _A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
 # only a chart frame's own transform: in CT_GraphicalObjectFrame it comes right after nvGraphicFramePr
 # (shapes' <a:xfrm/> in spPr/grpSpPr are left alone)
 _EMPTY_XFRM = re.compile(r"(</(?:\w+:)?nvGraphicFramePr>)\s*<((?:\w+:)?)xfrm\s*/>")
+
+
+def _number_pivot_records(wb):
+    """openpyxl numbers pivot caches 1, 2, ... in sheet order while saving (ExcelWriter), but
+    CacheDefinition._write_rels writes the link to the cache's records part before it renumbers the
+    records, so once sheets or pivots change order the link names the records part the cache had
+    when it was read (e.g. pivotCacheRecords1.xml) while the part is written under the new number:
+    the next open fails. Give each cache's records the number its cache will get."""
+    seen = []
+    for ws in wb.worksheets:
+        for p in getattr(ws, "_pivots", None) or []:
+            if p.cache is not None and not any(p.cache is c for c in seen):
+                seen.append(p.cache)
+                if getattr(p.cache, "records", None) is not None:
+                    p.cache.records._id = len(seen)
+
+
+_PIVOT_RID = re.compile(r'(<pivotTableDefinition\b[^>]*?)\s+r:id="[^"]*"')
+
+
+def fix_pivot_tables(data: bytes) -> bytes:
+    """Drop the r:id attribute openpyxl puts on <pivotTableDefinition> (TableDefinition._write_rels
+    stores the cache relationship id there). ECMA-376 CT_pivotTableDefinition has no such attribute,
+    so the part fails the schema with it and passes without it (checked with sml.xsd); the cache is
+    found through the part's relationships and the workbook's cacheId. Other parts are unchanged."""
+    import zipfile
+
+    zin = zipfile.ZipFile(io.BytesIO(data))
+    names = [n for n in zin.namelist() if n.startswith("xl/pivotTables/pivotTable") and n.endswith(".xml")]
+    if not names:
+        return data
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
+        for info in zin.infolist():
+            raw = zin.read(info.filename)
+            if info.filename in names:
+                raw = _PIVOT_RID.sub(r"\1", raw.decode("utf-8"), count=1).encode("utf-8")
+            zout.writestr(info, raw)
+    return out.getvalue()
 
 
 def fix_drawings(data: bytes) -> bytes:

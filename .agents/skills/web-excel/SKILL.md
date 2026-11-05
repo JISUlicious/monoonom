@@ -119,6 +119,11 @@ command fails with exit code 4 and says why): change the pivot's source data ins
 `xl.py pivot refresh [NAME]` to recompute its values here (one undoable batch; it prints notes,
 e.g. new items that only Excel can add rows for). Saving makes Excel refresh the pivot when it
 opens the file either way. Inserting rows/columns above or left of a pivot moves it.
+To make one: `xl.py pivot add 'Data!A1' --rows Region --cols Product --values Sales:sum
+[--filters Quarter] --at 'Pivot!A3'` (fields are the source's header names; a missing sheet is
+created; several `--rows`/`--values` separated by commas; with `--cols` only one value field). It
+is written in tabular form and saved as a real pivot table that Excel rebuilds when it opens the
+file. Prefer a pivot when the user asks for one; for a summary they will edit, use formulas.
 
 Row/column inserts, deletes and sorts move formulas, chart ranges, merges and the filter range just
 like Excel, everywhere in the workbook. If the user edits cells at the same moment, their edits are
