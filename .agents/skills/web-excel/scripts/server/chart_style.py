@@ -99,6 +99,21 @@ def style_axes(chart) -> None:
         y.majorGridlines = ChartLines(spPr=GraphicalProperties(ln=_line(LINE)))
 
 
+def style_radar_axes(chart) -> None:
+    """Radar: keep the axes (openpyxl leaves delete unset, which Excel 365 reads as hidden), 9 pt
+    gray labels and light gridlines, as the preview draws them."""
+    for ax in (getattr(chart, "x_axis", None), getattr(chart, "y_axis", None)):
+        if ax is None:
+            continue
+        ax.delete = False
+        ax.txPr = rich()
+        ax.majorTickMark = "none"
+        ax.minorTickMark = "none"
+        ax.spPr = GraphicalProperties(ln=_line(LINE))
+    if getattr(chart, "y_axis", None) is not None:
+        chart.y_axis.majorGridlines = ChartLines(spPr=GraphicalProperties(ln=_line(LINE)))
+
+
 def marker_none() -> Marker:
     return Marker(symbol="none")
 

@@ -102,7 +102,9 @@ export class ChartLayer {
     let datasets;
     if (pieLike) {
       const s = series[0] || { values: [], name: '' };
-      datasets = [{ label: s.name, data: s.values, backgroundColor: s.values.map((_, i) => s.pointColors?.[i] || pal[i % pal.length]), borderColor: '#fff', borderWidth: ST.pieBorderPt * PX }];
+      // a pie with varyColors=0 in the file is one color; otherwise one per slice
+      const one = model.varyColors === false ? (s.color || pal[0]) : null;
+      datasets = [{ label: s.name, data: s.values, backgroundColor: s.values.map((_, i) => one || s.pointColors?.[i] || pal[i % pal.length]), borderColor: '#fff', borderWidth: ST.pieBorderPt * PX }];
     } else {
       const totals = pct ? labels.map((_, i) => series.reduce((a, s) => a + Math.abs(s.values[i] || 0), 0)) : null;
       // Excel column spacing: gap width and overlap are % of one bar's width

@@ -268,6 +268,8 @@ def _chart_model(chart, idx, geom, warn, theme=None):
         "anchor": _anchor_model(chart.anchor, geom),
         "orig": idx,
     }
+    if main_type in ("pie", "doughnut") and getattr(chart, "varyColors", None) is False:
+        m["varyColors"] = False
     if main_type == "bar":
         m["barDir"] = getattr(chart, "barDir", "col") or "col"
         m["grouping"] = getattr(chart, "grouping", "clustered") or "clustered"
@@ -549,10 +551,21 @@ def _build_chart(m: dict, theme: list[str] | None = None):
         groups = {main_t: [], **groups}
     pal = CS.palette(theme, 36)
     counter = [0]
+    # palette slot = position in the chart's series list, as the preview counts (not the order the
+    # series are grouped by type, and empty series still take a slot)
+    slot = {id(s): i for i, s in enumerate(m.get("series", []))}
 
-    def color_of(s, i):
+    def color_of(s):
         c = (s.get("color") or "").lstrip("#")
-        return c.upper() if len(c) == 6 else pal[i % len(pal)]
+        return c.upper() if len(c) == 6 else pal[slot.get(id(s), 0) % len(pal)]
+
+    def n_points(ref):
+        try:
+            from openpyxl.utils.cell import range_boundaries
+            c1, r1, c2, r2 = range_boundaries(ref.split("!")[-1].replace("$", ""))
+            return max(c2 - c1, r2 - r1) + 1
+        except Exception:
+            return 0
 
     def make(t, series):
         ch = kinds.get(t, BarChart)()
@@ -567,13 +580,14 @@ def _build_chart(m: dict, theme: list[str] | None = None):
         elif t in ("line", "area"):
             g = m.get("grouping", "standard")
             ch.grouping = g if g in ("standard", "stacked", "percentStacked") else "standard"
+        vary = m.get("varyColors") is not False  # a pie may be one color (varyColors=0 in the file)
         if t in ("pie", "doughnut"):
-            ch.varyColors = True
+            ch.varyColors = vary
         for s in series:
             if not s.get("val"):
                 continue
             i = counter[0]
-            color = color_of(s, i)
+            color = color_of(s)
             if t == "scatter":
                 ser = Series(s["val"], xvalues=s.get("cat") or None)
                 ser.marker = CS.marker_circle(color)
@@ -585,10 +599,13 @@ def _build_chart(m: dict, theme: list[str] | None = None):
             if t in ("line", "radar"):
                 ser.marker = CS.marker_none()
                 ser.smooth = False
-            if t in ("pie", "doughnut"):
-                # one color per slice (from the file when it had them), white borders
+            if t in ("pie", "doughnut") and not vary:
+                ser.graphicalProperties = GraphicalProperties(solidFill=color, ln=CS.pie_border())
+            elif t in ("pie", "doughnut"):
+                # one color per slice (the file's where it had them), white borders; as many slices
+                # as the value range has
                 pts = s.get("pointColors") or []
-                n = max(len(pts), int(s.get("points") or 0), 12)
+                n = max(len(pts), n_points(s["val"]))
                 ser.graphicalProperties = GraphicalProperties(ln=CS.pie_border())
                 ser.dPt = [DataPoint(idx=k, spPr=GraphicalProperties(
                     solidFill=(pts[k].lstrip("#").upper() if k < len(pts) and pts[k] else pal[k % len(pal)]),
@@ -600,7 +617,9 @@ def _build_chart(m: dict, theme: list[str] | None = None):
             elif s.get("name"):
                 ser.tx = SeriesLabel(v=str(s["name"]))
             ch.series.append(ser)
-        if t not in ("pie", "doughnut", "radar"):
+        if t == "radar":
+            CS.style_radar_axes(ch)
+        elif t not in ("pie", "doughnut"):
             CS.style_axes(ch)
         return ch
 

@@ -63,6 +63,26 @@ def lum(hex6: str, mod: int | None, off: int | None) -> str:
     return "%02X%02X%02X" % (round(r * 255), round(g * 255), round(b * 255))
 
 
+def shade_tint(hex6: str, shade: int | None = None, tint: int | None = None) -> str:
+    """DrawingML shade/tint (1/1000 %): a 40 % shade is 40 % of the color and 60 % black, a 40 % tint
+    40 % of the color and 60 % white, blended in linear RGB (ECMA-376 §20.1.2.3.31 shade, .34 tint)."""
+    def lin(c):
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    def srgb(c):
+        c = max(0.0, min(1.0, c))
+        return c * 12.92 if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
+    out = []
+    for i in (0, 2, 4):
+        c = lin(int(hex6[i:i + 2], 16) / 255)
+        if shade is not None:
+            c = c * shade / 100000
+        if tint is not None:
+            c = c * tint / 100000 + (1 - tint / 100000)
+        out.append(round(srgb(c) * 255))
+    return "%02X%02X%02X" % tuple(out)
+
+
 SCHEME_INDEX = {"lt1": 0, "bg1": 0, "dk1": 1, "tx1": 1, "lt2": 2, "bg2": 2, "dk2": 3, "tx2": 3,
                 "accent1": 4, "accent2": 5, "accent3": 6, "accent4": 7, "accent5": 8, "accent6": 9,
                 "hlink": 10, "folHlink": 11}
@@ -85,10 +105,10 @@ def drawing_color(choice, theme: list[str]) -> str | None:
             v = (theme or DEFAULT_THEME)[SCHEME_INDEX[sc.val]]
             if sc.lumMod is not None or sc.lumOff is not None:
                 v = lum(v, sc.lumMod, sc.lumOff)
-            if sc.shade is not None:  # darken toward black
-                v = lum(v, sc.shade, 0)
-            if sc.tint is not None:   # lighten toward white
-                v = lum(v, sc.tint, 100000 - sc.tint)
+            if sc.shade is not None:
+                v = shade_tint(v, shade=sc.shade)
+            if sc.tint is not None:
+                v = shade_tint(v, tint=sc.tint)
             return v
         sys_c = getattr(choice, "sysClr", None)
         if sys_c is not None and getattr(sys_c, "lastClr", None):

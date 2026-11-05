@@ -55,6 +55,19 @@ wb.save(${JSON.stringify(path.join(ws, 'old.xlsx'))})
     check('columns: Excel gap 219 / overlap -27 as bar spacing', Math.abs(bar.ds[0].bar - 1 / 1.27) < 0.001 && Math.abs(bar.ds[0].cat - (3 * 1.27) / (3 * 1.27 + 2.19)) < 0.001, JSON.stringify(bar.ds[0]));
     check('line: 2.25 pt, no markers', line.ds[0].pr === 0 && Math.abs(line.ds[0].bw - 3) < 0.01, JSON.stringify(line.ds[0]));
 
+    // combo chart: B as a line between two bars keeps the color of its position
+    const combo = await p.evaluate(() => {
+      const a = window.webExcel, d = a.docs.find((x) => x.wb.name.startsWith('fresh'));
+      const m = { type: 'bar', series: [{ val: 'Sheet1!$B$2:$B$5', name: 'A' }, { val: 'Sheet1!$C$2:$C$5', name: 'B', type: 'line' }, { val: 'Sheet1!$D$2:$D$5', name: 'C' }] };
+      return a.charts.config(m, d.wb.sheet).data.datasets.map((ds) => ds.backgroundColor);
+    });
+    check('combo: preview colors by series position (= saved file)', JSON.stringify(combo) === JSON.stringify(['#4472C4', '#ED7D31', '#A5A5A5']), JSON.stringify(combo));
+    const onePie = await p.evaluate(() => {
+      const a = window.webExcel, d = a.docs.find((x) => x.wb.name.startsWith('fresh'));
+      const m = { type: 'pie', varyColors: false, series: [{ val: 'Sheet1!$B$2:$B$5', color: '#C00000' }] };
+      return a.charts.config(m, d.wb.sheet).data.datasets[0].backgroundColor;
+    });
+    check('one-color pie: preview draws every slice in its color', onePie.every((x) => x === '#C00000'), JSON.stringify(onePie));
     c = await cfgs('old');
     const colored = c.find((x) => x.title === 'colored'), slices = c.find((x) => x.title === 'slices');
     check('chart with its own colors: first series C00000, second from the workbook theme (Office 2007 accent2)', JSON.stringify(colored.colors) === JSON.stringify(['#C00000', '#C0504D']), JSON.stringify(colored.colors));
