@@ -1,0 +1,12 @@
+{
+  "name": "monoonom",
+  "description": "MoNooNoM: a live local spreadsheet preview the agent and the user edit together.",
+  "owner": { "name": "JISUlicious", "url": "https://github.com/JISUlicious" },
+  "plugins": [
+    {
+      "name": "monoonom",
+      "source": "./",
+      "description": "Open, edit, chart and save Excel workbooks with the agent while you watch them live in a local browser preview."
+    }
+  ]
+}
