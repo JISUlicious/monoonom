@@ -2,6 +2,10 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-05: 한 계열 막대 차트가 Excel에서 막대마다 다른 색·범례에 항목 이름으로 보이던 문제 — `varyColors`를 항상 기록(빠지면 Excel이 켜짐으로 읽음), 파일의 값을 읽어 미리보기도 같게, `chart set --vary-colors on|off` (→ docs/skill-implementation.md)
+- 2026-11-05: 차트 범례를 Excel처럼 — 꺾은선은 선 기호, 원형은 사각형, 누적·가로 막대의 옆 범례는 아래에서 위 순서, 가로 막대는 첫 항목·첫 계열이 아래 (→ docs/skill-implementation.md)
+- 2026-11-05: 차트 스타일 코드 리뷰 중 동작 영향 7건 수정 — 방사형 축 숨김·서식, 혼합 차트·빈 계열 색 불일치, 원형 조각 수, 한 색 원형, shade/tint 계산 (→ docs/skill-implementation.md)
+- 2026-11-05: 차트 스타일 통일 — 미리보기와 저장 파일이 같은 서식(Excel 2016+ 기본 모양, `chart_style.py`)을 쓰고, 색은 통합 문서 테마와 원본 차트의 색을 따름. 새 통합 문서는 Office 2013-2022 테마 (→ docs/skill-implementation.md)
 - 2026-11-05: SKILL.md에 '분석·가공은 엑셀 수식으로' 지침(Python으로 계산해 붙여넣지 말 것, 권장 함수 28개는 모두 엔진 지원 확인), 평가 시나리오 `summary-with-formulas` 추가
 - 2026-11-05: 차트 id가 다시 열기·서버 재시작 때 바뀐다는 점을 SKILL.md·cli.md·troubleshooting과 404 메시지에 명시(`chart set/rm` 전에 `chart ls`) (→ docs/skill-implementation.md)
 - 2026-11-05: `chart set/rm`이 다른 시트의 차트에서 404 나던 버그 수정(활성 시트만 찾던 문제), `--at '시트!셀'` 지원과 500 오류 수정, 시트 간 차트 이동 (→ docs/skill-implementation.md)

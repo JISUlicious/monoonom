@@ -19,6 +19,10 @@ import time
 from collections import deque
 
 from . import fileio
+from .chart_style import preview_spec
+from .colors import DEFAULT_THEME
+
+CHART_STYLE = preview_spec()  # sent with snapshots so the preview draws charts like saved files
 
 META_KEYS = ("name", "origName", "state", "tabColor", "showGrid", "defaultColW", "defaultRowH",
              "cols", "rows", "filterHidden", "merges", "freeze", "autoFilter", "charts")
@@ -96,6 +100,9 @@ class DocSession:
         self.file_sig = _file_sig(path) if path else None
         self.name = model.get("name") or (os.path.basename(path) if path else "통합 문서.xlsx")
         self.default_font = model.get("defaultFont") or {"name": "맑은 고딕", "size": 11}
+        # the workbook's theme colors (series colors of charts without explicit ones); a workbook
+        # saved without an original file gets the Office 2013-2022 theme (xlsx_io.modern_theme_xml)
+        self.theme_colors = model.get("themeColors") or list(DEFAULT_THEME)
         self.defined_names = model.get("definedNames") or {}
         self.active_sheet = model.get("activeSheet", 0)
         self.warnings = model.get("warnings", [])
@@ -160,6 +167,7 @@ class DocSession:
             return {
                 "docId": self.id, "version": self.version, "name": self.name, "path": self.path,
                 "format": self.format, "dirty": self.dirty, "defaultFont": self.default_font,
+                "themeColors": self.theme_colors, "chartStyle": CHART_STYLE,
                 "definedNames": self.defined_names, "activeSheet": self.active_sheet,
                 "warnings": self.warnings, "styles": [],
                 "sheets": [self.sheet_json(sh) for sh in self.sheets],

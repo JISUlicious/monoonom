@@ -5,8 +5,37 @@ import { formatValue } from './numfmt.js';
 import { newId } from './model.js';
 import { geom } from './geometry.js';
 
-// Office theme accent colors (default Excel palette)
+// Office 2013-2022 theme accents: the palette when a workbook brings no theme of its own
 export const PALETTE = ['#4472C4', '#ED7D31', '#A5A5A5', '#FFC000', '#5B9BD5', '#70AD47', '#264478', '#9E480E', '#636363', '#997300'];
+
+// Same numbers as server/chart_style.py (the server also sends them with each workbook).
+const DEFAULT_STYLE = { text: '#595959', line: '#D9D9D9', titlePt: 14, textPt: 9, seriesLinePt: 2.25, gap: 219, overlap: -27, stackedGap: 150, scatterMarker: 5, pieBorderPt: 1 };
+const PX = 4 / 3; // points -> CSS pixels
+
+/** DrawingML lumMod/lumOff on a hex color (HSL luminance), as colors.lum() on the server. */
+function lum(hex, mod, off) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  let r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  let h = 0, s = 0, l = (mx + mn) / 2;
+  if (mx !== mn) {
+    const d = mx - mn;
+    s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    h /= 6;
+  }
+  l = Math.max(0, Math.min(1, l * mod / 100000 + off / 100000));
+  const f = (p, q, t) => { if (t < 0) t += 1; if (t > 1) t -= 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+  if (s === 0) r = g = b = l;
+  else { const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q; r = f(p, q, h + 1 / 3); g = f(p, q, h); b = f(p, q, h - 1 / 3); }
+  return '#' + [r, g, b].map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
+/** Series colors in Excel's order for a workbook theme: accent1-6, darker 60 %, lighter 80 %+20 %. */
+export function themePalette(themeColors) {
+  const acc = themeColors?.length >= 10 ? themeColors.slice(4, 10).map((c) => '#' + c.replace('#', '')) : PALETTE.slice(0, 6);
+  return [...acc, ...acc.map((c) => lum(c, 60000, 0)), ...acc.map((c) => lum(c, 80000, 20000))];
+}
 export const CHART_TYPES = [
   ['bar', '세로 막대형', { barDir: 'col' }], ['barH', '가로 막대형', { type: 'bar', barDir: 'bar' }],
   ['barStacked', '누적 세로 막대형', { type: 'bar', barDir: 'col', grouping: 'stacked' }],
@@ -52,6 +81,7 @@ export class ChartLayer {
         values: vals.map((x) => (typeof x.v === 'number' ? x.v : null)),
         cats: cats ? cats.map((x) => (model.type === 'scatter' ? (typeof x.v === 'number' ? x.v : null) : formatValue(x.v, x.nf).text)) : null,
         color: s.color,
+        pointColors: s.pointColors,
       };
     });
     const labels = series.find((s) => s.cats)?.cats || (series[0] ? series[0].values.map((_, i) => String(i + 1)) : []);
@@ -60,49 +90,90 @@ export class ChartLayer {
 
   config(model, sheet) {
     const { series, labels } = this.dataOf(model, sheet);
+    const wb = this.app?.doc?.wb;
+    const ST = { ...DEFAULT_STYLE, ...(wb?.chartStyle || {}) };
+    const pal = themePalette(wb?.themeColors);
     const t = model.type;
     const pieLike = t === 'pie' || t === 'doughnut';
     const horizontal = t === 'bar' && model.barDir === 'bar';
     const stacked = model.grouping === 'stacked' || model.grouping === 'percentStacked';
     const pct = model.grouping === 'percentStacked';
+    const lineW = ST.seriesLinePt * PX;
     let datasets;
     if (pieLike) {
       const s = series[0] || { values: [], name: '' };
-      datasets = [{ label: s.name, data: s.values, backgroundColor: s.values.map((_, i) => PALETTE[i % PALETTE.length]), borderColor: '#fff', borderWidth: 1 }];
+      // a pie with varyColors=0 in the file is one color; otherwise one per slice
+      const one = model.varyColors === false ? (s.color || pal[0]) : null;
+      datasets = [{ label: s.name, data: s.values, backgroundColor: s.values.map((_, i) => one || s.pointColors?.[i] || pal[i % pal.length]), borderColor: '#fff', borderWidth: ST.pieBorderPt * PX, pointStyle: 'rect' }];
     } else {
+      const varyPoints = model.varyColors === true && series.length === 1 && !stacked;
       const totals = pct ? labels.map((_, i) => series.reduce((a, s) => a + Math.abs(s.values[i] || 0), 0)) : null;
+      // Excel column spacing: gap width and overlap are % of one bar's width
+      const nBars = series.filter((s) => (s.type || t) === 'bar').length || 1;
+      const sep = stacked ? 0 : Math.max(0, -ST.overlap) / 100, gap = (stacked ? ST.stackedGap : ST.gap) / 100;
+      const unit = stacked ? 1 : nBars * (1 + sep);
+      const barSpacing = { categoryPercentage: unit / (unit + gap), barPercentage: stacked ? 1 : 1 / (1 + sep) };
       datasets = series.map((s, i) => {
-        const color = s.color || PALETTE[i % PALETTE.length];
+        const color = s.color || pal[i % pal.length];
         const st = s.type;
         const base = { label: s.name, backgroundColor: color, borderColor: color };
         let data = pct ? s.values.map((v, j) => (totals[j] ? (100 * (v || 0)) / totals[j] : 0)) : s.values;
-        if (t === 'scatter') return { ...base, type: 'scatter', data: s.values.map((y, j) => ({ x: s.cats ? s.cats[j] : j + 1, y })), pointRadius: 4, showLine: false };
-        if (st === 'line') return { ...base, type: 'line', data, fill: false, tension: 0, pointRadius: 3, borderWidth: 2.25, order: 0 };
-        if (st === 'area') return { ...base, type: 'line', data, fill: stacked ? (i === 0 ? 'origin' : '-1') : 'origin', backgroundColor: color + 'cc', pointRadius: 0, tension: 0, order: 1 };
-        if (st === 'radar') return { ...base, type: 'radar', data, backgroundColor: color + '33', borderWidth: 2 };
-        return { ...base, type: 'bar', data, order: 2 };
+        const r = (ST.scatterMarker * PX) / 2;
+        if (t === 'scatter') return { ...base, type: 'scatter', data: s.values.map((y, j) => ({ x: s.cats ? s.cats[j] : j + 1, y })), pointRadius: r, pointHoverRadius: r + 2, showLine: false, pointStyle: 'circle' };
+        // Excel's default line chart has no markers
+        if (st === 'line') return { ...base, type: 'line', data, fill: false, tension: 0, pointRadius: 0, pointHoverRadius: 4, borderWidth: lineW, borderCapStyle: 'round', order: 0, pointStyle: 'line' };
+        if (st === 'area') return { ...base, type: 'line', data, fill: stacked ? (i === 0 ? 'origin' : '-1') : 'origin', pointRadius: 0, borderWidth: 0, tension: 0, order: 1, pointStyle: 'rect' };
+        // one series with "vary colors by point" (varyColors, Excel's default when a file omits it):
+        // a color per category, and the legend lists the categories
+        if (varyPoints && (st === 'bar' || !st)) return { ...base, type: 'bar', data, borderWidth: 0, order: 2, pointStyle: 'rect', ...barSpacing, backgroundColor: labels.map((_, k) => s.pointColors?.[k] || pal[k % pal.length]), borderColor: labels.map((_, k) => s.pointColors?.[k] || pal[k % pal.length]) };
+        if (st === 'radar') return { ...base, type: 'radar', data, backgroundColor: 'transparent', pointRadius: 0, borderWidth: lineW, pointStyle: 'line' };
+        return { ...base, type: 'bar', data, borderWidth: 0, order: 2, pointStyle: 'rect', ...barSpacing };
       });
     }
+    // horizontal clustered bars: Excel puts the first series at the bottom of each group; Chart.js
+    // places a group's bars top-down in dataset order, so draw the datasets in reverse
+    const flipped = horizontal && !stacked;
+    if (flipped) datasets.reverse();
     const ctype = pieLike ? t : t === 'scatter' ? 'scatter' : t === 'radar' ? 'radar' : t === 'line' || t === 'area' ? 'line' : 'bar';
+    const side = model.legend === 'r' || model.legend === 'l' || model.legend === 'tr';
+    // Excel lists a side legend bottom-up when the series are drawn bottom-up (stacked, horizontal);
+    // the datasets of flipped charts are already in reverse
+    const varyLegend = !pieLike && model.varyColors === true && series.length === 1 && !stacked;
+    const legendReversed = (side && !pieLike && (stacked || horizontal)) !== flipped;
     const legendPos = { r: 'right', l: 'left', t: 'top', b: 'bottom', tr: 'right' }[model.legend] || null;
-    const font = { family: '"Malgun Gothic", Calibri, sans-serif' };
+    const family = `"${wb?.defaultFont?.name || 'Malgun Gothic'}", "Malgun Gothic", Calibri, sans-serif`;
+    const text = { family, size: ST.textPt * PX };
     const opts = {
       responsive: false, animation: false, maintainAspectRatio: false,
+      color: ST.text,
       plugins: {
-        legend: { display: !!legendPos, position: legendPos || 'right', labels: { boxWidth: 10, font: { ...font, size: 11 } } },
-        title: { display: !!model.title, text: model.title || '', font: { ...font, size: 14, weight: 'normal' }, color: '#595959' },
+        legend: {
+          display: !!legendPos, position: legendPos || 'right',
+          reverse: legendReversed,
+          // symbols as in Excel: a line for lines, a square for bars, areas and pie slices
+          labels: {
+            usePointStyle: true, pointStyle: pieLike || varyLegend ? 'rect' : undefined, boxWidth: 8, boxHeight: 8, color: ST.text, font: text,
+            sort: (a, b) => (a.datasetIndex - b.datasetIndex) || (a.index - b.index),
+            // varied colors: one entry per category, like a pie
+            ...(varyLegend ? { generateLabels: (ch) => ch.data.labels.map((l, k) => { const c = [].concat(ch.data.datasets[0]?.backgroundColor || [])[k] || pal[k % pal.length]; return { text: String(l), fillStyle: c, strokeStyle: c, lineWidth: 0, pointStyle: 'rect', datasetIndex: 0, index: k, fontColor: ST.text }; }) } : {}),
+          },
+        },
+        title: { display: !!model.title, text: model.title || '', font: { family, size: ST.titlePt * PX, weight: 'normal' }, color: ST.text },
         tooltip: { callbacks: pct ? { label: (c) => `${c.dataset.label}: ${c.parsed.y?.toFixed?.(1) ?? c.parsed.x?.toFixed?.(1)}%` } : {} },
       },
-      layout: { padding: 6 },
+      layout: { padding: 8 },
     };
     if (!pieLike && t !== 'radar') {
-      const valAxis = { stacked, beginAtZero: true, grid: { color: '#d9d9d9' }, ticks: { font: { ...font, size: 10 } }, title: { display: !!(horizontal ? model.xTitle : model.yTitle), text: (horizontal ? model.xTitle : model.yTitle) || '' } };
-      const catAxis = { stacked, grid: { display: false }, ticks: { font: { ...font, size: 10 } }, title: { display: !!(horizontal ? model.yTitle : model.xTitle), text: (horizontal ? model.yTitle : model.xTitle) || '' } };
+      const axisTitle = (s) => ({ display: !!s, text: s || '', color: ST.text, font: { family, size: 10 * PX } });
+      // value axis: light gridlines, no axis line; category axis: light axis line, no gridlines
+      const valAxis = { stacked, beginAtZero: true, grid: { color: ST.line, lineWidth: 0.75 * PX, drawTicks: false }, border: { display: false }, ticks: { color: ST.text, font: text, padding: 6 }, title: axisTitle(horizontal ? model.xTitle : model.yTitle) };
+      const catAxis = { stacked, grid: { display: false, drawTicks: false }, border: { display: true, color: ST.line, width: 0.75 * PX }, ticks: { color: ST.text, font: text, padding: 6 }, title: axisTitle(horizontal ? model.yTitle : model.xTitle) };
       if (pct) valAxis.max = 100;
-      if (t === 'scatter') { catAxis.type = 'linear'; catAxis.grid = { color: '#eee' }; }
+      if (t === 'scatter') { catAxis.type = 'linear'; catAxis.grid = { color: ST.line, lineWidth: 0.75 * PX, drawTicks: false }; }
       opts.scales = horizontal ? { x: valAxis, y: catAxis } : { x: catAxis, y: valAxis };
-      if (horizontal) opts.indexAxis = 'y';
+      if (horizontal) { opts.indexAxis = 'y'; catAxis.reverse = true; }
     }
+    if (t === 'radar') opts.scales = { r: { grid: { color: ST.line }, angleLines: { color: ST.line }, pointLabels: { color: ST.text, font: text }, ticks: { color: ST.text, font: text, backdropColor: 'transparent' } } };
     return { type: ctype, data: { labels, datasets }, options: opts };
   }
 

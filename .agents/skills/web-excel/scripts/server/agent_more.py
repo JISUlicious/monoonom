@@ -240,8 +240,10 @@ def op_chart_update(ctx, e):
     for k in ("title", "legend", "xTitle", "yTitle", "grouping", "barDir"):
         if k in st:
             ch[k] = st.pop(k)
+    if "varyColors" in st:
+        ch["varyColors"] = bool(st.pop("varyColors"))
     if st:
-        raise ApiError(400, f"알 수 없는 차트 속성: {', '.join(st)} (type, data, title, legend, xTitle, yTitle, at, width, height, grouping, barDir)")
+        raise ApiError(400, f"알 수 없는 차트 속성: {', '.join(st)} (type, data, title, legend, xTitle, yTitle, at, width, height, grouping, barDir, varyColors)")
     ch["dirty"] = True
     if move_to is not None:
         ch["orig"] = None  # rebuilt on save: it no longer belongs to the original sheet's drawing

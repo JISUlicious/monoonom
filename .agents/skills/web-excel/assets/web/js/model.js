@@ -436,6 +436,8 @@ export class Workbook {
     wb.basePath = j.path || null;
     wb.definedNames = j.definedNames || {};
     wb.defaultFont = j.defaultFont || wb.defaultFont;
+    wb.themeColors = j.themeColors || null; // chart series colors (accent1-6) of this workbook
+    wb.chartStyle = j.chartStyle || null;   // the style saved charts get (server/chart_style.py)
     wb.warnings = j.warnings || [];
     if (j.docId) wb.docId = j.docId;
     const styles = (j.styles || []).map(internStyle);
