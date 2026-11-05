@@ -88,6 +88,7 @@ without clients. Use `xl.py stop` only on request (it refuses while there are un
 | Charts | `xl.py chart add 'A1:C13' --type line --title 'Monthly' --at H2`, `chart set ID --title … --to-type bar --data A1:D13`, `chart ls`, `chart rm ID` |
 | Preview URL (with token) | `xl.py url` |
 | Show the user something | `xl.py goto 'Sheet2!B10'` (moves the preview), `xl.py view --zoom 150 --formulas` |
+| Follow mode | The preview follows your edits to their sheet and cells by default (`xl.py view --follow on\|off`); when off, your cells are only outlined |
 | History / undo | `xl.py changes --since 0`, `xl.py undo BATCH` |
 
 Tables do not have to start at A1. Give filter/sort/chart/dedupe a single cell or whole columns and

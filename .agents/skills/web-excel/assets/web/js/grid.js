@@ -447,8 +447,21 @@ export class Grid {
       ctx.strokeStyle = h.color; ctx.lineWidth = 2 / m.z; ctx.setLineDash([]);
       ctx.strokeRect(x + 1 / m.z, y + 1 / m.z, w - 2 / m.z, hh - 2 / m.z);
     }
-    // cells changed by another client (agent / other window) flash briefly
+    // cells the agent changed recently: outline + label, fading out (both follow modes)
     const now = performance.now();
+    const marks = (this.app.doc?.agentMarks || []).filter((f) => f.sheet === m.sh && f.until >= now);
+    for (const f of marks) {
+      const [fx, fy, fw, fh] = rectOf(f);
+      const a = Math.min(1, (f.until - now) / 2000);
+      ctx.strokeStyle = `rgba(124,58,237,${a})`; ctx.lineWidth = 2 / m.z; ctx.setLineDash([]);
+      ctx.strokeRect(fx + 1 / m.z, fy + 1 / m.z, fw - 2 / m.z, fh - 2 / m.z);
+      if (f !== marks[marks.length - 1]) continue; // label only the latest one: labels would cover cells
+      ctx.font = `${10 / m.z}px system-ui, sans-serif`;
+      const lw = ctx.measureText('에이전트').width + 6 / m.z, lh = 13 / m.z;
+      ctx.fillStyle = `rgba(124,58,237,${a})`; ctx.fillRect(fx, fy - lh, lw, lh);
+      ctx.fillStyle = `rgba(255,255,255,${a})`; ctx.fillText('에이전트', fx + 3 / m.z, fy - 3 / m.z);
+    }
+    // cells changed by another client (agent / other window) flash briefly
     for (const f of this.flashes || []) {
       if (f.sheet !== m.sh || f.until < now) continue;
       const [fx, fy, fw, fh] = rectOf(f);

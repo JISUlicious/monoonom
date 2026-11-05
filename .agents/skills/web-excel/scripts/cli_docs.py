@@ -429,6 +429,8 @@ def cmd_view(args):
         body["zoom"] = args.zoom / 100
     if args.formulas is not None:
         body["showFormulas"] = args.formulas
+    if args.follow:
+        body["follow"] = args.follow == "on"
     res = request(st, "POST", f"/api/docs/{d['docId']}/view", body)
     print("미리보기 표시 설정 적용" + ("" if res["clients"] else " (열린 미리보기 창 없음)"))
     return 0
@@ -577,6 +579,7 @@ def register(sub):
     p = add("goto", cmd_goto, "사용자 미리보기를 시트/범위로 이동"); p.add_argument("range"); p.add_argument("--sheet")
     p = add("view", cmd_view, "미리보기 표시: --zoom 150, --formulas/--no-formulas", json_=False); p.add_argument("--zoom", type=int)
     p.add_argument("--formulas", dest="formulas", action="store_true", default=None); p.add_argument("--no-formulas", dest="formulas", action="store_false")
+    p.add_argument("--follow", choices=["on", "off"], help="미리보기가 에이전트 작업 위치를 따라갈지")
     p = add("apply", cmd_apply, "편집 목록(JSON 파일/-)을 한 번에 적용"); p.add_argument("file"); p.add_argument("--label")
     p = add("changes", cmd_changes, "변경 이력(사용자/에이전트)"); p.add_argument("--since", type=int, default=0); p.add_argument("--actor", choices=["user", "agent"])
     add("selection", cmd_selection, "사용자가 미리보기에서 선택 중인 범위")

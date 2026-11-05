@@ -3,6 +3,7 @@
 최신 항목이 위에 온다.
 
 - 2026-11-05: `chart set/rm`이 다른 시트의 차트에서 404 나던 버그 수정(활성 시트만 찾던 문제), `--at '시트!셀'` 지원과 500 오류 수정, 시트 간 차트 이동 (→ docs/skill-implementation.md)
+- 2026-11-05: 함수 인자 힌트(218개 전부, 반복 인자 이름, 설명), 에이전트 따라가기 켬/끔(상태 표시줄, `xl.py view --follow`), 에이전트 작업 셀 강조와 시트 탭 표시 (→ docs/skill-implementation.md)
 - 2026-11-04: 입력 UX 수정 — 셀 클릭 후 바로 입력되지 않던 문제, 첫 열 고정 상태 가로 스크롤 시 내용 겹침, 수식 편집 중 Shift+클릭(범위 확장)·Ctrl+클릭(참조 추가) (→ docs/skill-implementation.md)
 - 2026-11-04: 미리보기 탭 표시 정리 — 에이전트가 연(다시 연) 파일을 항상 표시, 새로 고침·새 창은 보던/최근 문서를 표시, 빈 통합 문서 자동 생성 대신 시작 화면, 화면에 없는 문서의 변경을 탭에 표시 (→ docs/skill-implementation.md)
 - 2026-11-04: 토큰 포함 주소 지시 강화 — SKILL.md 'Preview URL' 항목, `xl.py url`, serve/open/status 출력 안내, 토큰 없이 열면 화면 패널, 평가 시나리오 추가 (→ docs/skill-implementation.md)
