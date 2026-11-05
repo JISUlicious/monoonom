@@ -68,6 +68,27 @@ wb.save(${JSON.stringify(path.join(ws, 'old.xlsx'))})
       return a.charts.config(m, d.wb.sheet).data.datasets[0].backgroundColor;
     });
     check('one-color pie: preview draws every slice in its color', onePie.every((x) => x === '#C00000'), JSON.stringify(onePie));
+    // legends: symbols and order as Excel draws them
+    const lg = await p.evaluate(() => {
+      const a = window.webExcel, d = a.docs.find((x) => x.wb.name.startsWith('fresh')), sh = d.wb.sheet;
+      const S = [{ val: 'Sheet1!$B$2:$B$5', name: 'A' }, { val: 'Sheet1!$C$2:$C$5', name: 'B' }, { val: 'Sheet1!$D$2:$D$5', name: 'C' }];
+      const cfg = (m) => a.charts.config({ series: S, ...m }, sh);
+      const order = (c) => { const ds = c.data.datasets.map((x) => x.label); return c.options.plugins.legend.reverse ? ds.reverse() : ds; };
+      const line = cfg({ type: 'line', legend: 'b' }), pie = cfg({ type: 'pie', legend: 'r', series: [S[0]] });
+      return {
+        lineSymbol: line.data.datasets[0].pointStyle, pieSymbol: pie.options.plugins.legend.labels.pointStyle,
+        stackedRight: order(cfg({ type: 'bar', grouping: 'stacked', legend: 'r' })), stackedBottom: order(cfg({ type: 'bar', grouping: 'stacked', legend: 'b' })),
+        clusteredRight: order(cfg({ type: 'bar', legend: 'r' })),
+        barHRight: order(cfg({ type: 'bar', barDir: 'bar', legend: 'r' })), barHBottom: order(cfg({ type: 'bar', barDir: 'bar', legend: 'b' })),
+        barHGroupTopDown: cfg({ type: 'bar', barDir: 'bar', legend: 'r' }).data.datasets.map((x) => x.label),
+        barHCatReversed: cfg({ type: 'bar', barDir: 'bar', legend: 'r' }).options.scales.y.reverse === true,
+      };
+    });
+    check('legend symbols: a line for line series, a square for pie slices', lg.lineSymbol === 'line' && lg.pieSymbol === 'rect', JSON.stringify(lg));
+    check('stacked columns: side legend bottom-up (C,B,A), bottom legend A,B,C', lg.stackedRight.join() === 'C,B,A' && lg.stackedBottom.join() === 'A,B,C', JSON.stringify([lg.stackedRight, lg.stackedBottom]));
+    check('clustered columns: side legend A,B,C', lg.clusteredRight.join() === 'A,B,C', lg.clusteredRight.join());
+    check('horizontal bars: first category and first series at the bottom; side legend C,B,A, bottom legend A,B,C',
+      lg.barHCatReversed && lg.barHGroupTopDown.join() === 'C,B,A' && lg.barHRight.join() === 'C,B,A' && lg.barHBottom.join() === 'A,B,C', JSON.stringify(lg));
     c = await cfgs('old');
     const colored = c.find((x) => x.title === 'colored'), slices = c.find((x) => x.title === 'slices');
     check('chart with its own colors: first series C00000, second from the workbook theme (Office 2007 accent2)', JSON.stringify(colored.colors) === JSON.stringify(['#C00000', '#C0504D']), JSON.stringify(colored.colors));

@@ -104,7 +104,7 @@ export class ChartLayer {
       const s = series[0] || { values: [], name: '' };
       // a pie with varyColors=0 in the file is one color; otherwise one per slice
       const one = model.varyColors === false ? (s.color || pal[0]) : null;
-      datasets = [{ label: s.name, data: s.values, backgroundColor: s.values.map((_, i) => one || s.pointColors?.[i] || pal[i % pal.length]), borderColor: '#fff', borderWidth: ST.pieBorderPt * PX }];
+      datasets = [{ label: s.name, data: s.values, backgroundColor: s.values.map((_, i) => one || s.pointColors?.[i] || pal[i % pal.length]), borderColor: '#fff', borderWidth: ST.pieBorderPt * PX, pointStyle: 'rect' }];
     } else {
       const totals = pct ? labels.map((_, i) => series.reduce((a, s) => a + Math.abs(s.values[i] || 0), 0)) : null;
       // Excel column spacing: gap width and overlap are % of one bar's width
@@ -118,15 +118,23 @@ export class ChartLayer {
         const base = { label: s.name, backgroundColor: color, borderColor: color };
         let data = pct ? s.values.map((v, j) => (totals[j] ? (100 * (v || 0)) / totals[j] : 0)) : s.values;
         const r = (ST.scatterMarker * PX) / 2;
-        if (t === 'scatter') return { ...base, type: 'scatter', data: s.values.map((y, j) => ({ x: s.cats ? s.cats[j] : j + 1, y })), pointRadius: r, pointHoverRadius: r + 2, showLine: false };
+        if (t === 'scatter') return { ...base, type: 'scatter', data: s.values.map((y, j) => ({ x: s.cats ? s.cats[j] : j + 1, y })), pointRadius: r, pointHoverRadius: r + 2, showLine: false, pointStyle: 'circle' };
         // Excel's default line chart has no markers
-        if (st === 'line') return { ...base, type: 'line', data, fill: false, tension: 0, pointRadius: 0, pointHoverRadius: 4, borderWidth: lineW, borderCapStyle: 'round', order: 0 };
-        if (st === 'area') return { ...base, type: 'line', data, fill: stacked ? (i === 0 ? 'origin' : '-1') : 'origin', pointRadius: 0, borderWidth: 0, tension: 0, order: 1 };
-        if (st === 'radar') return { ...base, type: 'radar', data, backgroundColor: 'transparent', pointRadius: 0, borderWidth: lineW };
-        return { ...base, type: 'bar', data, borderWidth: 0, order: 2, ...barSpacing };
+        if (st === 'line') return { ...base, type: 'line', data, fill: false, tension: 0, pointRadius: 0, pointHoverRadius: 4, borderWidth: lineW, borderCapStyle: 'round', order: 0, pointStyle: 'line' };
+        if (st === 'area') return { ...base, type: 'line', data, fill: stacked ? (i === 0 ? 'origin' : '-1') : 'origin', pointRadius: 0, borderWidth: 0, tension: 0, order: 1, pointStyle: 'rect' };
+        if (st === 'radar') return { ...base, type: 'radar', data, backgroundColor: 'transparent', pointRadius: 0, borderWidth: lineW, pointStyle: 'line' };
+        return { ...base, type: 'bar', data, borderWidth: 0, order: 2, pointStyle: 'rect', ...barSpacing };
       });
     }
+    // horizontal clustered bars: Excel puts the first series at the bottom of each group; Chart.js
+    // places a group's bars top-down in dataset order, so draw the datasets in reverse
+    const flipped = horizontal && !stacked;
+    if (flipped) datasets.reverse();
     const ctype = pieLike ? t : t === 'scatter' ? 'scatter' : t === 'radar' ? 'radar' : t === 'line' || t === 'area' ? 'line' : 'bar';
+    const side = model.legend === 'r' || model.legend === 'l' || model.legend === 'tr';
+    // Excel lists a side legend bottom-up when the series are drawn bottom-up (stacked, horizontal);
+    // the datasets of flipped charts are already in reverse
+    const legendReversed = (side && !pieLike && (stacked || horizontal)) !== flipped;
     const legendPos = { r: 'right', l: 'left', t: 'top', b: 'bottom', tr: 'right' }[model.legend] || null;
     const family = `"${wb?.defaultFont?.name || 'Malgun Gothic'}", "Malgun Gothic", Calibri, sans-serif`;
     const text = { family, size: ST.textPt * PX };
@@ -134,7 +142,12 @@ export class ChartLayer {
       responsive: false, animation: false, maintainAspectRatio: false,
       color: ST.text,
       plugins: {
-        legend: { display: !!legendPos, position: legendPos || 'right', labels: { boxWidth: 8, boxHeight: 8, color: ST.text, font: text } },
+        legend: {
+          display: !!legendPos, position: legendPos || 'right',
+          reverse: legendReversed,
+          // symbols as in Excel: a line for lines, a square for bars, areas and pie slices
+          labels: { usePointStyle: true, pointStyle: pieLike ? 'rect' : undefined, boxWidth: 8, boxHeight: 8, color: ST.text, font: text, sort: (a, b) => (a.datasetIndex - b.datasetIndex) || (a.index - b.index) },
+        },
         title: { display: !!model.title, text: model.title || '', font: { family, size: ST.titlePt * PX, weight: 'normal' }, color: ST.text },
         tooltip: { callbacks: pct ? { label: (c) => `${c.dataset.label}: ${c.parsed.y?.toFixed?.(1) ?? c.parsed.x?.toFixed?.(1)}%` } : {} },
       },
@@ -148,7 +161,7 @@ export class ChartLayer {
       if (pct) valAxis.max = 100;
       if (t === 'scatter') { catAxis.type = 'linear'; catAxis.grid = { color: ST.line, lineWidth: 0.75 * PX, drawTicks: false }; }
       opts.scales = horizontal ? { x: valAxis, y: catAxis } : { x: catAxis, y: valAxis };
-      if (horizontal) opts.indexAxis = 'y';
+      if (horizontal) { opts.indexAxis = 'y'; catAxis.reverse = true; }
     }
     if (t === 'radar') opts.scales = { r: { grid: { color: ST.line }, angleLines: { color: ST.line }, pointLabels: { color: ST.text, font: text }, ticks: { color: ST.text, font: text, backdropColor: 'transparent' } } };
     return { type: ctype, data: { labels, datasets }, options: opts };
