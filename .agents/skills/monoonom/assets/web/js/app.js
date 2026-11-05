@@ -1550,9 +1550,9 @@ class App {
     const list = await this._fonts;
     return list.length ? list : detectFonts(FONT_CANDIDATES);
   }
-  recentFonts() { try { return JSON.parse(localStorage.getItem('webexcel.recentFonts') || '[]'); } catch { return []; } }
+  recentFonts() { try { return JSON.parse(localStorage.getItem('monoonom.recentFonts') || '[]'); } catch { return []; } }
   rememberFont(name) {
-    try { localStorage.setItem('webexcel.recentFonts', JSON.stringify([name, ...this.recentFonts().filter((f) => f !== name)].slice(0, 8))); } catch { /* private mode */ }
+    try { localStorage.setItem('monoonom.recentFonts', JSON.stringify([name, ...this.recentFonts().filter((f) => f !== name)].slice(0, 8))); } catch { /* private mode */ }
   }
 
   fileMenu(anchor) {

@@ -8,7 +8,7 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const XL = path.join(ROOT, '.agents', 'skills', 'web-excel', 'scripts', 'xl.py');
+const XL = path.join(ROOT, '.agents', 'skills', 'monoonom', 'scripts', 'xl.py');
 let fails = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); if (!ok) fails++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -27,8 +27,8 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
     const p = await browser.newPage({ viewport: { width: 1300, height: 800 } });
     p.on('pageerror', (e) => errors.push(e.message));
     await p.goto(xl('url', '--bare').trim());
-    await p.waitForFunction(() => window.webExcel?.doc?.sync); await sleep(300);
-    await p.evaluate(() => { const a = window.webExcel; a.select(1, 1); a.focusGrid(); });
+    await p.waitForFunction(() => window.monoonom?.doc?.sync); await sleep(300);
+    await p.evaluate(() => { const a = window.monoonom; a.select(1, 1); a.focusGrid(); });
     const pop = () => p.evaluate(() => { const el = document.querySelector('.combo-pop'); return el ? { groups: [...el.querySelectorAll('.combo-group')].map((g) => g.textContent), items: [...el.querySelectorAll('.combo-item')].map((i) => i.textContent), current: el.querySelector('.combo-item.current')?.textContent || null } : null; });
     // font: the button opens everything, though the box says "Calibri"
     const before = await p.inputValue('#font-name');
@@ -42,7 +42,7 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
     r = await pop();
     check('typing narrows the list', r && r.items.length >= 1 && r.items.length < sys.fonts.length && r.items.every((x) => x.toLowerCase().includes(some.name.slice(0, 4).toLowerCase())), JSON.stringify(r && r.items.slice(0, 5)));
     await p.click(`.combo-pop .combo-item >> text="${some.name}"`); await sleep(300);
-    const ff = await p.evaluate(() => window.webExcel.doc.wb.sheet.get(1, 1)?.s?.ff);
+    const ff = await p.evaluate(() => window.monoonom.doc.wb.sheet.get(1, 1)?.s?.ff);
     check('clicking a font sets it on the selected cell', ff === some.name, String(ff));
     await p.click('#font-name + .combo-btn'); await sleep(300);
     r = await pop();
@@ -54,21 +54,21 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
     r = await pop();
     check('size list: all 16 standard sizes, current 11 marked', r && r.items.length === 16 && r.items[0] === '8' && r.items[15] === '72' && r.current === '11', JSON.stringify(r));
     await p.click('.combo-pop .combo-item >> text="14"'); await sleep(200);
-    check('picking 14 sets the size', (await p.evaluate(() => window.webExcel.doc.wb.sheet.get(1, 1)?.s?.fs)) === 14);
+    check('picking 14 sets the size', (await p.evaluate(() => window.monoonom.doc.wb.sheet.get(1, 1)?.s?.fs)) === 14);
     await p.fill('#font-size', '10.3'); await p.keyboard.press('Enter'); await sleep(200);
-    check('typing 10.3 gives 10.5 (0.5 steps)', (await p.evaluate(() => window.webExcel.doc.wb.sheet.get(1, 1)?.s?.fs)) === 10.5);
+    check('typing 10.3 gives 10.5 (0.5 steps)', (await p.evaluate(() => window.monoonom.doc.wb.sheet.get(1, 1)?.s?.fs)) === 10.5);
     await p.fill('#font-size', '500'); await p.keyboard.press('Enter'); await sleep(200);
     const toast = await p.evaluate(() => [...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' | '));
-    check('typing 500 is refused with one message; the size stays', (await p.evaluate(() => window.webExcel.doc.wb.sheet.get(1, 1)?.s?.fs)) === 10.5 && (toast.match(/1에서 409/g) || []).length === 1, toast);
+    check('typing 500 is refused with one message; the size stays', (await p.evaluate(() => window.monoonom.doc.wb.sheet.get(1, 1)?.s?.fs)) === 10.5 && (toast.match(/1에서 409/g) || []).length === 1, toast);
     // keyboard: ArrowDown opens, arrows move, Enter picks
     await p.click('#font-size'); await p.keyboard.press('ArrowDown'); await sleep(150);
     await p.keyboard.press('ArrowDown'); await p.keyboard.press('Enter'); await sleep(200);
-    const kb = await p.evaluate(() => window.webExcel.doc.wb.sheet.get(1, 1)?.s?.fs);
+    const kb = await p.evaluate(() => window.monoonom.doc.wb.sheet.get(1, 1)?.s?.fs);
     check('keyboard: ArrowDown opens, ArrowDown moves past the current size, Enter picks it', kb === 11, String(kb));
     // the agent sees it
     check('agent reads the style', /"ff": "[^"]+"/.test(xl('read', 'B2', '--what', 'all', '--json')));
     // Format Cells dialog: the font field is the same picker
-    await p.evaluate(() => window.webExcel.exec('formatCells'));
+    await p.evaluate(() => window.monoonom.exec('formatCells'));
     await p.waitForSelector('.fmt-dialog [data-tab="font"]');
     await p.click('.fmt-dialog [data-tab="font"]'); await sleep(150);
     await p.click('.fmt-dialog .combo-btn'); await sleep(300);
