@@ -1,0 +1,1 @@
+../../../.agents/skills/monoonom/THIRD_PARTY_NOTICES.md

@@ -1,6 +1,6 @@
 """Charts look the same in the preview and in Excel: python3 tests/chart_style.test.py
 
-Charts web-excel creates or edits are saved with explicit formatting from server/chart_style.py
+Charts monoonom creates or edits are saved with explicit formatting from server/chart_style.py
 (Excel 2016+ default look), colors come from the workbook's theme or the chart's own colors, and new
 workbooks get the Office 2013-2022 theme instead of openpyxl's Office 2007 one.
 """
@@ -14,7 +14,7 @@ import tempfile
 import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SK = os.path.join(ROOT, ".agents", "skills", "web-excel", "scripts")
+SK = os.path.join(ROOT, ".agents", "skills", "monoonom", "scripts")
 XL = os.path.join(SK, "xl.py")
 sys.path.insert(0, SK)
 from openpyxl import Workbook  # noqa: E402

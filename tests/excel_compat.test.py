@@ -1,4 +1,4 @@
-"""Formulas saved by web-excel open and calculate the same in another spreadsheet engine.
+"""Formulas saved by monoonom open and calculate the same in another spreadsheet engine.
 
     python3 tests/excel_compat.test.py        (needs LibreOffice `soffice` and Node.js)
 
@@ -17,7 +17,7 @@ import tempfile
 import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SK = os.path.join(ROOT, ".agents", "skills", "web-excel")
+SK = os.path.join(ROOT, ".agents", "skills", "monoonom")
 sys.path.insert(0, os.path.join(SK, "scripts"))
 from openpyxl import load_workbook  # noqa: E402
 from server.app import write_workbook  # noqa: E402

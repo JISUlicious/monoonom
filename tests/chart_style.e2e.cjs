@@ -8,7 +8,7 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const XL = path.join(ROOT, '.agents', 'skills', 'web-excel', 'scripts', 'xl.py');
+const XL = path.join(ROOT, '.agents', 'skills', 'monoonom', 'scripts', 'xl.py');
 let fails = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); if (!ok) fails++; };
 const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'wx-cstyle-'));
@@ -41,9 +41,9 @@ wb.save(${JSON.stringify(path.join(ws, 'old.xlsx'))})
     const p = await browser.newPage({ viewport: { width: 1200, height: 700 } });
     p.on('pageerror', (e) => errors.push(e.message));
     await p.goto(xl('url', '--bare').trim());
-    await p.waitForFunction(() => window.webExcel?.docs?.length === 2);
+    await p.waitForFunction(() => window.monoonom?.docs?.length === 2);
     const cfgs = (name) => p.evaluate((n) => {
-      const a = window.webExcel, d = a.docs.find((x) => x.wb.name.startsWith(n));
+      const a = window.monoonom, d = a.docs.find((x) => x.wb.name.startsWith(n));
       a.activateDoc(a.docs.indexOf(d));
       return d.wb.sheet.charts.map((m) => { const c = a.charts.config(m, d.wb.sheet); return { title: m.title, type: c.type, colors: c.data.datasets.map((ds) => ds.backgroundColor), ds: c.data.datasets.map((ds) => ({ pr: ds.pointRadius, bw: ds.borderWidth, cat: ds.categoryPercentage, bar: ds.barPercentage })), titleSize: c.options.plugins.title.font.size, titleColor: c.options.plugins.title.color, tick: c.options.scales?.y?.ticks?.color, grid: c.options.scales?.y?.grid?.color }; });
     }, name);
@@ -57,20 +57,20 @@ wb.save(${JSON.stringify(path.join(ws, 'old.xlsx'))})
 
     // combo chart: B as a line between two bars keeps the color of its position
     const combo = await p.evaluate(() => {
-      const a = window.webExcel, d = a.docs.find((x) => x.wb.name.startsWith('fresh'));
+      const a = window.monoonom, d = a.docs.find((x) => x.wb.name.startsWith('fresh'));
       const m = { type: 'bar', series: [{ val: 'Sheet1!$B$2:$B$5', name: 'A' }, { val: 'Sheet1!$C$2:$C$5', name: 'B', type: 'line' }, { val: 'Sheet1!$D$2:$D$5', name: 'C' }] };
       return a.charts.config(m, d.wb.sheet).data.datasets.map((ds) => ds.backgroundColor);
     });
     check('combo: preview colors by series position (= saved file)', JSON.stringify(combo) === JSON.stringify(['#4472C4', '#ED7D31', '#A5A5A5']), JSON.stringify(combo));
     const onePie = await p.evaluate(() => {
-      const a = window.webExcel, d = a.docs.find((x) => x.wb.name.startsWith('fresh'));
+      const a = window.monoonom, d = a.docs.find((x) => x.wb.name.startsWith('fresh'));
       const m = { type: 'pie', varyColors: false, series: [{ val: 'Sheet1!$B$2:$B$5', color: '#C00000' }] };
       return a.charts.config(m, d.wb.sheet).data.datasets[0].backgroundColor;
     });
     check('one-color pie: preview draws every slice in its color', onePie.every((x) => x === '#C00000'), JSON.stringify(onePie));
     // legends: symbols and order as Excel draws them
     const lg = await p.evaluate(() => {
-      const a = window.webExcel, d = a.docs.find((x) => x.wb.name.startsWith('fresh')), sh = d.wb.sheet;
+      const a = window.monoonom, d = a.docs.find((x) => x.wb.name.startsWith('fresh')), sh = d.wb.sheet;
       const S = [{ val: 'Sheet1!$B$2:$B$5', name: 'A' }, { val: 'Sheet1!$C$2:$C$5', name: 'B' }, { val: 'Sheet1!$D$2:$D$5', name: 'C' }];
       const cfg = (m) => a.charts.config({ series: S, ...m }, sh);
       const order = (c) => { const ds = c.data.datasets.map((x) => x.label); return c.options.plugins.legend.reverse ? ds.reverse() : ds; };
@@ -91,7 +91,7 @@ wb.save(${JSON.stringify(path.join(ws, 'old.xlsx'))})
       lg.barHCatReversed && lg.barHGroupTopDown.join() === 'C,B,A' && lg.barHRight.join() === 'C,B,A' && lg.barHBottom.join() === 'A,B,C', JSON.stringify(lg));
     // one series: legend = the series name unless "vary colors by point" is on (then categories, colored bars)
     const vary = await p.evaluate(() => {
-      const a = window.webExcel, d = a.docs.find((x) => x.wb.name.startsWith('fresh')), sh = d.wb.sheet;
+      const a = window.monoonom, d = a.docs.find((x) => x.wb.name.startsWith('fresh')), sh = d.wb.sheet;
       const one = [{ val: 'Sheet1!$B$2:$B$5', cat: 'Sheet1!$A$2:$A$5', name: '값' }];
       const legend = (c) => { const ch = { data: c.data }; const gl = c.options.plugins.legend.labels.generateLabels; return gl ? gl(ch).map((x) => x.text) : c.data.datasets.map((x) => x.label); };
       const off = a.charts.config({ type: 'bar', legend: 'r', series: one }, sh), on = a.charts.config({ type: 'bar', legend: 'r', varyColors: true, series: one }, sh);
@@ -101,7 +101,7 @@ wb.save(${JSON.stringify(path.join(ws, 'old.xlsx'))})
     check('one series, varyColors on: a color per bar, legend = categories (as Excel)', vary.onLegend.join() === '1월,2월,3월,4월' && vary.onColors.slice(0, 2).join() === '#4472C4,#ED7D31', JSON.stringify(vary));
     // scatter: text X values -> Excel plots X = 1, 2, 3 (points must not vanish); numeric X kept
     const sc = await p.evaluate(() => {
-      const a = window.webExcel, d = a.docs.find((x) => x.wb.name.startsWith('fresh')), sh = d.wb.sheet;
+      const a = window.monoonom, d = a.docs.find((x) => x.wb.name.startsWith('fresh')), sh = d.wb.sheet;
       const pts = (cat) => a.charts.config({ type: 'scatter', series: [{ val: 'Sheet1!$B$2:$B$5', cat }] }, sh).data.datasets[0].data;
       return { text: pts('Sheet1!$A$2:$A$5'), num: pts('Sheet1!$C$2:$C$5'), none: pts(null) };
     });

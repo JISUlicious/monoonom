@@ -1,4 +1,4 @@
-# web-excel 문서 색인
+# monoonom 문서 색인
 
 ## 기본 문서
 
@@ -14,11 +14,11 @@
 
 ## Agent Skill
 
-- [.agents/skills/web-excel/](.agents/skills/web-excel/) — skill 패키지 원본 (`SKILL.md`, `scripts/xl.py`, `assets/web/`, `references/`)
-- [.agents/skills/web-excel/references/cli.md](.agents/skills/web-excel/references/cli.md) — 에이전트 CLI 전체 명령
-- [.agents/skills/web-excel/references/edits.md](.agents/skills/web-excel/references/edits.md) — 일괄 편집(JSON) 형식
-- [.claude/skills/web-excel](.claude/skills/web-excel) — Claude Code용 심볼릭 링크
-- [.agents/skills/web-excel/evals/](.agents/skills/web-excel/evals/) — 평가 시나리오·트리거 질문 (패키징 제외)
+- [.agents/skills/monoonom/](.agents/skills/monoonom/) — skill 패키지 원본 (`SKILL.md`, `scripts/xl.py`, `assets/web/`, `references/`)
+- [.agents/skills/monoonom/references/cli.md](.agents/skills/monoonom/references/cli.md) — 에이전트 CLI 전체 명령
+- [.agents/skills/monoonom/references/edits.md](.agents/skills/monoonom/references/edits.md) — 일괄 편집(JSON) 형식
+- [.claude/skills/monoonom](.claude/skills/monoonom) — Claude Code용 심볼릭 링크
+- [.agents/skills/monoonom/evals/](.agents/skills/monoonom/evals/) — 평가 시나리오·트리거 질문 (패키징 제외)
 - [tools/build_claude_code_skill.py](tools/build_claude_code_skill.py) — SKILL.md에서 Claude Code판 생성
 
 ## tests/

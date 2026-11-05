@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const XL = path.join(ROOT, '.agents', 'skills', 'web-excel', 'scripts', 'xl.py');
+const XL = path.join(ROOT, '.agents', 'skills', 'monoonom', 'scripts', 'xl.py');
 const OUT = path.join(ROOT, 'tests', 'out');
 const BASE = 'http://localhost:8765';
 let fails = 0;
@@ -15,8 +15,8 @@ const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} $
 const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ROOT], { encoding: 'utf8' });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const closeAll = () => { for (const d of JSON.parse(xl('docs', '--json'))) xl('close', '--doc', d.docId, '--force'); };
-const names = (page) => page.evaluate(() => window.webExcel.docs.map((d) => d.wb.name));
-const active = (page) => page.evaluate(() => window.webExcel.doc.wb.name);
+const names = (page) => page.evaluate(() => window.monoonom.docs.map((d) => d.wb.name));
+const active = (page) => page.evaluate(() => window.monoonom.doc.wb.name);
 
 /** Load the page with its first /api/docs answer taken now but delivered after `during()` ran. */
 async function loadWithStaleList(browser, url, during) {
@@ -28,13 +28,13 @@ async function loadWithStaleList(browser, url, during) {
     if (held || route.request().method() !== 'GET') return route.continue();
     held = true;
     const res = await route.fetch();       // the list as it is now
-    await page.waitForFunction(() => window.webExcel?.stream?.ready, null, { timeout: 5000 }); // stream connected
+    await page.waitForFunction(() => window.monoonom?.stream?.ready, null, { timeout: 5000 }); // stream connected
     await during();                        // the agent opens documents meanwhile -> 'opened' events
     await sleep(300);
     await route.fulfill({ response: res }); // start() now sees the stale list
   });
   await page.goto(BASE + url);
-  await page.waitForFunction(() => window.webExcel?.started, null, { timeout: 10000 });
+  await page.waitForFunction(() => window.monoonom?.started, null, { timeout: 10000 });
   await sleep(500);
   return { page, errors };
 }
@@ -71,11 +71,11 @@ async function loadWithStaleList(browser, url, during) {
   check('no page errors (3)', errors.length === 0, errors.join('; '));
 
   // 4) stream down while the agent closes one document and opens another: reconnect catches up
-  await page.evaluate(() => window.webExcel.stream.es.close());
+  await page.evaluate(() => window.monoonom.stream.es.close());
   xl('close', '--doc', 'start-c.xlsx', '--force');
   xl('open', 'tests/out/start-b.xlsx');
-  await page.evaluate(() => window.webExcel.stream.open());
-  await page.waitForFunction(() => window.webExcel.docs.some((d) => d.wb.name === 'start-b.xlsx') && !window.webExcel.docs.some((d) => d.wb.name === 'start-c.xlsx'), null, { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => window.monoonom.stream.open());
+  await page.waitForFunction(() => window.monoonom.docs.some((d) => d.wb.name === 'start-b.xlsx') && !window.monoonom.docs.some((d) => d.wb.name === 'start-c.xlsx'), null, { timeout: 5000 }).catch(() => {});
   n = await names(page);
   check('reconnect: document opened while down is added', n.includes('start-b.xlsx'), JSON.stringify(n));
   check('reconnect: document closed while down loses its tab', !n.includes('start-c.xlsx'), JSON.stringify(n));

@@ -11,7 +11,7 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-XL = os.path.join(ROOT, ".agents", "skills", "web-excel", "scripts", "xl.py")
+XL = os.path.join(ROOT, ".agents", "skills", "monoonom", "scripts", "xl.py")
 fails = 0
 
 

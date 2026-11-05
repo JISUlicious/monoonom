@@ -8,7 +8,7 @@ const path = require('path');
 const http = require('http');
 
 const ROOT = path.resolve(__dirname, '..');
-const XL = path.join(ROOT, '.agents', 'skills', 'web-excel', 'scripts', 'xl.py');
+const XL = path.join(ROOT, '.agents', 'skills', 'monoonom', 'scripts', 'xl.py');
 let fails = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); if (!ok) fails++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -18,7 +18,7 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
 
 /** viewport point of the centre of cell (r, c), for real mouse clicks */
 async function cellPoint(page, frame, r, c) {
-  const pt = await frame.evaluate(([r, c]) => { const g = window.webExcel.grid; const h = g.host.getBoundingClientRect(); const rc = g.cellRect(r, c); return { x: h.left + rc.x + rc.w / 2, y: h.top + rc.y + rc.h / 2 }; }, [r, c]);
+  const pt = await frame.evaluate(([r, c]) => { const g = window.monoonom.grid; const h = g.host.getBoundingClientRect(); const rc = g.cellRect(r, c); return { x: h.left + rc.x + rc.w / 2, y: h.top + rc.y + rc.h / 2 }; }, [r, c]);
   if (frame === page.mainFrame()) return pt;
   const off = await page.evaluate(() => { const b = document.querySelector('iframe').getBoundingClientRect(); return { x: b.left, y: b.top }; });
   return { x: pt.x + off.x, y: pt.y + off.y };
@@ -29,8 +29,8 @@ const clickCell = async (page, frame, r, c, mods = []) => {
   await page.mouse.click(p.x, p.y);
   for (const k of mods) await page.keyboard.up(k);
 };
-const cellOf = (frame, r, c) => frame.evaluate(([r, c]) => window.webExcel.doc.wb.sheet.get(r, c), [r, c]);
-const edText = (frame) => frame.evaluate(() => window.webExcel.editor.ta.value);
+const cellOf = (frame, r, c) => frame.evaluate(([r, c]) => window.monoonom.doc.wb.sheet.get(r, c), [r, c]);
+const edText = (frame) => frame.evaluate(() => window.monoonom.editor.ta.value);
 
 (async () => {
   xl('serve', '--port', '8788'); xl('open', 'a.xlsx');
@@ -47,12 +47,12 @@ const edText = (frame) => frame.evaluate(() => window.webExcel.editor.ta.value);
       let f;
       if (mode === 'top-level') { await page.goto(url); f = page.mainFrame(); }
       else { await page.goto('http://127.0.0.1:8789/'); await page.focus('#chat'); await sleep(300); f = page.frames().find((x) => x.url().startsWith('http://localhost')); }
-      await f.waitForFunction(() => window.webExcel?.doc?.sync); await sleep(300);
+      await f.waitForFunction(() => window.monoonom?.doc?.sync); await sleep(300);
       await clickCell(page, f, 12, 1);
       await page.keyboard.type(mode === 'iframe' ? '42' : '41'); await page.keyboard.press('Enter');
       await sleep(200);
       check(`${mode}: one click then typing enters the cell`, (await cellOf(f, 12, 1))?.v === (mode === 'iframe' ? 42 : 41), JSON.stringify(await cellOf(f, 12, 1)));
-      check(`${mode}: focus is in the cell input after the click`, await f.evaluate(() => document.activeElement === window.webExcel.editor.ta));
+      check(`${mode}: focus is in the cell input after the click`, await f.evaluate(() => document.activeElement === window.monoonom.editor.ta));
       if (mode === 'iframe') check('iframe: keys did not go to the host page', (await page.evaluate(() => document.querySelector('#chat').value)) === '');
       await page.close();
     }
@@ -61,14 +61,14 @@ const edText = (frame) => frame.evaluate(() => window.webExcel.editor.ta.value);
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(url);
     const f = page.mainFrame();
-    await f.waitForFunction(() => window.webExcel?.doc?.sync); await sleep(300);
+    await f.waitForFunction(() => window.monoonom?.doc?.sync); await sleep(300);
 
     // 2) frozen first column + horizontal scroll: no text of scrolled columns drawn in the frozen pane
     xl('write', 'C25', '셋째 열의 아주 긴 텍스트가 옆 칸으로 넘칩니다', '--doc', 'a.xlsx');
     await sleep(400);
-    await page.evaluate(() => window.webExcel.exec('freezeCol'));
+    await page.evaluate(() => window.monoonom.exec('freezeCol'));
     const crossings = await page.evaluate(async () => {
-      const g = window.webExcel.grid, m0 = g.metrics();
+      const g = window.monoonom.grid, m0 = g.metrics();
       const origRegion = g.drawRegion.bind(g), origText = g.drawText.bind(g);
       let region = null; const bad = [];
       g.drawRegion = (ctx, m, rg) => { region = rg; return origRegion(ctx, m, rg); };
@@ -78,7 +78,7 @@ const edText = (frame) => frame.evaluate(() => window.webExcel.editor.ta.value);
       return { fc: m0.fc, bad: [...new Set(bad)].slice(0, 8) };
     });
     check('frozen column: scrolled columns never drawn into the frozen pane', crossings.fc === 1 && crossings.bad.length === 0, JSON.stringify(crossings));
-    await page.evaluate(() => { window.webExcel.exec('unfreeze'); window.webExcel.grid.scroller.scrollLeft = 0; });
+    await page.evaluate(() => { window.monoonom.exec('unfreeze'); window.monoonom.grid.scroller.scrollLeft = 0; });
     await sleep(200);
 
     // 3) pointing ranges in a formula

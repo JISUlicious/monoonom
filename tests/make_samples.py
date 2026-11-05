@@ -1,6 +1,6 @@
 """Generate sample workbooks into ./samples (xlsx with styles/formulas/chart/filter).
 
-samples/sample.xls is a committed fixture (web-excel has no .xls writer); make_xls() copies it.
+samples/sample.xls is a committed fixture (monoonom has no .xls writer); make_xls() copies it.
 To rebuild it: python3 tests/make_samples.py --xls (needs xlwt, a dev-only package).
 """
 import datetime as dt
@@ -126,7 +126,7 @@ def generate_xls(path):
 def make_xls(path):
     """Legacy .xls test file (sheet 데이터: 이름/수량/단가/금액, D2:D4 = B*C formulas).
 
-    Copies the committed fixture samples/sample.xls; web-excel itself has no .xls writer."""
+    Copies the committed fixture samples/sample.xls; monoonom itself has no .xls writer."""
     if not os.path.isfile(XLS_FIXTURE):
         raise FileNotFoundError(f"고정 테스트 파일이 없습니다: {XLS_FIXTURE}. "
                                 "git checkout -- samples/sample.xls 로 되돌리거나 "

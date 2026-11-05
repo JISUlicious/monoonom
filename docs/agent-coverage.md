@@ -1,7 +1,7 @@
 # UI 기능 ↔ 에이전트 명령 대응표
 
 미리보기(브라우저 UI)에서 할 수 있는 작업을 에이전트가 `xl.py`로 할 수 있는지 정리한 표 (2026-11-04, P7 기준).
-명령 형식은 `.agents/skills/web-excel/references/cli.md`, 일괄 편집(JSON)은 `references/edits.md`.
+명령 형식은 `.agents/skills/monoonom/references/cli.md`, 일괄 편집(JSON)은 `references/edits.md`.
 
 ## 파일·문서
 

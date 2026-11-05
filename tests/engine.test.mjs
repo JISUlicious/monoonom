@@ -1,7 +1,7 @@
 // Formula engine unit tests: node tests/engine.test.mjs
-import { blankWorkbook, Sheet } from '../.agents/skills/web-excel/assets/web/js/model.js';
-import { translateFormula, adjustFormula, cycleAbsolute } from '../.agents/skills/web-excel/assets/web/js/formula.js';
-import { formatValue } from '../.agents/skills/web-excel/assets/web/js/numfmt.js';
+import { blankWorkbook, Sheet } from '../.agents/skills/monoonom/assets/web/js/model.js';
+import { translateFormula, adjustFormula, cycleAbsolute } from '../.agents/skills/monoonom/assets/web/js/formula.js';
+import { formatValue } from '../.agents/skills/monoonom/assets/web/js/numfmt.js';
 
 const wb = blankWorkbook();
 const s = wb.sheet;

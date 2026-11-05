@@ -792,3 +792,37 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 - `tests/fonts.e2e.cjs` 16개: 전체 목록, 현재 값 표시, 좁히기, 선택, 그룹, Esc, 크기 목록·선택·0.5 단위·범위 밖·키보드, 에이전트가 읽은 서식, 셀 서식 대화상자.
 - 화면: `docs/font-picker.png`.
 - 이 환경(Linux)에는 한국어 이름을 가진 글꼴이 없어서, 한국어 이름은 합성 파일로만 확인했다. Windows·macOS의 실제 글꼴 폴더로는 확인하지 못했다.
+## 이름·디자인 변경: web-excel → MoNooNoM (2026-11-06)
+**이유**: 상표·디자인을 검토한 결과, 다음 두 가지가 Microsoft 상표 가이드라인과 맞지 않았다.
+- 제품 이름("Web Excel", `web-excel`)에 상표가 들어 있었다. 가이드라인은 Microsoft 상표를 다른 제품·서비스 이름, 로고, 트레이드 드레스에 쓰지 못하게 한다.
+- 파비콘이 Excel 앱 아이콘과 같은 구성이었다(초록 둥근 사각형 + 흰 X).
+
+"compatible with / works with" 같은 호환성 설명은 가이드라인이 허용하므로 유지한다.
+
+**이름**: MoNooNoM. '모눈'을 영어로 쓰고 좌우 대칭으로 만든 이름이다(MoNooN + NooNoM).
+- skill 이름과 폴더: `monoonom`
+- npm·PyPI·GitHub에 같은 이름 없음(2026-11-05 확인). 정식 상표 검색은 하지 않았다.
+
+**바꾼 것**:
+- 폴더: `.agents/skills/monoonom`, `.claude/skills/monoonom`(링크 포함)
+- 사용자에게 보이는 것: SKILL.md 이름·제목, 화면 제목·로고·파비콘, 서버 메시지·로그, `launch-config` 이름, README·색인·LICENSE·requirements
+- 내부 식별자:
+  - 헤더 `X-Monoonom(-Token)`, 쿠키 `mn_token_<포트>`
+  - `window.monoonom`, 저장 키 `monoonom.*`
+  - 환경 변수 `MONOONOM_ROOT/TOKEN/READ_HOOK/WRITE_HOOK`. 예전 `WEBEXCEL_*`도 계속 읽는다.
+- 상태 폴더: 작업 폴더에 예전 `.web-excel/`만 있으면 처음 실행할 때 `.monoonom/`으로 옮긴다. 토큰도 함께 옮겨지므로 예전 미리보기 주소가 그대로 동작한다. 예전 서버가 그 폴더의 포트에서 아직 대기 중이면 옮기지 않는다(프로세스 확인 대신 포트 확인: Windows에서 `os.kill(pid, 0)`은 안전하지 않다).
+- 강조색: 올리브 그린 `#4B7A55` / `#395D41` / `#EAF1EA`. 예전 값은 Excel 브랜드 녹색 `#217346`이었다.
+- 아이콘: `assets/web/img/monoonom.svg`(올리브, 펜 몸통 흰색), 16px용 `favicon.svg`(선을 굵게), 색 배경용 `monoonom-white.svg`(흰 선, 펜 아래 격자선은 마스크로 지워 배경색이 그대로 보임 — 제목줄에서 사용). 세 파일 모두 `node tools/make_icons.cjs`로 생성.
+  - 3×3 격자 위에 외곽선 펜(속은 흰색으로 채움)을 세워서 쓰는 각도로 둔다.
+  - 오른쪽 위 펜은 가운데 행 오른쪽 칸에, 그 점대칭 짝은 가운데 행 왼쪽 칸에 쓴다.
+- README에 상표 고지를 넣었다("Microsoft, Excel은 Microsoft Corporation의 상표이며, MoNooNoM은 Microsoft와 관련이 없다").
+
+**그대로 둔 것**:
+- GitHub 저장소 주소: 저장소 이름은 소유자가 바꾼다.
+- 과거 기록: logs.md의 예전 항목, 이 문서의 이전 절, `docs/evals/` 원본 데이터
+- 파일 형식·호환용 이름: 함수 이름, `PivotStyleLight16` 등
+
+**검증**:
+- 전체 테스트 24종 통과
+- 예전 상태 폴더가 이전되고 토큰이 유지됨
+- 화면: `docs/monoonom-preview.png`

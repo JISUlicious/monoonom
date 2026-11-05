@@ -11,7 +11,7 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, ".agents", "skills", "web-excel", "scripts"))
+sys.path.insert(0, os.path.join(ROOT, ".agents", "skills", "monoonom", "scripts"))
 from server import fonts as F  # noqa: E402
 
 fails = 0

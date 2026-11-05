@@ -1,15 +1,18 @@
-# web-excel
+# MoNooNoM
 
-로컬 Python 서버 + 브라우저 UI로 동작하는 **엑셀 호환 웹 스프레드시트**입니다.
+<img src=".agents/skills/monoonom/assets/web/img/monoonom.svg" alt="" width="64" align="right">
+
+사람과 에이전트가 **같은 스프레드시트를 함께 보면서 작업하는** 로컬 웹 스프레드시트입니다. 이름은 '모눈(종이)'을 영어로 쓰고 좌우 대칭으로 만든 것입니다(MoNooN + NooNoM).
+로컬 Python 서버와 브라우저 UI로 동작하며, Microsoft Excel 파일(xlsx·xlsm)을 읽고 쓰고 xls 파일을 읽습니다.
 에이전트 SW(Claude Code 데스크톱, VS Code/Cursor Simple Browser 등)의 미리보기 창에서 `xl.py serve`가 알려 주는 주소(`http://localhost:8765/#t=토큰`)로 접속해 xlsx 파일을 읽고 쓰고, xls 파일을 읽을 수 있습니다(xls는 xlsx로 저장).
 
 ## 실행
 
-이 프로젝트는 **Agent Skill** 형태로 패키징되어 있습니다: `.agents/skills/web-excel/`(원본, 이식판 `SKILL.md`). Claude Code는 `.claude/skills/web-excel/`을 읽습니다. 이 폴더의 `SKILL.md`는 Claude Code판(`allowed-tools`, 서버 상태 주입, 데스크톱 미리보기 안내)이고, 나머지(`scripts`, `references`, `assets`, 라이선스 파일)는 원본으로 가는 링크입니다. 다른 프로젝트에 설치할 때는 패키지 폴더를 `.claude/skills/web-excel/`로 복사한 뒤 `SKILL.claude-code.md`를 `SKILL.md`로 바꿔 넣으면 됩니다.
+이 프로젝트는 **Agent Skill** 형태로 패키징되어 있습니다: `.agents/skills/monoonom/`(원본, 이식판 `SKILL.md`). Claude Code는 `.claude/skills/monoonom/`을 읽습니다. 이 폴더의 `SKILL.md`는 Claude Code판(`allowed-tools`, 서버 상태 주입, 데스크톱 미리보기 안내)이고, 나머지(`scripts`, `references`, `assets`, 라이선스 파일)는 원본으로 가는 링크입니다. 다른 프로젝트에 설치할 때는 패키지 폴더를 `.claude/skills/monoonom/`로 복사한 뒤 `SKILL.claude-code.md`를 `SKILL.md`로 바꿔 넣으면 됩니다.
 Python 패키지는 함께 넣지 않으므로 처음 한 번 설치합니다: `python -m pip install -r requirements.txt` (openpyxl 필수, xlrd는 .xls를 열 때만). 설치되어 있지 않으면 `xl.py serve`가 설치 명령을 안내하고 종료 코드 6으로 끝납니다.
 
 ```bash
-XL=.agents/skills/web-excel/scripts/xl.py
+XL=.agents/skills/monoonom/scripts/xl.py
 python3 $XL serve                 # 작업 경로(현재 폴더)용 서버를 분리 실행하거나 기존 서버 재사용 → URL 출력
 python3 $XL status                # 상태·열린 문서
 python3 $XL launch-config         # Claude Code 데스크톱: .claude/launch.json에 미리보기 구성 기록
@@ -25,7 +28,7 @@ python3 tests/make_samples.py     # 예제 xlsx 생성 (samples/sample.xls는 �
 
 ```bash
 cd ~/my-project                          # 작업 폴더
-XL=/path/to/.agents/skills/web-excel/scripts/xl.py
+XL=/path/to/.agents/skills/monoonom/scripts/xl.py
 python3 $XL url                         # 미리보기 주소(#t= 토큰 포함) — 사용자에게 그대로 전달
 python3 $XL open report.xlsx            # 열기 → 미리보기에 탭으로 표시
 python3 $XL describe                    # 시트·사용 범위·머리글·열 유형·차트
@@ -37,29 +40,29 @@ python3 $XL rows insert 5 --count 2     # 행 삽입 (수식·차트·필터 범
 python3 $XL sort A1:F50 --by C:desc     # 정렬
 python3 $XL changes --since 0 --actor user   # 사용자가 미리보기에서 바꾼 것
 python3 $XL undo BATCH                  # 에이전트 변경 되돌리기
-python3 $XL save                        # 저장(이전 파일은 .web-excel/backups/)
+python3 $XL save                        # 저장(이전 파일은 .monoonom/backups/)
 ```
 
-전체 명령은 `.agents/skills/web-excel/references/cli.md`, 일괄 편집 형식은 `references/edits.md`, UI 기능과의 대응은 `docs/agent-coverage.md`.
+전체 명령은 `.agents/skills/monoonom/references/cli.md`, 일괄 편집 형식은 `references/edits.md`, UI 기능과의 대응은 `docs/agent-coverage.md`.
 
 | `serve` 옵션 | 설명 |
 |---|---|
-| `--root DIR` | 작업 경로(기본: `$WEBEXCEL_ROOT`, `$CLAUDE_PROJECT_DIR`, 현재 폴더). 이 밖의 파일은 접근 차단 |
+| `--root DIR` | 작업 경로(기본: `$MONOONOM_ROOT`, `$CLAUDE_PROJECT_DIR`, 현재 폴더). 이 밖의 파일은 접근 차단 |
 | `--port P` | 선호 포트(기본 8765, 사용 중이면 다음 빈 포트) |
 | `--idle-timeout S` | 클라이언트·요청이 없으면 S초 후 종료(기본 3600, 0=안 함) |
 | `--foreground` / `--exit-with-parent` | 현재 프로세스에서 실행 / 부모 프로세스가 끝나면 종료(launch.json용) |
 | `--allow-host NAME` | 프록시/원격 미리보기에서 다른 Host 헤더 허용 |
 | `--no-sandbox` | 작업 경로 밖 파일 허용 |
 
-서버 상태는 `<작업 경로>/.web-excel/`(server.json: pid·port·url, token, server.log)에 있고 이 폴더는 git에서 제외됩니다.
-API는 토큰이 필요합니다. CLI와 페이지 모두 `X-WebExcel-Token` 헤더로 보냅니다. 페이지는 주소의 `#t=토큰`에서 토큰을 읽으므로, 페이지를 다른 사이트의 iframe 안에 띄우는 미리보기(VS Code Simple Browser, Tauri 앱 등)에서도 동작합니다. 토큰 없이 연 일반 탭은 포트별 쿠키(`wx_token_<포트>`, `SameSite=Strict`)로 동작합니다. 실시간 이벤트 스트림은 헤더를 보낼 수 없어 1분짜리 일회용 티켓을 씁니다. 토큰은 작업 경로별로 유지되어 서버를 다시 시작해도 열린 미리보기가 계속 동작합니다.
+서버 상태는 `<작업 경로>/.monoonom/`(server.json: pid·port·url, token, server.log)에 있고 이 폴더는 git에서 제외됩니다.
+API는 토큰이 필요합니다. CLI와 페이지 모두 `X-Monoonom-Token` 헤더로 보냅니다. 페이지는 주소의 `#t=토큰`에서 토큰을 읽으므로, 페이지를 다른 사이트의 iframe 안에 띄우는 미리보기(VS Code Simple Browser, Tauri 앱 등)에서도 동작합니다. 토큰 없이 연 일반 탭은 포트별 쿠키(`mn_token_<포트>`, `SameSite=Strict`)로 동작합니다. 실시간 이벤트 스트림은 헤더를 보낼 수 없어 1분짜리 일회용 티켓을 씁니다. 토큰은 작업 경로별로 유지되어 서버를 다시 시작해도 열린 미리보기가 계속 동작합니다.
 
 ## 요구사항 대응
 
 | # | 요구사항 | 구현 |
 |---|---|---|
 | 1 | 로컬 서버 + 미리보기 창에서 xlsx 읽기·쓰기, xls 읽기 | `run.py` → `server/app.py` (stdlib `ThreadingHTTPServer`). xlsx/xlsm: openpyxl, xls: xlrd(읽기 전용 — 저장하면 같은 이름의 .xlsx) |
-| 2 | **DRM: 파일 읽기는 반드시 Python 함수** | 브라우저는 파일 바이트에 접근하지 않고 **경로만** 전송. 모든 디스크 I/O는 `server/fileio.py`의 `read_bytes()/write_bytes()` 한 곳을 통과. 드래그&드롭 업로드는 의도적으로 차단. DRM SDK 호출이 필요하면 `WEBEXCEL_READ_HOOK=pkg.mod:func`, `WEBEXCEL_WRITE_HOOK=...`로 교체 |
+| 2 | **DRM: 파일 읽기는 반드시 Python 함수** | 브라우저는 파일 바이트에 접근하지 않고 **경로만** 전송. 모든 디스크 I/O는 `server/fileio.py`의 `read_bytes()/write_bytes()` 한 곳을 통과. 드래그&드롭 업로드는 의도적으로 차단. DRM SDK 호출이 필요하면 `MONOONOM_READ_HOOK=pkg.mod:func`, `MONOONOM_WRITE_HOOK=...`로 교체 |
 | 3 | 웹에서 조작 가능한 스프레드시트 | Canvas 가상화 그리드(1,048,576×16,384), 틀 고정, 병합, 행/열 크기 조절·숨기기·자동 맞춤, 채우기 핸들(선형 추세/요일·월 목록/숫자 접미사), 복사·붙여넣기(Excel과 TSV/HTML 상호 운용), 실행 취소/다시 실행 |
 | 4 | 여러 탭/윈도우 | 상단 통합 문서 탭(다중 파일), 하단 시트 탭(추가·삭제·이름 변경·복사·이동·드래그·탭 색·숨기기). **서버가 문서를 소유**: 브라우저 창·에이전트 CLI가 모두 서버에 변경(op)을 보내고, 서버가 순서를 정해 각 창에 실시간 전달(SSE). 같은 문서를 여러 창·외부 브라우저에서 열어도 동기화되고, 에이전트가 연 파일은 미리보기에 탭으로 자동 표시 |
 | 5 | 호환 차트 | 세로/가로/누적 막대, 꺾은선, 영역, 원형, 도넛, 분산형, 방사형, **콤보(막대+꺾은선)**. xlsx의 차트 정의(계열 참조 수식 `'시트'!$B$2:$B$7`)를 그대로 읽어 Chart.js로 렌더링, 저장 시 네이티브 Excel 차트로 기록. 수정하지 않은 차트는 원본 객체를 유지 |
@@ -76,7 +79,7 @@ API는 토큰이 필요합니다. CLI와 페이지 모두 `X-WebExcel-Token` 헤
 ## 구조
 
 ```
-.agents/skills/web-excel/          ← Agent Skill 패키지 (원본)
+.agents/skills/monoonom/          ← Agent Skill 패키지 (원본)
   SKILL.md                         이식 가능판 (명세 필드만)
   SKILL.claude-code.md             Claude Code판 (allowed-tools, 상태 주입, launch.json 안내)
   scripts/
@@ -106,11 +109,11 @@ API는 토큰이 필요합니다. CLI와 페이지 모두 `X-WebExcel-Token` 헤
     js/docsync.js                  서버 문서 동기화: 낙관적 적용, 대기 중 변경 추적, 창당 이벤트 스트림 1개, 계산값 보고
     js/numfmt.js, charts.js, filter.js, clipboard.js, dialogs.js, api.js
   references/cli.md, edits.md, troubleshooting.md
-.claude/skills/web-excel/           Claude Code가 읽는 skill 폴더
+.claude/skills/monoonom/           Claude Code가 읽는 skill 폴더
   SKILL.md                         Claude Code판 (생성됨: tools/build_claude_code_skill.py)
-  scripts, references, assets, LICENSE.txt, THIRD_PARTY_NOTICES.md -> ../../../.agents/skills/web-excel/…
+  scripts, references, assets, LICENSE.txt, THIRD_PARTY_NOTICES.md -> ../../../.agents/skills/monoonom/…
 run.py                             개발용 포그라운드 실행
-tools/build_claude_code_skill.py   SKILL.md에서 SKILL.claude-code.md와 .claude/skills/web-excel/SKILL.md 생성 (--check: 최신인지 확인)
+tools/build_claude_code_skill.py   SKILL.md에서 SKILL.claude-code.md와 .claude/skills/monoonom/SKILL.md 생성 (--check: 최신인지 확인)
 tests/                             make_samples.py, test_roundtrip.py, engine.test.mjs, e2e.cjs, sync.e2e.cjs, agent_cli.test.py,
                                    agent_full.test.py, structural.test.py, refs_parity.test.py(+.mjs),
                                    excel_compat.test.py, preserve_formulas.test.py, preserve.e2e.cjs
@@ -123,7 +126,7 @@ docs/                              project-setup.md, skill-spec.md, skill-implem
 2. **원본 패치 저장**: xlsx 저장 시 원본을 다시 로드해 시트 내용만 교체하므로 UI가 모델링하지 않는 조건부 서식·데이터 유효성·이미지·인쇄 설정·정의된 이름·VBA(xlsm)가 보존됩니다. 수식 결과는 캐시 값으로 함께 기록하고(계산하지 않는 프로그램도 값을 봄), `fullCalcOnLoad`를 설정해 Excel이 열 때 다시 계산합니다.
 3. **재계산**: 매 변경 시 전체 재계산(메모이제이션)을 수행하되, 재귀 깊이를 제한하고 가장 깊은 미계산 셀부터 다시 시작하는 반복 심화 방식으로 20,000단계 체인도 스택 오버플로 없이 계산합니다(Sestoft의 Corecalc 보고서가 다루는 스프레드시트 재계산·의존 그래프 문제 참고 [4]).
 4. **Excel 호환 세부 규칙**: 1900 윤년 버그를 포함한 날짜 일련번호 [3], 15자리 유효숫자 비교, 단항 `-`가 `^`보다 우선(`=-2^2`=4), 숫자<텍스트<논리값 비교 순서, `_xlfn.` 미래 함수 접두사 [2].
-5. **보안**: 기본 127.0.0.1 바인딩, Host 헤더 검사(DNS 리바인딩 방지), 변경 API는 커스텀 헤더 `X-WebExcel` 필수(교차 출처 요청은 CORS 프리플라이트에서 차단됨 [8]), 선택적 `--root` 샌드박스.
+5. **보안**: 기본 127.0.0.1 바인딩, Host 헤더 검사(DNS 리바인딩 방지), 변경 API는 커스텀 헤더 `X-Monoonom` 필수(교차 출처 요청은 CORS 프리플라이트에서 차단됨 [8]), 선택적 `--root` 샌드박스.
 6. **동기화**: 서버가 문서를 소유하고 변경(op)에 버전을 붙여 순서를 정합니다. 같은 셀은 서버에 나중에 도착한 쪽이 이기고, 좌표를 바꾸는 변경(행 삽입·정렬 등)은 그 사이 다른 클라이언트가 바꿨으면 거절(409)해 다시 불러오게 합니다. 창마다 이벤트 스트림(SSE)을 하나만 열어 브라우저의 호스트당 연결 수 제한을 피합니다. 자세한 내용은 docs/skill-implementation.md.
 
 ## 테스트
@@ -176,5 +179,13 @@ python3 tests/excel_compat.test.py        # 저장한 수식 229개: _xlfn. 접�
 
 ## 라이선스
 
-MIT (`LICENSE`). 함께 넣은 외부 코드는 Chart.js(MIT, `assets/web/vendor/`) 하나이고 고지는
-`.agents/skills/web-excel/THIRD_PARTY_NOTICES.md`에 있다. Python 패키지(openpyxl, xlrd)는 사용자가 PyPI에서 설치한다.
+MIT (`LICENSE`).
+
+## 상표
+
+Microsoft, Excel은 미국 및 기타 국가에서 Microsoft Corporation의 상표입니다. MoNooNoM은 Microsoft와 관련이 없으며 Microsoft가 후원하거나 보증하지 않습니다. 이 문서에서 'Excel'은 파일 형식과 호환되는 동작을 설명하는 데에만 씁니다.
+
+## 라이선스(외부 코드)
+
+함께 넣은 외부 코드는 Chart.js(MIT, `assets/web/vendor/`) 하나이고 고지는
+`.agents/skills/monoonom/THIRD_PARTY_NOTICES.md`에 있다. Python 패키지(openpyxl, xlrd)는 사용자가 PyPI에서 설치한다.

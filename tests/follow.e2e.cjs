@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const XL = path.join(ROOT, '.agents', 'skills', 'web-excel', 'scripts', 'xl.py');
+const XL = path.join(ROOT, '.agents', 'skills', 'monoonom', 'scripts', 'xl.py');
 let fails = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); if (!ok) fails++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -25,12 +25,12 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
     const p = await ctx.newPage({ viewport: { width: 1200, height: 700 } });
     p.on('pageerror', (e) => errors.push(e.message));
     await p.goto(url);
-    await p.waitForFunction(() => window.webExcel?.doc?.sync); await sleep(300);
-    const st = () => p.evaluate(() => { const a = window.webExcel; return { doc: a.doc?.wb.name, sheet: a.doc?.wb.sheet.name, vis: a.grid.lastVisible }; });
+    await p.waitForFunction(() => window.monoonom?.doc?.sync); await sleep(300);
+    const st = () => p.evaluate(() => { const a = window.monoonom; return { doc: a.doc?.wb.name, sheet: a.doc?.wb.sheet.name, vis: a.grid.lastVisible }; });
 
     // ---- 1) argument hints
     const hint = async (text) => {
-      await p.evaluate(() => { const a = window.webExcel; a.select(12, 0); a.focusGrid(); });
+      await p.evaluate(() => { const a = window.monoonom; a.select(12, 0); a.focusGrid(); });
       await p.keyboard.type(text); await sleep(100);
       const r = await p.evaluate(() => { const h = document.querySelector('.fn-hint'); return h && !h.classList.contains('hidden') ? { text: h.textContent, bold: [...h.querySelectorAll('b')].map((b) => b.textContent) } : null; });
       await p.keyboard.press('Escape');
@@ -48,38 +48,38 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
     check('hint: innermost function wins', h && h.text.startsWith('SUM(') && h.bold[0] === '[number2]', JSON.stringify(h));
 
     // ---- 2) follow on (default)
-    check('follow is on by default', await p.evaluate(() => window.webExcel.follow && document.getElementById('follow-agent').checked));
+    check('follow is on by default', await p.evaluate(() => window.monoonom.follow && document.getElementById('follow-agent').checked));
     xl('write', '비중!A3', '에이전트', '--doc', 'a.xlsx');
-    await p.waitForFunction(() => window.webExcel.doc.wb.sheet.name === '비중', null, { timeout: 4000 }).catch(() => {});
+    await p.waitForFunction(() => window.monoonom.doc.wb.sheet.name === '비중', null, { timeout: 4000 }).catch(() => {});
     check('on: agent works on another sheet -> the view switches to it', (await st()).sheet === '비중', JSON.stringify(await st()));
     check('…the agent-busy indicator shows', await p.evaluate(() => !document.getElementById('agent-busy').hidden));
     xl('write', '비중!B300', '멀리', '--doc', 'a.xlsx');
     await sleep(800);
     let s = await st();
     check('on: a far-away cell is scrolled into view', s.vis.r0 <= 299 && 299 <= s.vis.r1, JSON.stringify(s.vis));
-    check('…and outlined as the agent\'s cell', await p.evaluate(() => (window.webExcel.doc.agentMarks || []).some((m) => m.r1 === 299 && m.c1 === 1)));
+    check('…and outlined as the agent\'s cell', await p.evaluate(() => (window.monoonom.doc.agentMarks || []).some((m) => m.r1 === 299 && m.c1 === 1)));
     xl('sheet', 'add', '새시트', '--doc', 'a.xlsx');
-    await p.waitForFunction(() => window.webExcel.doc.wb.sheet.name === '새시트', null, { timeout: 4000 }).catch(() => {});
+    await p.waitForFunction(() => window.monoonom.doc.wb.sheet.name === '새시트', null, { timeout: 4000 }).catch(() => {});
     check('on: a sheet the agent adds is shown', (await st()).sheet === '새시트', JSON.stringify(await st()));
     xl('open', 'b.xlsx');
-    await p.waitForFunction(() => window.webExcel.doc.wb.name === 'b.xlsx', null, { timeout: 4000 }).catch(() => {});
-    await p.evaluate(() => window.webExcel.activateDoc(0));
+    await p.waitForFunction(() => window.monoonom.doc.wb.name === 'b.xlsx', null, { timeout: 4000 }).catch(() => {});
+    await p.evaluate(() => window.monoonom.activateDoc(0));
     xl('write', 'C5', 'b에서', '--doc', 'b.xlsx');
-    await p.waitForFunction(() => window.webExcel.doc.wb.name === 'b.xlsx', null, { timeout: 4000 }).catch(() => {});
+    await p.waitForFunction(() => window.monoonom.doc.wb.name === 'b.xlsx', null, { timeout: 4000 }).catch(() => {});
     check('on: agent edits another open workbook -> it is shown', (await st()).doc === 'b.xlsx', JSON.stringify(await st()));
     // typing protects the user
-    await p.evaluate(() => { const a = window.webExcel; a.activateSheet(0); a.select(20, 0); a.focusGrid(); });
+    await p.evaluate(() => { const a = window.monoonom; a.activateSheet(0); a.select(20, 0); a.focusGrid(); });
     await p.keyboard.type('입력 중');
     xl('write', '비중!A2', 'x', '--doc', 'b.xlsx');
     await sleep(800);
     s = await st();
-    check('on, but the user is typing: the view stays and the sheet tab is marked', s.sheet === '매출' && await p.evaluate(() => window.webExcel.editor.active && !!document.querySelector('.sheet-tab .st-new')), JSON.stringify(s));
+    check('on, but the user is typing: the view stays and the sheet tab is marked', s.sheet === '매출' && await p.evaluate(() => window.monoonom.editor.active && !!document.querySelector('.sheet-tab .st-new')), JSON.stringify(s));
     await p.keyboard.press('Escape');
 
     // ---- 3) follow off
     await p.click('#follow-agent');
-    check('toggle turns follow off', await p.evaluate(() => !window.webExcel.follow));
-    await p.evaluate(() => window.webExcel.activateSheet(0));
+    check('toggle turns follow off', await p.evaluate(() => !window.monoonom.follow));
+    await p.evaluate(() => window.monoonom.activateSheet(0));
     xl('write', '비중!D2', '끔', '--doc', 'b.xlsx');
     await sleep(800);
     s = await st();
@@ -87,16 +87,16 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
     check('…the changed sheet\'s tab is marked', await p.evaluate(() => [...document.querySelectorAll('.sheet-tab')].some((t) => t.textContent.startsWith('비중') && t.querySelector('.st-new'))));
     xl('write', '매출!E3', '여기', '--doc', 'b.xlsx');
     await sleep(500);
-    check('off: agent cells on the visible sheet are outlined', await p.evaluate(() => (window.webExcel.doc.agentMarks || []).some((m) => m.sheet.name === '매출' && m.r1 === 2 && m.c1 === 4)));
-    await p.evaluate(() => window.webExcel.activateSheet(window.webExcel.doc.wb.sheets.findIndex((x) => x.name === '비중')));
+    check('off: agent cells on the visible sheet are outlined', await p.evaluate(() => (window.monoonom.doc.agentMarks || []).some((m) => m.sheet.name === '매출' && m.r1 === 2 && m.c1 === 4)));
+    await p.evaluate(() => window.monoonom.activateSheet(window.monoonom.doc.wb.sheets.findIndex((x) => x.name === '비중')));
     check('…opening the marked sheet clears its marker', await p.evaluate(() => !document.querySelector('.sheet-tab.on .st-new')));
-    if (process.env.SHOT) { await p.evaluate(() => window.webExcel.activateSheet(0)); xl('write', '매출!B2', '7', '--doc', 'b.xlsx'); await sleep(400); await p.screenshot({ path: process.env.SHOT }); }
+    if (process.env.SHOT) { await p.evaluate(() => window.monoonom.activateSheet(0)); xl('write', '매출!B2', '7', '--doc', 'b.xlsx'); await sleep(400); await p.screenshot({ path: process.env.SHOT }); }
 
     // ---- 4) the setting survives a reload; the agent can switch it
-    await p.reload(); await p.waitForFunction(() => window.webExcel?.started);
-    check('off survives a reload', await p.evaluate(() => !window.webExcel.follow && !document.getElementById('follow-agent').checked));
+    await p.reload(); await p.waitForFunction(() => window.monoonom?.started);
+    check('off survives a reload', await p.evaluate(() => !window.monoonom.follow && !document.getElementById('follow-agent').checked));
     xl('view', '--follow', 'on', '--doc', 'b.xlsx');
-    check('xl.py view --follow on turns it on', await p.waitForFunction(() => window.webExcel.follow && document.getElementById('follow-agent').checked, null, { timeout: 4000 }).then(() => true).catch(() => false));
+    check('xl.py view --follow on turns it on', await p.waitForFunction(() => window.monoonom.follow && document.getElementById('follow-agent').checked, null, { timeout: 4000 }).then(() => true).catch(() => false));
     check('no page errors', errors.length === 0, errors.join('; '));
   } finally {
     await browser.close();

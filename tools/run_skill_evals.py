@@ -1,15 +1,15 @@
-"""Run the web-excel skill's evaluations with the Claude Code CLI (`claude -p`).
+"""Run the monoonom skill's evaluations with the Claude Code CLI (`claude -p`).
 
     python3 tools/run_skill_evals.py trigger   [--models haiku,sonnet,opus] [--out DIR]
     python3 tools/run_skill_evals.py scenarios [--models haiku,sonnet,opus] [--only ID,...] [--out DIR]
     python3 tools/run_skill_evals.py report    --out DIR
 
 Each run gets a fresh workspace with the skill installed as Claude Code reads it
-(.claude/skills/web-excel: the generated SKILL.md plus links into the package) and a copy of
+(.claude/skills/monoonom: the generated SKILL.md plus links into the package) and a copy of
 samples/sample.xlsx (also under samples/).
 
 trigger:   evals/trigger_queries.json. The agent may look around (Glob, Read) but Bash is disallowed,
-           so nothing runs; a run "triggers" when it calls the Skill tool for web-excel within 3 turns.
+           so nothing runs; a run "triggers" when it calls the Skill tool for monoonom within 3 turns.
 scenarios: evals/evals.json. A server is started for the workspace and the preview is open in a
            headless browser for the whole run (the "user"); some scenarios first act as the user
            (select a range, edit cells). The agent then works without limits on Bash. `Skill` must be in
@@ -30,14 +30,14 @@ import tempfile
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PKG = os.path.join(ROOT, ".agents", "skills", "web-excel")
-CC_SKILL = os.path.join(ROOT, ".claude", "skills", "web-excel", "SKILL.md")
+PKG = os.path.join(ROOT, ".agents", "skills", "monoonom")
+CC_SKILL = os.path.join(ROOT, ".claude", "skills", "monoonom", "SKILL.md")
 SAMPLE = os.path.join(ROOT, "samples", "sample.xlsx")
 
 
 def workspace(tag):
     ws = tempfile.mkdtemp(prefix=f"wx-eval-{tag}-")
-    sk = os.path.join(ws, ".claude", "skills", "web-excel")
+    sk = os.path.join(ws, ".claude", "skills", "monoonom")
     os.makedirs(sk)
     shutil.copy(CC_SKILL, os.path.join(sk, "SKILL.md"))
     for e in ("scripts", "references", "assets", "LICENSE.txt", "THIRD_PARTY_NOTICES.md"):
@@ -95,8 +95,8 @@ def run_trigger(models, out):
         ev, secs = claude(q, ws, m, ["--max-turns", "3", "--disallowedTools", "Bash", "--max-budget-usd", "0.5"], 300, log)
         uses = list(tool_uses(ev))
         names = [u["name"] + (f"({u['input'].get('skill')})" if u["name"] == "Skill" else "") for u in uses]
-        fired = any(u["name"] == "Skill" and "web-excel" in json.dumps(u["input"]) for u in uses)
-        other = [u["input"].get("skill") for u in uses if u["name"] == "Skill" and "web-excel" not in json.dumps(u["input"])]
+        fired = any(u["name"] == "Skill" and "monoonom" in json.dumps(u["input"]) for u in uses)
+        other = [u["input"].get("skill") for u in uses if u["name"] == "Skill" and "monoonom" not in json.dumps(u["input"])]
         shutil.rmtree(ws, ignore_errors=True)
         return {"query": q, "should_trigger": want, "model": m, "triggered": fired, "other_skills": other,
                 "tools": names, "ok": fired == want, "secs": round(secs), **{k: v for k, v in result_of(ev).items() if k != "text"}}
@@ -111,11 +111,11 @@ def run_trigger(models, out):
 
 PREP = {
     # the "user" selects 매출!B2:C4 in the preview
-    "react-to-user-selection": "async (p) => { await p.evaluate(() => { const a = window.webExcel; a.activateSheet(0); a.selectRange({ r1: 1, c1: 1, r2: 3, c2: 2 }); }); }",
+    "react-to-user-selection": "async (p) => { await p.evaluate(() => { const a = window.monoonom; a.activateSheet(0); a.selectRange({ r1: 1, c1: 1, r2: 3, c2: 2 }); }); }",
     # the "user" edits two cells in the preview
-    "user-edits-meanwhile": "async (p) => { await p.evaluate(() => { const a = window.webExcel; a.activateSheet(0); a.select(2, 1); a.focusGrid(); }); "
+    "user-edits-meanwhile": "async (p) => { await p.evaluate(() => { const a = window.monoonom; a.activateSheet(0); a.select(2, 1); a.focusGrid(); }); "
                             "await p.keyboard.type('999'); await p.keyboard.press('Enter'); "
-                            "await p.evaluate(() => { const a = window.webExcel; a.select(4, 3); a.focusGrid(); }); "
+                            "await p.evaluate(() => { const a = window.monoonom; a.select(4, 3); a.focusGrid(); }); "
                             "await p.keyboard.type('77'); await p.keyboard.press('Enter'); }",
 }
 
@@ -124,7 +124,7 @@ const { chromium } = require('playwright');
 const [url, prep] = [process.argv[2], process.argv[3]];
 (async () => {
   const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1300, height: 800 } });
-  await p.goto(url); await p.waitForFunction(() => window.webExcel?.doc?.sync, null, { timeout: 20000 });
+  await p.goto(url); await p.waitForFunction(() => window.monoonom?.doc?.sync, null, { timeout: 20000 });
   await p.waitForTimeout(500);
   if (prep) await eval(prep)(p);
   await p.waitForTimeout(800);
@@ -136,7 +136,7 @@ const [url, prep] = [process.argv[2], process.argv[3]];
 
 
 def xl(ws, *a):
-    return subprocess.run([sys.executable, os.path.join(ws, ".claude", "skills", "web-excel", "scripts", "xl.py"), *a, "--root", ws],
+    return subprocess.run([sys.executable, os.path.join(ws, ".claude", "skills", "monoonom", "scripts", "xl.py"), *a, "--root", ws],
                           capture_output=True, text=True, timeout=120).stdout
 
 
@@ -167,7 +167,7 @@ def run_scenarios(models, out, only=None):
             "매출 formulas": xl(ws, "read", "매출!A1:H10", "--what", "formulas"),
             "매출 formats": xl(ws, "read", "매출!A1:H8", "--what", "all")[:4000],
             "요약 sheet": xl(ws, "read", "요약!A1:F15", "--what", "formulas") if "요약" in xl(ws, "describe") else "(no 요약 sheet)",
-            "saved (backups)": os.listdir(os.path.join(ws, ".web-excel", "backups")) if os.path.isdir(os.path.join(ws, ".web-excel", "backups")) else [],
+            "saved (backups)": os.listdir(os.path.join(ws, ".monoonom", "backups")) if os.path.isdir(os.path.join(ws, ".monoonom", "backups")) else [],
             "files": sorted(os.listdir(ws)),
         }
         try:
@@ -189,7 +189,7 @@ def run_scenarios(models, out, only=None):
         r = result_of(evs)
         grade = grade_run(e, steps, r.get("text") or "", state)
         shutil.rmtree(ws, ignore_errors=True)
-        return {"id": e["id"], "model": m, "browser_ready": ready, "skill_used": any(s["tool"] == "Skill" and "web-excel" in s["input"] for s in steps),
+        return {"id": e["id"], "model": m, "browser_ready": ready, "skill_used": any(s["tool"] == "Skill" and "monoonom" in s["input"] for s in steps),
                 "steps": len(steps), "cost": r["cost"], "turns": r["turns"], "subtype": r["subtype"], "secs": round(secs),
                 "grade": grade, "passed": sum(1 for g in grade if g.get("pass")), "total": len(e["expectations"])}
 
@@ -202,7 +202,7 @@ def run_scenarios(models, out, only=None):
 def grade_run(e, steps, final, state):
     lines = [f"[{i + 1}] {s['tool']}: {s['input']}\n    → {s['output'][:400]}" for i, s in enumerate(steps)]
     prompt = (
-        "You grade one run of an AI agent that used the web-excel skill (a CLI, xl.py, editing an Excel workbook "
+        "You grade one run of an AI agent that used the monoonom skill (a CLI, xl.py, editing an Excel workbook "
         "the user sees in a live preview). Judge each expectation strictly from the evidence below; if the evidence "
         "does not show it, it fails.\n\n"
         f"USER REQUEST:\n{e['prompt']}\n\nEXPECTED OUTCOME:\n{e['expected_output']}\n\n"

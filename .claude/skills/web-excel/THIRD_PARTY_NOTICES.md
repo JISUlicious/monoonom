@@ -1,1 +1,0 @@
-../../../.agents/skills/web-excel/THIRD_PARTY_NOTICES.md

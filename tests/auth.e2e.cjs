@@ -1,6 +1,6 @@
 // Browser auth in the ways previews embed the page. Starts its own servers (ports 8771/8772).
 //   node tests/auth.e2e.cjs
-// The page URL is http://localhost:PORT/#t=TOKEN; the token goes in the X-WebExcel-Token header, so the
+// The page URL is http://localhost:PORT/#t=TOKEN; the token goes in the X-Monoonom-Token header, so the
 // page also works inside a cross-site iframe (VS Code Simple Browser, Tauri apps) where cookies are not sent.
 const { chromium } = require('playwright');
 const { execFileSync, spawn } = require('child_process');
@@ -10,12 +10,12 @@ const path = require('path');
 const http = require('http');
 
 const ROOT = path.resolve(__dirname, '..');
-const XL = path.join(ROOT, '.agents', 'skills', 'web-excel', 'scripts', 'xl.py');
+const XL = path.join(ROOT, '.agents', 'skills', 'monoonom', 'scripts', 'xl.py');
 let fails = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); if (!ok) fails++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const xl = (ws, ...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encoding: 'utf8' });
-const state = (ws) => JSON.parse(fs.readFileSync(path.join(ws, '.web-excel', 'server.json'), 'utf8'));
+const state = (ws) => JSON.parse(fs.readFileSync(path.join(ws, '.monoonom', 'server.json'), 'utf8'));
 
 function workspace(name) {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), `wx-auth-${name}-`));
@@ -32,7 +32,7 @@ function hostPage(port) {
   return new Promise((r) => srv.listen(port, '127.0.0.1', () => r(srv)));
 }
 const framed = (page) => page.frames().find((f) => f.url().startsWith('http://localhost:'));
-const docsIn = (f) => f.evaluate(() => (window.webExcel?.docs || []).map((d) => d.wb.name));
+const docsIn = (f) => f.evaluate(() => (window.monoonom?.docs || []).map((d) => d.wb.name));
 const panel = (f) => f.evaluate(() => document.getElementById('auth-panel')?.textContent || '');
 const toasts = (f) => f.evaluate(() => [...document.querySelectorAll('#toasts .toast')].map((t) => t.textContent).join(' | '));
 
@@ -58,15 +58,15 @@ const toasts = (f) => f.evaluate(() => [...document.querySelectorAll('#toasts .t
     check('iframe on another site + #t: workbook opens', JSON.stringify(await docsIn(f)) === '["alpha.xlsx"]', JSON.stringify(await docsIn(f)));
     check('…token is removed from the address', !(await f.evaluate(() => location.hash)).includes('t='));
     xl(wsA, 'write', 'A20', '에이전트');
-    await f.waitForFunction(() => window.webExcel.doc.wb.sheet.get(19, 0)?.v === '에이전트', null, { timeout: 5000 }).catch(() => {});
-    check('…agent edits arrive over the event stream (ticket)', await f.evaluate(() => window.webExcel.doc.wb.sheet.get(19, 0)?.v === '에이전트'));
-    await f.evaluate(() => { const a = window.webExcel; a.select(20, 0); a.focusGrid(); });
+    await f.waitForFunction(() => window.monoonom.doc.wb.sheet.get(19, 0)?.v === '에이전트', null, { timeout: 5000 }).catch(() => {});
+    check('…agent edits arrive over the event stream (ticket)', await f.evaluate(() => window.monoonom.doc.wb.sheet.get(19, 0)?.v === '에이전트'));
+    await f.evaluate(() => { const a = window.monoonom; a.select(20, 0); a.focusGrid(); });
     await page.keyboard.type('사용자'); await page.keyboard.press('Enter');
     await sleep(600);
     check('…user edits reach the server', xl(wsA, 'read', 'A21').includes('사용자'));
 
     // popup blocked in the iframe: the fallback URL in the toast carries the token too
-    await f.evaluate(() => { window.open = () => null; window.webExcel.newWindow(); });
+    await f.evaluate(() => { window.open = () => null; window.monoonom.newWindow(); });
     check('popup-blocked hint URL includes #t=', /\?doc=[^ ]*#t=/.test(await toasts(f)), (await toasts(f)).slice(-120));
     // other fragment parameters survive; only t= is removed
     page = await ctx.newPage();
@@ -109,7 +109,7 @@ const toasts = (f) => f.evaluate(() => [...document.querySelectorAll('#toasts .t
     await sleep(3000);
     // (the restart closed the documents; windows that lost their last tab make a blank one, so name the target)
     xl(wsA, 'write', 'B20', '재시작', '--doc', 'alpha.xlsx');
-    const ok = await f.waitForFunction(() => window.webExcel.docs.some((d) => d.wb.sheet.get(19, 1)?.v === '재시작'), null, { timeout: 8000 }).then(() => true).catch(() => false);
+    const ok = await f.waitForFunction(() => window.monoonom.docs.some((d) => d.wb.sheet.get(19, 1)?.v === '재시작'), null, { timeout: 8000 }).then(() => true).catch(() => false);
     check('…the open iframe reconnects and syncs again (no reload)', ok);
 
     // 4b) another workspace's server takes over the port: a tab with the old token in storage
@@ -126,13 +126,13 @@ const toasts = (f) => f.evaluate(() => [...document.querySelectorAll('#toasts .t
       const pg = await ctx.newPage();
       await pg.goto(`http://127.0.0.1:8779/?src=${encodeURIComponent(state(wsC).base_url)}`); await sleep(1500);
       const fr = framed(pg);
-      await fr.evaluate(() => sessionStorage.setItem('wx_token', 'stale-token-of-another-server')); await fr.evaluate(() => location.reload()); await sleep(1500);
+      await fr.evaluate(() => sessionStorage.setItem('mn_token', 'stale-token-of-another-server')); await fr.evaluate(() => location.reload()); await sleep(1500);
       const fr2 = framed(pg);
-      check('iframe with a stale stored token: forgets it and explains', !(await fr2.evaluate(() => sessionStorage.getItem('wx_token'))) && /xl\.py url/.test(await panel(fr2)), (await panel(fr2)).slice(0, 100));
+      check('iframe with a stale stored token: forgets it and explains', !(await fr2.evaluate(() => sessionStorage.getItem('mn_token'))) && /xl\.py url/.test(await panel(fr2)), (await panel(fr2)).slice(0, 100));
     } finally { try { xl(wsC, 'stop', '--force'); } catch {} fs.rmSync(wsC, { recursive: true, force: true }); }
 
     // 5) the log never contains the token or a stream ticket
-    const log = fs.readFileSync(path.join(wsA, '.web-excel', 'server.log'), 'utf8');
+    const log = fs.readFileSync(path.join(wsA, '.monoonom', 'server.log'), 'utf8');
     check('server log has no token or ticket', !log.includes(urlA.split('#t=')[1]) && !/ticket=(?!\*\*\*)/.test(log));
     check('no page errors', errors.length === 0, errors.join('; '));
   } finally {
