@@ -2,6 +2,8 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-05: skill 평가 첫 실행(Haiku·Sonnet·Opus) — 트리거 오발동 0, 놓침은 화면 언급 없는 단순 편집 요청; 시나리오 Sonnet·Opus 21/23, Haiku 12/23(skill 미호출 시 XML 직접 수정·원본 덮어쓰기). Claude Code판의 `allowed-tools` 때문에 skill 호출이 권한 요청이 되어 `-p`에서 거부됨을 발견 (→ docs/skill-evals.md)
+- 2026-11-05: Agent Skills 컨벤션 진단(공식 검증기 skills-ref 통과) 후 수정 — Claude Code판 SKILL을 다시 생성(`--switch` 누락), 생성 결과 검사 테스트, `.claude/skills/web-excel`을 실제 폴더로 바꿔 Claude Code판이 실제로 쓰이게 함(나머지는 패키지로 링크) (→ docs/skill-implementation.md)
 - 2026-11-05: 근거 원문 확인(네트워크 허용 후) — KB 214075·Peltier로 축 규칙 확인, 5/6 경계 수정(정확히 5/6이면 0에서 시작하지 않음). openpyxl #824의 실제 원인은 같은 차트 객체를 여러 시트에서 쓴 것(xfrm 아님), 우리 시트 복사는 차트를 따로 저장함을 확인 (→ docs/skill-implementation.md)
 - 2026-11-05: 차트 축·계열 — 값 축 자동 범위를 Excel 규칙(5/6 규칙, 5% 여백)으로, 축 눈금을 원본 셀 서식으로(저장 파일 `sourceLinked=1`, 분산형 날짜 X), 차트에 값이 직접 저장된 계열(`numLit`/`strLit`) 읽기·표시·저장 (→ docs/skill-implementation.md)
 - 2026-11-05: 빈 xfrm 원인 정정 — 공식 XSD 검증 결과 빈 `<xfrm/>`은 규격상 문제없음(off·ext 선택 요소). Excel "제거된 요소: drawing1.xml"의 유력한 원인은 분산형의 `scatterStyle` 누락(유일한 스키마 위반, #13에서 수정; 실제 Excel·문제 파일로는 미확인 — 분산형이 없던 파일이면 원인 미상). xfrm 채우기는 예방 차원으로 유지, 주석·문서 문구 수정 (→ docs/skill-implementation.md)

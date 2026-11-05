@@ -1,0 +1,1004 @@
+[
+ {
+  "query": "reports/q3.xlsx 열어서 지역별 합계 시트 하나 만들어줘, 화면으로 같이 볼게",
+  "should_trigger": true,
+  "model": "haiku",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Skill(web-excel)",
+   "Skill(web-excel)",
+   "Bash"
+  ],
+  "ok": true,
+  "secs": 7,
+  "cost": 0.00307268,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "reports/q3.xlsx 열어서 지역별 합계 시트 하나 만들어줘, 화면으로 같이 볼게",
+  "should_trigger": true,
+  "model": "sonnet",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Skill(web-excel)",
+   "Glob",
+   "Skill(web-excel)",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 10,
+  "cost": 0.1557855,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "reports/q3.xlsx 열어서 지역별 합계 시트 하나 만들어줘, 화면으로 같이 볼게",
+  "should_trigger": true,
+  "model": "opus",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Skill(web-excel)",
+   "Glob",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 15,
+  "cost": 0.105498,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "이 엑셀 파일 2행에 머리글 굵게 하고 틀 고정 좀",
+  "should_trigger": true,
+  "model": "haiku",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Glob",
+   "Bash",
+   "Skill(web-excel)"
+  ],
+  "ok": true,
+  "secs": 9,
+  "cost": 0.0032288100000000004,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "이 엑셀 파일 2행에 머리글 굵게 하고 틀 고정 좀",
+  "should_trigger": true,
+  "model": "sonnet",
+  "triggered": true,
+  "other_skills": [
+   "anthropic-skills:xlsx"
+  ],
+  "tools": [
+   "Glob",
+   "Skill(web-excel)",
+   "Skill(anthropic-skills:xlsx)"
+  ],
+  "ok": true,
+  "secs": 11,
+  "cost": 0.1545716,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "이 엑셀 파일 2행에 머리글 굵게 하고 틀 고정 좀",
+  "should_trigger": true,
+  "model": "opus",
+  "triggered": true,
+  "other_skills": [
+   "anthropic-skills:xlsx"
+  ],
+  "tools": [
+   "Skill(web-excel)",
+   "Skill(anthropic-skills:xlsx)",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 7,
+  "cost": 0.1333836,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "budget.xls 에서 C열 값이 0인 행 숨겨줘",
+  "should_trigger": true,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Glob",
+   "Glob",
+   "Bash",
+   "Glob",
+   "Read"
+  ],
+  "ok": false,
+  "secs": 7,
+  "cost": 0.00321138,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "budget.xls 에서 C열 값이 0인 행 숨겨줘",
+  "should_trigger": true,
+  "model": "sonnet",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Skill(web-excel)",
+   "Glob",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 9,
+  "cost": 0.050301700000000005,
+  "turns": 4,
+  "subtype": "success"
+ },
+ {
+  "query": "budget.xls 에서 C열 값이 0인 행 숨겨줘",
+  "should_trigger": true,
+  "model": "opus",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Skill(web-excel)",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 9,
+  "cost": 0.106373,
+  "turns": 3,
+  "subtype": "success"
+ },
+ {
+  "query": "Open sales.xlsx and add a line chart of monthly revenue next to the data",
+  "should_trigger": true,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [
+   "anthropic-skills:xlsx"
+  ],
+  "tools": [
+   "Glob",
+   "Skill(anthropic-skills:xlsx)",
+   "Glob",
+   "Glob",
+   "Glob",
+   "Glob",
+   "Glob"
+  ],
+  "ok": false,
+  "secs": 8,
+  "cost": 0.0039748200000000004,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "Open sales.xlsx and add a line chart of monthly revenue next to the data",
+  "should_trigger": true,
+  "model": "sonnet",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Skill(web-excel)",
+   "Glob",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 7,
+  "cost": 0.04804690000000001,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "Open sales.xlsx and add a line chart of monthly revenue next to the data",
+  "should_trigger": true,
+  "model": "opus",
+  "triggered": true,
+  "other_skills": [
+   "anthropic-skills:xlsx"
+  ],
+  "tools": [
+   "Skill(web-excel)",
+   "Skill(anthropic-skills:xlsx)",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 6,
+  "cost": 0.1243582,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "엑셀에서 내가 선택한 범위 합계 수식 넣어줘",
+  "should_trigger": true,
+  "model": "haiku",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Glob",
+   "Skill(web-excel)",
+   "Bash"
+  ],
+  "ok": true,
+  "secs": 8,
+  "cost": 0.00321396,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "엑셀에서 내가 선택한 범위 합계 수식 넣어줘",
+  "should_trigger": true,
+  "model": "sonnet",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Glob",
+   "Skill(web-excel)"
+  ],
+  "ok": true,
+  "secs": 13,
+  "cost": 0.05314,
+  "turns": 3,
+  "subtype": "success"
+ },
+ {
+  "query": "엑셀에서 내가 선택한 범위 합계 수식 넣어줘",
+  "should_trigger": true,
+  "model": "opus",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Skill(web-excel)",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 12,
+  "cost": 0.104087,
+  "turns": 3,
+  "subtype": "success"
+ },
+ {
+  "query": "sample.xlsx 제품B 기준으로 내림차순 정렬하고 저장",
+  "should_trigger": true,
+  "model": "haiku",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Glob",
+   "Bash",
+   "Skill(web-excel)"
+  ],
+  "ok": true,
+  "secs": 8,
+  "cost": 0.0029843300000000003,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "sample.xlsx 제품B 기준으로 내림차순 정렬하고 저장",
+  "should_trigger": true,
+  "model": "sonnet",
+  "triggered": true,
+  "other_skills": [
+   "anthropic-skills:xlsx"
+  ],
+  "tools": [
+   "Skill(web-excel)",
+   "Glob",
+   "Skill(anthropic-skills:xlsx)"
+  ],
+  "ok": true,
+  "secs": 19,
+  "cost": 0.0473913,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "sample.xlsx 제품B 기준으로 내림차순 정렬하고 저장",
+  "should_trigger": true,
+  "model": "opus",
+  "triggered": true,
+  "other_skills": [
+   "anthropic-skills:xlsx"
+  ],
+  "tools": [
+   "Skill(web-excel)",
+   "Skill(anthropic-skills:xlsx)",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 12,
+  "cost": 0.12090319999999999,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "Can you insert two rows above row 10 in the Inventory sheet of stock.xlsx?",
+  "should_trigger": true,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Glob",
+   "Glob",
+   "Bash"
+  ],
+  "ok": false,
+  "secs": 6,
+  "cost": 0.0032026100000000007,
+  "turns": 4,
+  "subtype": "success"
+ },
+ {
+  "query": "Can you insert two rows above row 10 in the Inventory sheet of stock.xlsx?",
+  "should_trigger": true,
+  "model": "sonnet",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Glob",
+   "Glob"
+  ],
+  "ok": false,
+  "secs": 9,
+  "cost": 0.048681999999999996,
+  "turns": 3,
+  "subtype": "success"
+ },
+ {
+  "query": "Can you insert two rows above row 10 in the Inventory sheet of stock.xlsx?",
+  "should_trigger": true,
+  "model": "opus",
+  "triggered": false,
+  "other_skills": [
+   "anthropic-skills:xlsx"
+  ],
+  "tools": [
+   "Skill(anthropic-skills:xlsx)",
+   "Glob"
+  ],
+  "ok": false,
+  "secs": 7,
+  "cost": 0.1267674,
+  "turns": 4,
+  "subtype": "success"
+ },
+ {
+  "query": "방금 내가 미리보기에서 바꾼 셀들 뭐였는지 알려줘",
+  "should_trigger": true,
+  "model": "haiku",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Glob",
+   "Skill(web-excel)",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 7,
+  "cost": 0.0031191,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "방금 내가 미리보기에서 바꾼 셀들 뭐였는지 알려줘",
+  "should_trigger": true,
+  "model": "sonnet",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Skill(web-excel)",
+   "Glob",
+   "Grep"
+  ],
+  "ok": true,
+  "secs": 6,
+  "cost": 0.0496385,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "방금 내가 미리보기에서 바꾼 셀들 뭐였는지 알려줘",
+  "should_trigger": true,
+  "model": "opus",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Skill(web-excel)",
+   "Glob",
+   "Read"
+  ],
+  "ok": true,
+  "secs": 5,
+  "cost": 0.0977746,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "data.xlsx 비중 시트 원형 차트 제목을 '점유율 2026'으로 바꿔줘",
+  "should_trigger": true,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Glob",
+   "Bash",
+   "Glob",
+   "Glob"
+  ],
+  "ok": false,
+  "secs": 5,
+  "cost": 0.00309673,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "data.xlsx 비중 시트 원형 차트 제목을 '점유율 2026'으로 바꿔줘",
+  "should_trigger": true,
+  "model": "sonnet",
+  "triggered": true,
+  "other_skills": [],
+  "tools": [
+   "Skill(web-excel)",
+   "Glob",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 6,
+  "cost": 0.0486809,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "data.xlsx 비중 시트 원형 차트 제목을 '점유율 2026'으로 바꿔줘",
+  "should_trigger": true,
+  "model": "opus",
+  "triggered": true,
+  "other_skills": [
+   "anthropic-skills:xlsx"
+  ],
+  "tools": [
+   "Skill(web-excel)",
+   "Skill(anthropic-skills:xlsx)",
+   "Agent",
+   "ToolSearch",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 27,
+  "cost": 0.32003640000000005,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "Rename the '매출' sheet to 'Sales' in report.xlsx without breaking formulas",
+  "should_trigger": true,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Glob",
+   "Glob",
+   "Grep",
+   "Glob",
+   "Glob"
+  ],
+  "ok": false,
+  "secs": 5,
+  "cost": 0.0031476000000000004,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "Rename the '매출' sheet to 'Sales' in report.xlsx without breaking formulas",
+  "should_trigger": true,
+  "model": "sonnet",
+  "triggered": false,
+  "other_skills": [
+   "anthropic-skills:xlsx"
+  ],
+  "tools": [
+   "Glob",
+   "Skill(anthropic-skills:xlsx)",
+   "Glob",
+   "Grep"
+  ],
+  "ok": false,
+  "secs": 11,
+  "cost": 0.06612660000000001,
+  "turns": 6,
+  "subtype": "success"
+ },
+ {
+  "query": "Rename the '매출' sheet to 'Sales' in report.xlsx without breaking formulas",
+  "should_trigger": true,
+  "model": "opus",
+  "triggered": false,
+  "other_skills": [
+   "anthropic-skills:xlsx"
+  ],
+  "tools": [
+   "Skill(anthropic-skills:xlsx)",
+   "Glob"
+  ],
+  "ok": false,
+  "secs": 10,
+  "cost": 0.1302748,
+  "turns": 4,
+  "subtype": "success"
+ },
+ {
+  "query": "data.csv 를 pandas로 읽어서 평균만 계산해줘",
+  "should_trigger": false,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Bash",
+   "Glob",
+   "Read"
+  ],
+  "ok": true,
+  "secs": 7,
+  "cost": 0.00301032,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "data.csv 를 pandas로 읽어서 평균만 계산해줘",
+  "should_trigger": false,
+  "model": "sonnet",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Glob",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 12,
+  "cost": 0.049571699999999996,
+  "turns": 3,
+  "subtype": "success"
+ },
+ {
+  "query": "data.csv 를 pandas로 읽어서 평균만 계산해줘",
+  "should_trigger": false,
+  "model": "opus",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 16,
+  "cost": 0.09189,
+  "turns": 2,
+  "subtype": "success"
+ },
+ {
+  "query": "Google Sheets 공유 문서에 행 추가하는 Apps Script 짜줘",
+  "should_trigger": false,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [],
+  "ok": true,
+  "secs": 17,
+  "cost": 0.00324433,
+  "turns": 1,
+  "subtype": "success"
+ },
+ {
+  "query": "Google Sheets 공유 문서에 행 추가하는 Apps Script 짜줘",
+  "should_trigger": false,
+  "model": "sonnet",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [],
+  "ok": true,
+  "secs": 14,
+  "cost": 0.054888000000000006,
+  "turns": 1,
+  "subtype": "success"
+ },
+ {
+  "query": "Google Sheets 공유 문서에 행 추가하는 Apps Script 짜줘",
+  "should_trigger": false,
+  "model": "opus",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [],
+  "ok": true,
+  "secs": 26,
+  "cost": 0.1197072,
+  "turns": 1,
+  "subtype": "success"
+ },
+ {
+  "query": "엑셀 VLOOKUP과 XLOOKUP 차이가 뭐야?",
+  "should_trigger": false,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [],
+  "ok": true,
+  "secs": 17,
+  "cost": 0.00284353,
+  "turns": 1,
+  "subtype": "success"
+ },
+ {
+  "query": "엑셀 VLOOKUP과 XLOOKUP 차이가 뭐야?",
+  "should_trigger": false,
+  "model": "sonnet",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [],
+  "ok": true,
+  "secs": 11,
+  "cost": 0.046218,
+  "turns": 1,
+  "subtype": "success"
+ },
+ {
+  "query": "엑셀 VLOOKUP과 XLOOKUP 차이가 뭐야?",
+  "should_trigger": false,
+  "model": "opus",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [],
+  "ok": true,
+  "secs": 12,
+  "cost": 0.0937432,
+  "turns": 1,
+  "subtype": "success"
+ },
+ {
+  "query": "Convert all .xlsx files in this folder to CSV with a script",
+  "should_trigger": false,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Glob",
+   "Write",
+   "Bash"
+  ],
+  "ok": true,
+  "secs": 13,
+  "cost": 0.00403024,
+  "turns": 4,
+  "subtype": "success"
+ },
+ {
+  "query": "Convert all .xlsx files in this folder to CSV with a script",
+  "should_trigger": false,
+  "model": "sonnet",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Glob",
+   "Bash",
+   "Write"
+  ],
+  "ok": true,
+  "secs": 24,
+  "cost": 0.0694257,
+  "turns": 4,
+  "subtype": "success"
+ },
+ {
+  "query": "Convert all .xlsx files in this folder to CSV with a script",
+  "should_trigger": false,
+  "model": "opus",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Glob",
+   "Write",
+   "Write"
+  ],
+  "ok": true,
+  "secs": 21,
+  "cost": 0.152242,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "openpyxl로 xlsx 만드는 파이썬 코드 예시 보여줘",
+  "should_trigger": false,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [],
+  "ok": true,
+  "secs": 15,
+  "cost": 0.00306503,
+  "turns": 1,
+  "subtype": "success"
+ },
+ {
+  "query": "openpyxl로 xlsx 만드는 파이썬 코드 예시 보여줘",
+  "should_trigger": false,
+  "model": "sonnet",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [],
+  "ok": true,
+  "secs": 11,
+  "cost": 0.048832,
+  "turns": 1,
+  "subtype": "success"
+ },
+ {
+  "query": "openpyxl로 xlsx 만드는 파이썬 코드 예시 보여줘",
+  "should_trigger": false,
+  "model": "opus",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [],
+  "ok": true,
+  "secs": 18,
+  "cost": 0.10557920000000001,
+  "turns": 1,
+  "subtype": "success"
+ },
+ {
+  "query": "이 PDF 표를 엑셀로 옮기는 방법 알려줘",
+  "should_trigger": false,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 11,
+  "cost": 0.00294662,
+  "turns": 2,
+  "subtype": "success"
+ },
+ {
+  "query": "이 PDF 표를 엑셀로 옮기는 방법 알려줘",
+  "should_trigger": false,
+  "model": "sonnet",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [],
+  "ok": true,
+  "secs": 10,
+  "cost": 0.046990000000000004,
+  "turns": 1,
+  "subtype": "success"
+ },
+ {
+  "query": "이 PDF 표를 엑셀로 옮기는 방법 알려줘",
+  "should_trigger": false,
+  "model": "opus",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 17,
+  "cost": 0.10681399999999999,
+  "turns": 2,
+  "subtype": "success"
+ },
+ {
+  "query": "Write a unit test for the parse_invoice function",
+  "should_trigger": false,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Grep",
+   "Glob",
+   "Grep"
+  ],
+  "ok": true,
+  "secs": 10,
+  "cost": 0.00309134,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "Write a unit test for the parse_invoice function",
+  "should_trigger": false,
+  "model": "sonnet",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Grep",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 15,
+  "cost": 0.0511437,
+  "turns": 3,
+  "subtype": "success"
+ },
+ {
+  "query": "Write a unit test for the parse_invoice function",
+  "should_trigger": false,
+  "model": "opus",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [
+   "Grep",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 11,
+  "cost": 0.1010372,
+  "turns": 3,
+  "subtype": "success"
+ },
+ {
+  "query": "엑셀 단축키 Ctrl+Shift+L 이 뭐하는 거야?",
+  "should_trigger": false,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [],
+  "ok": true,
+  "secs": 10,
+  "cost": 0.00230933,
+  "turns": 1,
+  "subtype": "success"
+ },
+ {
+  "query": "엑셀 단축키 Ctrl+Shift+L 이 뭐하는 거야?",
+  "should_trigger": false,
+  "model": "sonnet",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [],
+  "ok": true,
+  "secs": 8,
+  "cost": 0.041128,
+  "turns": 1,
+  "subtype": "success"
+ },
+ {
+  "query": "엑셀 단축키 Ctrl+Shift+L 이 뭐하는 거야?",
+  "should_trigger": false,
+  "model": "opus",
+  "triggered": false,
+  "other_skills": [],
+  "tools": [],
+  "ok": true,
+  "secs": 9,
+  "cost": 0.0839472,
+  "turns": 1,
+  "subtype": "success"
+ },
+ {
+  "query": "Make a bar chart PNG from results.json with matplotlib",
+  "should_trigger": false,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [
+   "dataviz"
+  ],
+  "tools": [
+   "Skill(dataviz)",
+   "Glob",
+   "Glob",
+   "Bash",
+   "Glob",
+   "Read"
+  ],
+  "ok": true,
+  "secs": 5,
+  "cost": 0.00382508,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "Make a bar chart PNG from results.json with matplotlib",
+  "should_trigger": false,
+  "model": "sonnet",
+  "triggered": false,
+  "other_skills": [
+   "dataviz"
+  ],
+  "tools": [
+   "Skill(dataviz)",
+   "Glob",
+   "Bash",
+   "Glob",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 10,
+  "cost": 0.061085,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "Make a bar chart PNG from results.json with matplotlib",
+  "should_trigger": false,
+  "model": "opus",
+  "triggered": false,
+  "other_skills": [
+   "dataviz"
+  ],
+  "tools": [
+   "Skill(dataviz)",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 13,
+  "cost": 0.1158166,
+  "turns": 4,
+  "subtype": "success"
+ },
+ {
+  "query": "Word 문서의 표 서식을 바꿔줘",
+  "should_trigger": false,
+  "model": "haiku",
+  "triggered": false,
+  "other_skills": [
+   "anthropic-skills:docx"
+  ],
+  "tools": [
+   "Glob",
+   "Skill(anthropic-skills:docx)",
+   "Bash",
+   "Glob",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 5,
+  "cost": 0.0038842200000000003,
+  "turns": 4,
+  "subtype": "error_max_turns"
+ },
+ {
+  "query": "Word 문서의 표 서식을 바꿔줘",
+  "should_trigger": false,
+  "model": "sonnet",
+  "triggered": false,
+  "other_skills": [
+   "anthropic-skills:docx"
+  ],
+  "tools": [
+   "Skill(anthropic-skills:docx)",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 8,
+  "cost": 0.058103800000000004,
+  "turns": 4,
+  "subtype": "success"
+ },
+ {
+  "query": "Word 문서의 표 서식을 바꿔줘",
+  "should_trigger": false,
+  "model": "opus",
+  "triggered": false,
+  "other_skills": [
+   "anthropic-skills:docx"
+  ],
+  "tools": [
+   "Skill(anthropic-skills:docx)",
+   "Glob"
+  ],
+  "ok": true,
+  "secs": 11,
+  "cost": 0.11788560000000001,
+  "turns": 4,
+  "subtype": "success"
+ }
+]

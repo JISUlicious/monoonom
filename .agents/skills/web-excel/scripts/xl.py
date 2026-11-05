@@ -74,9 +74,11 @@ def workspace_root(arg=None) -> str:
     the file sandbox and relative file paths all hang off this directory."""
     root = arg or os.environ.get("WEBEXCEL_ROOT") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
     root = os.path.abspath(os.path.expanduser(root))
-    skill = os.path.normcase(os.path.realpath(SKILL_DIR))
+    # the skill folder as reached (e.g. .claude/skills/web-excel, whose scripts/ is a link) and the
+    # package it links to (.agents/skills/web-excel)
+    skills = {os.path.normcase(os.path.realpath(d)) for d in (SKILL_DIR, os.path.dirname(os.path.realpath(HERE)))}
     real = os.path.normcase(os.path.realpath(root))
-    if real == skill or real.startswith(skill + os.sep):
+    if any(real == s or real.startswith(s + os.sep) for s in skills):
         raise CliError(
             f"작업 폴더가 skill 폴더 안({root})으로 잡혔습니다. xl.py는 사용자의 작업 폴더(프로젝트 폴더)에서 "
             f"실행하세요: cd <작업 폴더> && python \"{os.path.join(HERE, 'xl.py')}\" ... "
