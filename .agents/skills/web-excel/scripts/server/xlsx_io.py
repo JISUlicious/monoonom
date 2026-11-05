@@ -208,7 +208,23 @@ def _anchor_model(anchor, geom: _Geom):
     return {"c": 4, "r": 1, "dx": 0, "dy": 0, "w": 480, "h": 288}
 
 
-def _chart_model(chart, idx, geom, warn):
+def _series_color(s, stype, theme):
+    """Explicit color of a series in the file (fill for bars/areas/slices, line for lines,
+    marker for scatter), or None when Excel picks it from the theme by position."""
+    gp = getattr(s, "graphicalProperties", None)
+    if stype in ("line", "radar"):
+        ln = getattr(gp, "line", None) if gp is not None else None
+        c = colors.drawing_color(getattr(ln, "solidFill", None), theme) if ln is not None else None
+    elif stype == "scatter":
+        mk = getattr(s, "marker", None)
+        mgp = getattr(mk, "graphicalProperties", None) if mk is not None else None
+        c = colors.drawing_color(getattr(mgp, "solidFill", None), theme) if mgp is not None else None
+    else:
+        c = colors.drawing_color(getattr(gp, "solidFill", None), theme) if gp is not None else None
+    return "#" + c if c else None
+
+
+def _chart_model(chart, idx, geom, warn, theme=None):
     subs = list(getattr(chart, "_charts", None) or [chart])
     main_type = CHART_TYPES.get(chart.tagname)
     if main_type is None:
@@ -229,6 +245,18 @@ def _chart_model(chart, idx, geom, warn):
             else:
                 cat, val = _ref_of(s.cat), _ref_of(s.val)
             item = {"name": name, "nameRef": name_ref, "cat": cat, "val": val}
+            color = _series_color(s, stype, theme)
+            if color:
+                item["color"] = color
+            if stype in ("pie", "doughnut") and getattr(s, "dPt", None):
+                pts = []
+                for dp in s.dPt:
+                    c = colors.drawing_color(getattr(getattr(dp, "graphicalProperties", None), "solidFill", None), theme)
+                    while len(pts) <= dp.idx:
+                        pts.append(None)
+                    pts[dp.idx] = "#" + c if c else None
+                if any(pts):
+                    item["pointColors"] = pts
             if stype != main_type:
                 item["type"] = stype
             series.append(item)
@@ -374,7 +402,7 @@ def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
         charts = []
         for i, ch in enumerate(getattr(ws, "_charts", [])):
             try:
-                charts.append(_chart_model(ch, i, geom, warn))
+                charts.append(_chart_model(ch, i, geom, warn, theme))
             except Exception as exc:  # pragma: no cover
                 warn.append(f"차트를 읽지 못했습니다: {exc}")
         if getattr(ws, "_images", None):
@@ -413,7 +441,7 @@ def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
         warn.append("차트 시트는 화면에 표시되지 않지만 저장 시 보존됩니다.")
     active = wb.worksheets.index(wb.active) if wb.active in wb.worksheets else 0
     return {"sheets": sheets, "styles": styles, "activeSheet": active,
-            "definedNames": names, "warnings": warn,
+            "definedNames": names, "warnings": warn, "themeColors": theme,
             "defaultFont": {"name": default_font[0], "size": default_font[1]}}
 
 
@@ -467,7 +495,50 @@ class _StyleCache:
         return hit
 
 
-def _build_chart(m: dict):
+def _no_auto_title(chart):
+    """Without <c:title>, Excel titles a one-series chart with the series name unless
+    <c:autoTitleDeleted val="1"/> says not to; the preview shows no title. openpyxl's chart object
+    has no setting for it, so add the element to the XML it produces."""
+    from openpyxl.xml.functions import Element
+    write = chart._write
+
+    def _write():
+        tree = write()
+        # openpyxl builds these elements without a namespace (the chartSpace carries xmlns)
+        for ns in ("", "{http://schemas.openxmlformats.org/drawingml/2006/chart}"):
+            c = tree.find(ns + "chart")
+            if c is not None:
+                if c.find(ns + "autoTitleDeleted") is None:
+                    c.insert(0, Element(ns + "autoTitleDeleted", val="1"))
+                break
+        return tree
+    chart._write = _write
+
+
+def modern_theme_xml() -> str:
+    """openpyxl writes the Office 2007 theme (accent1 4F81BD, headings Cambria) into workbooks it
+    creates. New workbooks get the Office 2013-2022 theme instead, the one current Excel versions
+    use and the preview's colors are based on (accent1-6 4472C4 ED7D31 A5A5A5 FFC000 5B9BD5 70AD47,
+    dk2 44546A, lt2 E7E6E6, hyperlink 0563C1/954F72, headings Calibri Light, body Calibri)."""
+    import re
+    from openpyxl.writer.theme import theme_xml
+    colors_2013 = {"dk2": "44546A", "lt2": "E7E6E6", "accent1": "4472C4", "accent2": "ED7D31",
+                   "accent3": "A5A5A5", "accent4": "FFC000", "accent5": "5B9BD5", "accent6": "70AD47",
+                   "hlink": "0563C1", "folHlink": "954F72"}
+    s = theme_xml
+    for name, hex6 in colors_2013.items():
+        s, n = re.subn(rf"(<a:{name}>\s*<a:srgbClr val=\")[0-9A-Fa-f]{{6}}", rf"\g<1>{hex6}", s, count=1)
+        assert n == 1, name
+    s = re.sub(r'(<a:majorFont>\s*<a:latin typeface=")[^"]*', r"\g<1>Calibri Light", s, count=1)
+    return s
+
+
+def _build_chart(m: dict, theme: list[str] | None = None):
+    """A chart web-excel created or edited, written with the shared style (chart_style) so Excel
+    draws it as the preview does. Series keep an explicit color they had in the original file."""
+    from openpyxl.chart.marker import DataPoint
+    from . import chart_style as CS
+
     kinds = {"bar": BarChart, "line": LineChart, "pie": PieChart, "doughnut": DoughnutChart,
              "area": AreaChart, "scatter": ScatterChart, "radar": RadarChart}
     main_t = m.get("type", "bar")
@@ -476,8 +547,12 @@ def _build_chart(m: dict):
         groups.setdefault(s.get("type") or main_t, []).append(s)
     if main_t not in groups:
         groups = {main_t: [], **groups}
-
+    pal = CS.palette(theme, 36)
     counter = [0]
+
+    def color_of(s, i):
+        c = (s.get("color") or "").lstrip("#")
+        return c.upper() if len(c) == 6 else pal[i % len(pal)]
 
     def make(t, series):
         ch = kinds.get(t, BarChart)()
@@ -485,35 +560,48 @@ def _build_chart(m: dict):
             ch.type = m.get("barDir", "col")
             g = m.get("grouping", "clustered")
             ch.grouping = g if g in ("clustered", "stacked", "percentStacked") else "clustered"
-            if ch.grouping != "clustered":
-                ch.overlap = 100
+            if ch.grouping == "clustered":
+                ch.gapWidth, ch.overlap = CS.BAR_GAP, CS.BAR_OVERLAP
+            else:
+                ch.gapWidth, ch.overlap = CS.STACKED_GAP, CS.STACKED_OVERLAP
         elif t in ("line", "area"):
             g = m.get("grouping", "standard")
             ch.grouping = g if g in ("standard", "stacked", "percentStacked") else "standard"
-        if t == "scatter":
-            ch.style = 13
+        if t in ("pie", "doughnut"):
+            ch.varyColors = True
         for s in series:
             if not s.get("val"):
                 continue
+            i = counter[0]
+            color = color_of(s, i)
             if t == "scatter":
                 ser = Series(s["val"], xvalues=s.get("cat") or None)
-                ser.marker = Marker(symbol="circle")
-                ser.graphicalProperties = GraphicalProperties(ln=LineProperties(noFill=True))
+                ser.marker = CS.marker_circle(color)
             else:
                 ser = Series(s["val"])
                 if s.get("cat"):
                     ser.cat = AxDataSource(numRef=NumRef(f=s["cat"]))
-            ser.idx = ser.order = counter[0]
+            ser.graphicalProperties = CS.series_props(t, color)
+            if t in ("line", "radar"):
+                ser.marker = CS.marker_none()
+                ser.smooth = False
+            if t in ("pie", "doughnut"):
+                # one color per slice (from the file when it had them), white borders
+                pts = s.get("pointColors") or []
+                n = max(len(pts), int(s.get("points") or 0), 12)
+                ser.graphicalProperties = GraphicalProperties(ln=CS.pie_border())
+                ser.dPt = [DataPoint(idx=k, spPr=GraphicalProperties(
+                    solidFill=(pts[k].lstrip("#").upper() if k < len(pts) and pts[k] else pal[k % len(pal)]),
+                    ln=CS.pie_border())) for k in range(n)]
+            ser.idx = ser.order = i
             counter[0] += 1
             if s.get("nameRef"):
                 ser.tx = SeriesLabel(strRef=StrRef(f=s["nameRef"]))
             elif s.get("name"):
                 ser.tx = SeriesLabel(v=str(s["name"]))
             ch.series.append(ser)
-        for ax_name in ("x_axis", "y_axis"):
-            ax = getattr(ch, ax_name, None)
-            if ax is not None:
-                ax.delete = False  # openpyxl>=3.1 hides axes otherwise in Excel 365
+        if t not in ("pie", "doughnut", "radar"):
+            CS.style_axes(ch)
         return ch
 
     items = list(groups.items())
@@ -521,19 +609,26 @@ def _build_chart(m: dict):
     for t, series in items[1:]:
         chart += make(t, series)
     if m.get("title"):
-        chart.title = m["title"]
+        chart.title = CS.title(m["title"])
+    else:
+        _no_auto_title(chart)
     if m.get("legend"):
         chart.legend = Legend()
         chart.legend.position = m["legend"]
+        chart.legend.txPr = CS.rich()
+        chart.legend.overlay = False
     else:
         chart.legend = None
     try:
         if m.get("xTitle"):
-            chart.x_axis.title = m["xTitle"]
+            chart.x_axis.title = CS.axis_title(m["xTitle"])
         if m.get("yTitle"):
-            chart.y_axis.title = m["yTitle"]
+            chart.y_axis.title = CS.axis_title(m["yTitle"])
     except Exception:
         pass
+    chart.roundedCorners = False
+    chart.graphical_properties = CS.chart_area()
+    chart.style = None
     return chart
 
 
@@ -570,6 +665,7 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
     else:
         wb = Workbook()
         wb.remove(wb.active)
+        wb.loaded_theme = modern_theme_xml().encode("utf-8")  # instead of openpyxl's Office 2007 theme
         dfont = model.get("defaultFont") or {}
         if dfont.get("name"):
             from openpyxl.utils.indexed_list import IndexedList
@@ -586,6 +682,7 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
         default_font = ("Calibri", 11.0)
     cache = _StyleCache(default_font)
     styles = model.get("styles", [])
+    chart_theme = colors.parse_theme_colors(getattr(wb, "loaded_theme", None))
 
     existing = {ws.title: ws for ws in wb.worksheets}
     reused = {}
@@ -685,7 +782,7 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
             if isinstance(o, int) and not cm.get("dirty") and 0 <= o < len(orig_charts):
                 ch = orig_charts[o]
             else:
-                ch = _build_chart(cm)
+                ch = _build_chart(cm, chart_theme)
             ch.anchor = _anchor(cm.get("anchor", {}))
             new_charts.append(ch)
         ws._charts = new_charts
