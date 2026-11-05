@@ -799,7 +799,7 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 
 "compatible with / works with" 같은 호환성 설명은 가이드라인이 허용하므로 유지한다.
 
-**이름**: MoNooNoM. '모눈'을 영어로 쓰고 좌우 대칭으로 만든 이름이다(MoNooN + NooNoM).
+**이름**: MoNoonOm. '모눈'을 영어로 쓰고 좌우 대칭으로 만든 이름이다(MoNoon + Om).
 - skill 이름과 폴더: `monoonom`
 - npm·PyPI·GitHub에 같은 이름 없음(2026-11-05 확인). 정식 상표 검색은 하지 않았다.
 
@@ -815,7 +815,7 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 - 아이콘: `assets/web/img/monoonom.svg`, 16px용 `favicon.svg`(선을 굵게).
   - 3×3 격자 위에 외곽선 펜(속은 흰색으로 채움)을 세워서 쓰는 각도로 둔다.
   - 오른쪽 위 펜은 가운데 행 오른쪽 칸에, 그 점대칭 짝은 가운데 행 왼쪽 칸에 쓴다.
-- README에 상표 고지를 넣었다("Microsoft, Excel은 Microsoft Corporation의 상표이며, MoNooNoM은 Microsoft와 관련이 없다").
+- README에 상표 고지를 넣었다("Microsoft, Excel은 Microsoft Corporation의 상표이며, MoNoonOm은 Microsoft와 관련이 없다").
 
 **그대로 둔 것**:
 - GitHub 저장소 주소: 저장소 이름은 소유자가 바꾼다.

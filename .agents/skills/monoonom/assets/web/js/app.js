@@ -160,7 +160,7 @@ class App {
     this.clipboard.state && this.clipboard.state.wb !== this.doc.wb && null;
     this.restoreScroll();
     this.render();
-    document.title = `${this.doc.wb.name} - MoNooNoM`;
+    document.title = `${this.doc.wb.name} - MoNoonOm`;
     this.focusGrid();
   }
 
@@ -298,7 +298,7 @@ class App {
     bar.innerHTML = this.docs.map((d, i) => `<div class="doc-tab${i === this.di ? ' on' : ''}" data-i="${i}" title="${D.esc(d.wb.path || d.wb.name)}">
       <span class="dt-ic">${d.wb.format === 'xls' ? '📗' : '📊'}</span><span class="dt-name">${D.esc(d.wb.name)}</span>${d.unseen && i !== this.di ? '<span class="dt-new" title="화면에 없는 동안 바뀌었습니다">●</span>' : ''}${d.wb.dirty ? '<span class="dt-dirty" title="저장되지 않은 변경 내용">●</span>' : ''}<button class="dt-x" data-close="${i}" title="닫기 (Ctrl+F4)">×</button></div>`).join('')
       + '<button class="doc-new" data-cmd="new" title="새 통합 문서 (Ctrl+N)">＋</button>';
-    if (this.doc) document.title = `${this.doc.wb.dirty ? '● ' : ''}${this.doc.wb.name} - MoNooNoM`;
+    if (this.doc) document.title = `${this.doc.wb.dirty ? '● ' : ''}${this.doc.wb.name} - MoNoonOm`;
   }
 
   renderSheetTabs() {
@@ -1699,7 +1699,7 @@ class App {
     this.$('#sheet-tabs').innerHTML = '';
     this.$('#name-box').value = '';
     this.$('#fx-input').value = '';
-    document.title = 'MoNooNoM';
+    document.title = 'MoNoonOm';
     let el = document.getElementById('empty-state');
     if (!el) {
       el = document.createElement('div');

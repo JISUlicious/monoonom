@@ -18,7 +18,7 @@ metadata:
   version: "0.3"
 ---
 
-# MoNooNoM
+# MoNoonOm
 
 A local web spreadsheet shared by the agent and the user. The bundled Python server owns every
 open workbook: the agent edits it with `scripts/xl.py`, the user edits it in the preview pane, and

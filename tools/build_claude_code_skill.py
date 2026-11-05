@@ -17,7 +17,7 @@ _, front, body = src.split("---\n", 2)
 front = re.sub(r"compatibility: >\n(?:  .*\n)+", "compatibility: >\n  Claude Code on the user's machine with Python 3.9+; binds a port on 127.0.0.1. Optional\n  Node.js 18+ computes formulas when no preview is open.\n", front)
 front += "allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/xl.py *) Bash(python ${CLAUDE_SKILL_DIR}/scripts/xl.py *)\n"
 
-body = body.replace("# MoNooNoM\n", "# MoNooNoM (Claude Code)\n\nServer status right now (the preview URL with its token comes from `xl.py url`):\n!`python3 ${CLAUDE_SKILL_DIR}/scripts/xl.py status --brief || true`\n", 1)
+body = body.replace("# MoNoonOm\n", "# MoNoonOm (Claude Code)\n\nServer status right now (the preview URL with its token comes from `xl.py url`):\n!`python3 ${CLAUDE_SKILL_DIR}/scripts/xl.py status --brief || true`\n", 1)
 old = "Run commands as `python scripts/xl.py <command>` using this skill folder's absolute path, **from the"
 assert old in body, "SKILL.md run instruction changed; update tools/build_claude_code_skill.py"
 body = body.replace(old, "Run commands as `python3 ${CLAUDE_SKILL_DIR}/scripts/xl.py <command>` (written `xl.py` below), **from the")

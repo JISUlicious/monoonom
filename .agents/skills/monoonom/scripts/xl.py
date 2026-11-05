@@ -88,7 +88,7 @@ def workspace_root(arg=None) -> str:
     return root
 
 
-OLD_STATE_DIR = ".web-excel"  # before the rename (web-excel -> MoNooNoM)
+OLD_STATE_DIR = ".web-excel"  # before the rename (web-excel -> MoNoonOm)
 
 
 def _migrate_state(root):

@@ -1,8 +1,8 @@
-# MoNooNoM
+# MoNoonOm
 
 <img src=".agents/skills/monoonom/assets/web/img/monoonom.svg" alt="" width="64" align="right">
 
-사람과 에이전트가 **같은 스프레드시트를 함께 보면서 작업하는** 로컬 웹 스프레드시트입니다. 이름은 '모눈(종이)'을 영어로 쓰고 좌우 대칭으로 만든 것입니다(MoNooN + NooNoM).
+사람과 에이전트가 **같은 스프레드시트를 함께 보면서 작업하는** 로컬 웹 스프레드시트입니다. 이름은 '모눈(종이)'을 영어로 쓰고 좌우 대칭으로 만든 것입니다(MoNoon + Om).
 로컬 Python 서버와 브라우저 UI로 동작하며, Microsoft Excel 파일(xlsx·xlsm)을 읽고 쓰고 xls 파일을 읽습니다.
 에이전트 SW(Claude Code 데스크톱, VS Code/Cursor Simple Browser 등)의 미리보기 창에서 `xl.py serve`가 알려 주는 주소(`http://localhost:8765/#t=토큰`)로 접속해 xlsx 파일을 읽고 쓰고, xls 파일을 읽을 수 있습니다(xls는 xlsx로 저장).
 
@@ -183,7 +183,7 @@ MIT (`LICENSE`).
 
 ## 상표
 
-Microsoft, Excel은 미국 및 기타 국가에서 Microsoft Corporation의 상표입니다. MoNooNoM은 Microsoft와 관련이 없으며 Microsoft가 후원하거나 보증하지 않습니다. 이 문서에서 'Excel'은 파일 형식과 호환되는 동작을 설명하는 데에만 씁니다.
+Microsoft, Excel은 미국 및 기타 국가에서 Microsoft Corporation의 상표입니다. MoNoonOm은 Microsoft와 관련이 없으며 Microsoft가 후원하거나 보증하지 않습니다. 이 문서에서 'Excel'은 파일 형식과 호환되는 동작을 설명하는 데에만 씁니다.
 
 ## 라이선스(외부 코드)
 
