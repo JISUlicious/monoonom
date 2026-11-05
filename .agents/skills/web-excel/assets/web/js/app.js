@@ -182,6 +182,7 @@ class App {
   }
 
   onWbChange(doc, ev) {
+    if (ev.type === 'blocked') { this.toast(ev.message, 'warn'); this.render(); return; }
     if (ev.type !== 'change') return;
     if (ev.entry) doc.sync.send(ev.entry);
     doc.sync.scheduleCalc();

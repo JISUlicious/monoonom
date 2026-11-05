@@ -25,7 +25,7 @@ from .colors import DEFAULT_THEME
 CHART_STYLE = preview_spec()  # sent with snapshots so the preview draws charts like saved files
 
 META_KEYS = ("name", "origName", "state", "tabColor", "showGrid", "defaultColW", "defaultRowH",
-             "cols", "rows", "filterHidden", "merges", "freeze", "autoFilter", "charts")
+             "cols", "rows", "filterHidden", "merges", "freeze", "autoFilter", "charts", "pivots")
 LOG_LIMIT = 5000
 
 
@@ -125,6 +125,7 @@ class DocSession:
         sh["rows"] = {str(k): v for k, v in (sh["rows"] or {}).items()}
         sh["merges"] = sh["merges"] or []
         sh["charts"] = sh["charts"] or []
+        sh["pivots"] = sh["pivots"] or []
         for ch in sh["charts"]:
             ch.setdefault("id", new_id("ch"))
         fh = sh["filterHidden"]
@@ -260,6 +261,8 @@ class DocSession:
                         for sh in e.get("shifts", []):
                             ops = self._transform(ops, sh)
                     transformed = True
+            if not structural:
+                self._guard_pivots(ops)
             undo = self._snapshot_for(ops)
             for op in ops:
                 self._apply_one(op)
@@ -276,6 +279,30 @@ class DocSession:
                         "structural": bool(structural), "transformed": transformed})
             self.hub.publish("ops", {"docId": self.id, **{k: entry[k] for k in ("v", "actor", "clientId", "batchId", "label", "ops", "structural", "transformed")}})
             return self.version
+
+    def _guard_pivots(self, ops):
+        """A pivot table's output changes only through its source (Excel refuses edits there too):
+        refuse a batch that writes values or formulas into one. Formatting it is fine. Structural
+        batches (row/column inserts that move the pivot, their undo) are not checked here; their
+        builders refuse cuts through a pivot."""
+        from . import pivots as PV
+        for op in ops:
+            if op.get("op") != "setCells":
+                continue
+            try:
+                sh = self.sheet(op["sheet"])
+            except SessionError:
+                continue
+            if not sh.get("pivots"):
+                continue
+            for r, c, cell in op["cells"]:
+                p = PV.at(sh, int(r), int(c))
+                if p is None:
+                    continue
+                old = sh["cells"].get((int(r), int(c))) or {}
+                new = cell or {}
+                if (old.get("v"), old.get("f")) != (new.get("v"), new.get("f")):
+                    raise SessionError(409, PV.blocked_message(p), reason="pivot")
 
     def _transform(self, ops, shift):
         """Move a stale batch's cells (and their formulas) through one row/column insert/delete."""

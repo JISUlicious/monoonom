@@ -38,6 +38,7 @@ export class Sheet {
     this.freeze = { r: 0, c: 0 };
     this.autoFilter = null;      // {range:{...}, cols:{relIdx:{values?:[], blank?, custom?:[{op,val}], and?}}}
     this.charts = [];
+    this.pivots = [];            // pivot tables in the file: [{name, ref, source, rows, cols, values, filters, idx, srcSig}]
     this.state = 'visible';
     this.tabColor = null;
     this.showGrid = true;
@@ -64,7 +65,7 @@ export class Sheet {
     return structuredClone({
       name: this.name, colW: [...this.colW], rowH: [...this.rowH], hiddenCols: [...this.hiddenCols],
       hiddenRows: [...this.hiddenRows], filterHidden: [...this.filterHidden], merges: this.merges,
-      freeze: this.freeze, autoFilter: this.autoFilter, charts: this.charts, state: this.state,
+      freeze: this.freeze, autoFilter: this.autoFilter, charts: this.charts, pivots: this.pivots, state: this.state,
       tabColor: this.tabColor, showGrid: this.showGrid, defaultColW: this.defaultColW, defaultRowH: this.defaultRowH,
     });
   }
@@ -73,7 +74,7 @@ export class Sheet {
     this.name = m.name; this.colW = new Map(m.colW); this.rowH = new Map(m.rowH);
     this.hiddenCols = new Set(m.hiddenCols); this.hiddenRows = new Set(m.hiddenRows);
     this.filterHidden = new Set(m.filterHidden); this.merges = m.merges; this.freeze = m.freeze;
-    this.autoFilter = m.autoFilter; this.charts = m.charts; this.state = m.state; this.tabColor = m.tabColor;
+    this.autoFilter = m.autoFilter; this.charts = m.charts; this.pivots = m.pivots || []; this.state = m.state; this.tabColor = m.tabColor;
     this.showGrid = m.showGrid; this.defaultColW = m.defaultColW; this.defaultRowH = m.defaultRowH;
     this._geomVersion++;
   }
@@ -170,6 +171,16 @@ export class Workbook {
       if (JSON.stringify(before) !== JSON.stringify(after)) entry.cells.push({ sheet, k, before, after });
     }
     for (const [sheet, before] of t.meta) entry.meta.push({ sheet, before, after: sheet.metaSnapshot() });
+    // a pivot table's output can only change through its source (or move with rows/columns): undo
+    // the whole transaction instead of sending it (the server would refuse it as well)
+    if (!entry.structural && !t.pivotWrite) {
+      const hit = entry.cells.find((ch) => pivotAt(ch.sheet, keyRow(ch.k), keyCol(ch.k)) && valueChanged(ch.before, ch.after));
+      if (hit) {
+        this._apply(entry, 'undo');
+        this.emit({ type: 'blocked', message: pivotBlockedMessage(pivotAt(hit.sheet, keyRow(hit.k), keyCol(hit.k))) });
+        return;
+      }
+    }
     if (t.structure) entry.structure = { before: t.structure, after: { sheets: [...this.sheets], active: this.active } };
     if (!entry.cells.length && !entry.meta.length && !entry.structure) return;
     this.undoStack.push(entry);
@@ -280,6 +291,9 @@ export class Workbook {
         }
       }
     }
+    for (const s of this.sheets) for (const p of s.pivots) {
+      if (p.source) { const n = renameSheetInFormula('=' + p.source, old, name).slice(1); if (n !== p.source) { this.touchMeta(s); p.source = n; } }
+    }
     for (const [n, v] of Object.entries(this.definedNames)) this.definedNames[n] = renameSheetInFormula(v, old, name);
     this.commit();
   }
@@ -301,6 +315,7 @@ export class Workbook {
     const s = new Sheet(this.uniqueSheetName(src.name));
     s.applyMeta({ ...src.metaSnapshot(), name: s.name });
     s.charts.forEach((c) => { c.id = newId('ch'); c.orig = null; c.dirty = true; });
+    s.pivots = []; // the copy's cells are plain values: the file's pivot stays on the original sheet
     for (const [k, c] of src.cells) s.cells.set(k, { ...c });
     s.updateExtent();
     this.sheets.splice(idx + 1, 0, s);
@@ -312,6 +327,8 @@ export class Workbook {
   // ------------------------------------------------------------ structural (rows / cols)
   /** Insert (count>0) or delete (count<0) rows or columns at `at` on `sheet`. */
   shift(sheet, axis, at, count) {
+    const blocked = pivotShiftProblem(sheet, axis, at, count);
+    if (blocked) throw new Error(blocked);
     this.begin(count > 0 ? (axis === 'row' ? '행 삽입' : '열 삽입') : (axis === 'row' ? '행 삭제' : '열 삭제'));
     this.markStructural(true, { sheet: sheet.id, axis, at, count });
     this.touchMeta(sheet);
@@ -337,6 +354,11 @@ export class Workbook {
         if (!cell.f) continue;
         const nf = adjustFormula(cell.f, s.name, sheet.name, axis, at, count);
         if (nf !== cell.f) this.setCell(s, keyRow(k), keyCol(k), { ...cell, f: nf });
+      }
+      for (const p of s.pivots) { // pivot sources on the shifted sheet
+        if (!p.source) continue;
+        const n = adjustFormula('=' + p.source, s.name, sheet.name, axis, at, count).slice(1);
+        if (n !== p.source) { this.touchMeta(s); p.source = n; }
       }
       for (const ch of s.charts) {
         this.touchMeta(s);
@@ -375,6 +397,10 @@ export class Workbook {
     for (const ch of sheet.charts) {
       const p = isRow ? 'r' : 'c';
       if (ch.anchor[p] >= at) ch.anchor[p] = Math.max(at, ch.anchor[p] + count);
+    }
+    for (const p of sheet.pivots) { // the pivot moves as a whole (cutting through it was refused above)
+      const g = parseRange(p.ref);
+      if (g) { const n = adjRange(g); if (n) p.ref = rangeA1(n); }
     }
     this.commit();
   }
@@ -479,6 +505,7 @@ export class Workbook {
         s.autoFilter = { range: parseRange(sj.autoFilter.ref), cols: sj.autoFilter.cols || {} };
       }
       s.charts = (sj.charts || []).map((c) => ({ id: newId('ch'), ...c }));
+      s.pivots = structuredClone(sj.pivots || []);
       if (Array.isArray(sj.filterHidden)) { s.filterHidden = new Set(sj.filterHidden.map(Number)); s._explicitFilter = true; }
       s.updateExtent();
       wb.sheets.push(s);
@@ -538,6 +565,7 @@ export class Workbook {
         freeze: s.freeze && (s.freeze.r || s.freeze.c) ? a1(s.freeze.r, s.freeze.c) : null,
         autoFilter: s.autoFilter ? { ref: rangeA1(s.autoFilter.range), cols: s.autoFilter.cols } : null,
         charts: s.charts.map((c) => { const o = { ...c }; delete o.id; return o; }),
+        pivots: structuredClone(s.pivots),
       };
     });
     return {
@@ -563,8 +591,39 @@ export function sheetMetaJSON(s) {
     freeze: s.freeze && (s.freeze.r || s.freeze.c) ? a1(s.freeze.r, s.freeze.c) : null,
     autoFilter: s.autoFilter ? { ref: rangeA1(s.autoFilter.range), cols: s.autoFilter.cols } : null,
     charts: structuredClone(s.charts),
+    pivots: structuredClone(s.pivots),
   };
 }
+
+// ------------------------------------------------------------------ pivot tables (step 1: safeguards)
+/** The pivot table whose output covers (r, c) on sheet, or null. */
+export function pivotAt(sheet, r, c) {
+  for (const p of sheet.pivots || []) {
+    const g = parseRange(p.ref);
+    if (g && r >= g.r1 && r <= g.r2 && c >= g.c1 && c <= g.c2) return p;
+  }
+  return null;
+}
+/** Pivot tables whose output intersects range g. */
+export function pivotsIn(sheet, g) {
+  return (sheet.pivots || []).filter((p) => { const x = parseRange(p.ref); return x && x.r1 <= g.r2 && g.r1 <= x.r2 && x.c1 <= g.c2 && g.c1 <= x.c2; });
+}
+export function pivotBlockedMessage(p) {
+  return `피벗 테이블 '${p.name}'(${p.ref}) 영역은 바꿀 수 없습니다. 원본 데이터(${p.source || '?'})를 고치세요. 저장하면 Excel이 열 때 피벗을 새로 고칩니다.`;
+}
+/** Same rules as server/pivots.py shift_problem: rows/columns may go above/below a pivot, not through it. */
+export function pivotShiftProblem(sheet, axis, at, count) {
+  for (const p of sheet.pivots || []) {
+    const g = parseRange(p.ref);
+    if (!g) continue;
+    const lo = axis === 'row' ? g.r1 : g.c1, hi = axis === 'row' ? g.r2 : g.c2;
+    const what = axis === 'row' ? '행' : '열';
+    if (count > 0 && lo < at && at <= hi) return `피벗 테이블 '${p.name}'(${p.ref}) 가운데에는 ${what}을 삽입할 수 없습니다. 피벗 위나 아래(왼쪽·오른쪽)에 삽입하세요.`;
+    if (count < 0 && at <= hi && lo <= at - count - 1) return `피벗 테이블 '${p.name}'(${p.ref})의 ${what}은 삭제할 수 없습니다.`;
+  }
+  return null;
+}
+const valueChanged = (a, b) => (a?.v ?? null) !== (b?.v ?? null) || (a?.f ?? null) !== (b?.f ?? null);
 
 export function applySheetMetaJSON(s, m) {
   if ('name' in m) s.name = m.name;
@@ -587,6 +646,7 @@ export function applySheetMetaJSON(s, m) {
   if ('freeze' in m) { const p = m.freeze ? parseA1(m.freeze) : null; s.freeze = p ? { r: p.r, c: p.c } : { r: 0, c: 0 }; }
   if ('autoFilter' in m) s.autoFilter = m.autoFilter && m.autoFilter.ref ? { range: parseRange(m.autoFilter.ref), cols: m.autoFilter.cols || {} } : null;
   if ('charts' in m) s.charts = (m.charts || []).map((c) => ({ id: c.id || newId('ch'), ...structuredClone(c) }));
+  if ('pivots' in m) s.pivots = structuredClone(m.pivots || []);
   s._geomVersion++;
 }
 
