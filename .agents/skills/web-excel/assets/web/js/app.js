@@ -12,6 +12,7 @@ import { DocSync, EventStream } from './docsync.js';
 import { api, hasToken, tokenFragment } from './api.js';
 import { geom } from './geometry.js';
 import * as D from './dialogs.js';
+import { combo } from './combo.js';
 
 const LISTS = [
   ['일', '월', '화', '수', '목', '금', '토'],
@@ -23,6 +24,20 @@ const LISTS = [
   ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
   ['1분기', '2분기', '3분기', '4분기'], ['갑', '을', '병', '정', '무', '기', '경', '신', '임', '계'],
 ];
+
+// Excel's font size list; any size from 1 to 409 (0.5 steps) can still be typed
+export const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72];
+// when the server cannot list the installed fonts: common ones, kept if this browser has them
+const FONT_CANDIDATES = ['맑은 고딕', 'Malgun Gothic', '굴림', '돋움', '바탕', '궁서', 'Noto Sans KR', 'Nanum Gothic', '나눔고딕', 'Apple SD Gothic Neo',
+  'Calibri', 'Cambria', 'Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'Tahoma', 'Segoe UI', 'Consolas', 'Courier New',
+  'DejaVu Sans', 'Liberation Sans', 'Noto Sans', 'Roboto'];
+/** Fonts from names that this browser can draw (text width differs from the generic fallbacks). */
+export function detectFonts(names) {
+  const c = document.createElement('canvas').getContext('2d'), text = 'mmmmmmmmmmlli가나다WW';
+  const w = (font) => { c.font = font; return c.measureText(text).width; };
+  const base = ['monospace', 'serif', 'sans-serif'].map((g) => [g, w(`32px ${g}`)]);
+  return names.filter((n) => base.some(([g, bw]) => w(`32px "${n}", ${g}`) !== bw));
+}
 
 class App {
   constructor() {
@@ -1161,8 +1176,17 @@ class App {
       cut: () => this.clipboard.copyCommand(true), copy: () => this.clipboard.copyCommand(false), paste: () => this.clipboard.pasteCommand(), pasteSpecial: () => D.pasteSpecialDialog(this),
       painter: () => this.startPainter(false),
       bold: () => this.toggleStyle('b'), italic: () => this.toggleStyle('i'), underline: () => this.toggleStyle('u'), strike: () => this.toggleStyle('st'),
-      fontName: (v) => this.setStyleProp('ff', v === this.doc.wb.defaultFont.name ? null : v),
-      fontSize: (v) => { const n = parseFloat(v); if (n > 0) this.setStyleProp('fs', n); },
+      fontName: (v) => { v = String(v || '').trim(); if (!v) return; this.rememberFont(v); this.setStyleProp('ff', v === this.doc.wb.defaultFont.name ? null : v); },
+      fontSize: (v) => {
+        const n = Math.round(parseFloat(v) * 2) / 2; // Excel: 1-409 pt in steps of 0.5
+        if (!(n >= 1 && n <= 409)) {
+          this.toast('글꼴 크기는 1에서 409 사이의 숫자로 입력하세요(0.5 단위).', 'warn');
+          const a = this.view().active, st = this.doc.wb.sheet.get(a.r, a.c)?.s;
+          this.$('#font-size').value = st?.fs || this.doc.wb.defaultFont.size; // back to the cell's size
+          return;
+        }
+        this.setStyleProp('fs', n);
+      },
       fontGrow: () => this.styleRange((s) => ({ ...s, fs: nextSize(s.fs || this.doc.wb.defaultFont.size, 1) })),
       fontShrink: () => this.styleRange((s) => ({ ...s, fs: nextSize(s.fs || this.doc.wb.defaultFont.size, -1) })),
       fontColor: (v) => this.setStyleProp('fc', v), fillColor: (v) => this.setStyleProp('bg', v),
@@ -1426,9 +1450,10 @@ class App {
     });
     document.addEventListener('change', (e) => {
       const s = e.target.closest('select[data-cmd], input[data-cmd]');
+      if (s && s.dataset.sent === s.value) { delete s.dataset.sent; return; } // Enter already ran it
       if (s) this.exec(s.dataset.cmd, s.value);
     });
-    for (const id of ['#font-size']) this.$(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.exec('fontSize', e.target.value); } });
+    for (const id of ['#font-size']) this.$(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.dataset.sent = e.target.value; this.exec('fontSize', e.target.value); } });
     // color split buttons
     this.$('#font-color-pick').addEventListener('click', (e) => D.colorPopup(e.currentTarget, { noneLabel: '자동', onPick: (c) => { this.$('#font-color-bar').style.background = c || '#000'; this.exec('fontColor', c); } }));
     this.$('#fill-color-pick').addEventListener('click', (e) => D.colorPopup(e.currentTarget, { onPick: (c) => { this.$('#fill-color-bar').style.background = c || 'transparent'; this.exec('fillColor', c); } }));
@@ -1496,7 +1521,38 @@ class App {
     window.addEventListener('dragover', (e) => { if (e.dataTransfer?.types?.includes('Files')) e.preventDefault(); });
     window.addEventListener('drop', (e) => { if (e.dataTransfer?.files?.length) { e.preventDefault(); this.toast('DRM 보호를 위해 파일은 [열기] (Ctrl+O)로 서버(Python)를 통해 엽니다.', 'warn', 6000); } });
     // ribbon state follows focus changes
-    this.$('#font-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.exec('fontName', e.target.value); } });
+    this.$('#font-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.dataset.sent = e.target.value; this.exec('fontName', e.target.value); } });
+    combo(this.$('#font-name'), { items: () => this.fontItems(), onPick: (v) => this.exec('fontName', v), width: 240 });
+    combo(this.$('#font-size'), { items: () => FONT_SIZES.map((n) => ({ value: String(n) })), onPick: (v) => this.exec('fontSize', v) });
+  }
+
+  // ------------------------------------------------------------------ font picker
+  /** Font list for the pickers: the workbook's default font, fonts this workbook uses, recently
+   * picked ones, then every font installed on this computer (the server reads them: /api/fonts). */
+  async fontItems() {
+    const wb = this.doc?.wb, seen = new Set(), out = [];
+    // like Excel, a font can show in several groups (recent ones also under all fonts); once per group
+    const add = (name, group) => { const k = name && `${group}\u0000${name.toLowerCase()}`; if (k && !seen.has(k)) { seen.add(k); out.push({ value: name, group, font: name }); } };
+    if (wb) add(wb.defaultFont.name, '테마 글꼴');
+    if (wb) {
+      const used = new Set(); let n = 0;
+      for (const s of wb.sheets) { for (const cell of s.cells.values()) { if (cell.s?.ff) used.add(cell.s.ff); if (++n > 200000) break; } }
+      [...used].sort().forEach((f) => add(f, '이 문서에서 사용'));
+    }
+    this.recentFonts().forEach((f) => add(f, '최근 사용'));
+    (await this.systemFonts()).forEach((f) => add(f, '모든 글꼴'));
+    return out;
+  }
+  async systemFonts() {
+    if (!this._fonts) {
+      this._fonts = api.fonts().then((r) => r.fonts.map((f) => f.name)).catch(() => detectFonts(FONT_CANDIDATES));
+    }
+    const list = await this._fonts;
+    return list.length ? list : detectFonts(FONT_CANDIDATES);
+  }
+  recentFonts() { try { return JSON.parse(localStorage.getItem('webexcel.recentFonts') || '[]'); } catch { return []; } }
+  rememberFont(name) {
+    try { localStorage.setItem('webexcel.recentFonts', JSON.stringify([name, ...this.recentFonts().filter((f) => f !== name)].slice(0, 8))); } catch { /* private mode */ }
   }
 
   fileMenu(anchor) {

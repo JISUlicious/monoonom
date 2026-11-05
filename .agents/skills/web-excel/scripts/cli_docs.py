@@ -507,6 +507,20 @@ def cmd_changes(args):
     return 0
 
 
+def cmd_fonts(args):
+    """Installed fonts (read on this computer; no server needed), optionally filtered."""
+    from server.fonts import list_fonts
+    res = list_fonts()
+    q = (args.search or "").lower()
+    fonts = [f for f in res["fonts"] if not q or any(q in n.lower() for n in f["names"])]
+    if args.json:
+        return out_json({"fonts": fonts, "files": res["files"]})
+    for f in fonts:
+        print(f["name"] + (f"  ({', '.join(n for n in f['names'] if n != f['name'])})" if len(f["names"]) > 1 else ""))
+    print(f"— 글꼴 {len(fonts)}개" + (f" ('{args.search}' 포함)" if q else "") + f", 파일 {res['files']}개에서 읽음")
+    return 0
+
+
 def cmd_selection(args):
     st, d = ctx(args)
     res = request(st, "GET", f"/api/docs/{d['docId']}/selection")["selection"]
@@ -639,6 +653,7 @@ def register(sub):
     p = add("apply", cmd_apply, "편집 목록(JSON 파일/-)을 한 번에 적용"); p.add_argument("file"); p.add_argument("--label")
     p = add("changes", cmd_changes, "변경 이력(사용자/에이전트)"); p.add_argument("--since", type=int, default=0); p.add_argument("--actor", choices=["user", "agent"])
     add("selection", cmd_selection, "사용자가 미리보기에서 선택 중인 범위")
+    p = add("fonts", cmd_fonts, "이 컴퓨터에 설치된 글꼴 (format ff= 에 쓰는 이름)", doc=False); p.add_argument("--search", help="이름에 포함된 글자")
     p = add("undo", cmd_undo, "에이전트 batch 되돌리기", json_=False); p.add_argument("batch"); p.add_argument("--force", action="store_true")
     p = add("save", cmd_save, "저장 (Python이 파일 기록, 덮어쓰기 전 백업)", json_=False); p.add_argument("--as", dest="as_path")
     p.add_argument("--format", choices=["xlsx", "xlsm"]); p.add_argument("--overwrite", action="store_true")

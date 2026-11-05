@@ -228,6 +228,13 @@ def r_info(h, m, q, body):
     return api_info(q)
 
 
+@route("GET", "/api/fonts")
+def r_fonts(h, m, q, body):
+    """Fonts installed on this computer (server/fonts.py), for the preview's font picker."""
+    from .fonts import list_fonts
+    return list_fonts(refresh=(q.get("refresh") or [""])[0] == "1")
+
+
 @route("GET", "/api/fs")
 def r_fs(h, m, q, body):
     return api_fs(q)

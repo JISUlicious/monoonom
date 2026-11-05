@@ -137,7 +137,7 @@ Values are interpreted like typing into Excel: `=` starts a formula, `2026-03-15
 `read` shows dates as `YYYY-MM-DD`; `--what text` shows exactly what the grid displays (number
 formats applied, needed for filter `--values`); `--what raw|formulas|all` shows serials, formulas or styles.
 
-Format keys: `b i u st` (bold, italic, underline, strike), `fs` size, `ff` font, `fc` font color,
+Format keys: `b i u st` (bold, italic, underline, strike), `fs` size (1-409), `ff` font (`xl.py fonts` lists the installed ones), `fc` font color,
 `bg` fill, `ha` left/center/right, `va` top/center/bottom, `wrap`, `ind`, `nf` number format.
 Chart types: bar, barH, barStacked, line, area, pie, doughnut, scatter, radar.
 

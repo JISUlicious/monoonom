@@ -47,6 +47,7 @@ unchanged) and the document then points to the `.xlsx`; `--as x.xls` is also sav
 | `read RANGE [--what values\|raw\|formulas\|all] [--max N]` | `values`: dates as ISO text; `raw`: serial numbers; `formulas`: formula text or value; `all`: value + formula + style. Full-column ranges are cut to the used area; output stops at `--max` rows (default 200) and prints the remaining range. |
 | `changes [--since V] [--actor user\|agent]` | Batches after version V: who, label, batch id, changed ranges. |
 | `selection` | The user's current selection in each preview window (most recent first). |
+| `fonts [--search TEXT]` | Fonts installed on this computer (read from the font folders; no server needed), with their Korean and English names; any of them works as `ff=` in `format`. |
 | `find TEXT [--in values\|formulas] [--match-case] [--whole] [--sheet S] [--max N]` | `*` and `?` are wildcards. |
 | `read RANGE --what text` | Exactly the text shown in the grid (number formats applied by the same formatter as the browser; approximate without Node.js). |
 

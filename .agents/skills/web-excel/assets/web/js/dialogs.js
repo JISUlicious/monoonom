@@ -4,6 +4,7 @@ import { FORMAT_PRESETS, formatValue } from './numfmt.js';
 import { CHART_TYPES, ChartLayer } from './charts.js';
 import { parseSheetRef, parseRange, rangeA1, colName, key, a1 } from './address.js';
 import { quoteSheetName } from './formula.js';
+import { combo } from './combo.js';
 import { FN_HELP } from './fnhelp.js';
 import { FUNCTION_NAMES } from './engine.js';
 
@@ -187,7 +188,6 @@ export function formatCellsDialog(app, tab = 'num') {
   const cell = sh.get(v.active.r, v.active.c);
   const st = { ...(cell?.s || {}) };
   const sample = app.doc.wb.value(sh, v.active.r, v.active.c) ?? 1234.5678;
-  const fonts = ['맑은 고딕', 'Calibri', 'Arial', '굴림', '돋움', '바탕', '궁서', 'Times New Roman', 'Consolas', 'Segoe UI', 'Noto Sans KR'];
   const borderStyles = ['thin', 'medium', 'thick', 'dashed', 'dotted', 'double', 'hair'];
   const body = `
   <div class="tabs"><button data-tab="num">표시 형식</button><button data-tab="align">맞춤</button><button data-tab="font">글꼴</button><button data-tab="border">테두리</button><button data-tab="fill">채우기</button></div>
@@ -208,7 +208,7 @@ export function formatCellsDialog(app, tab = 'num') {
   </section>
   <section data-pane="font">
     <div class="grid2">
-      <label class="fld">글꼴<input class="inp" list="fontlist" data-k="ff" value="${esc(st.ff || app.doc.wb.defaultFont.name)}"><datalist id="fontlist">${fonts.map((f) => `<option>${f}</option>`).join('')}</datalist></label>
+      <label class="fld">글꼴<input class="inp" data-k="ff" value="${esc(st.ff || app.doc.wb.defaultFont.name)}"></label>
       <label class="fld">크기<input class="inp" type="number" min="1" max="409" step="0.5" data-k="fs" value="${st.fs || app.doc.wb.defaultFont.size}"></label>
       <label class="chk"><input type="checkbox" data-k="b" ${st.b ? 'checked' : ''}> 굵게</label>
       <label class="chk"><input type="checkbox" data-k="i" ${st.i ? 'checked' : ''}> 기울임꼴</label>
@@ -233,6 +233,8 @@ export function formatCellsDialog(app, tab = 'num') {
   const dlg = modal({
     title: '셀 서식', body, width: 560, className: 'fmt-dialog',
     onOpen: (el) => {
+      const ffIn = el.querySelector('[data-k=ff]');
+      combo(ffIn, { items: () => app.fontItems(), onPick: () => ffIn.dispatchEvent(new Event('input', { bubbles: true })), width: 240 });
       const show = (t) => { el.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === t)); el.querySelectorAll('[data-pane]').forEach((p) => { p.hidden = p.dataset.pane !== t; }); };
       el.querySelector('.tabs').addEventListener('click', (e) => { const t = e.target.dataset.tab; if (t) show(t); });
       show(tab);
