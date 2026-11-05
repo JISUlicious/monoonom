@@ -272,3 +272,16 @@ kbd { font: 11px Consolas, monospace; color: var(--muted); }
 .pivot-dialog .pv-fields { max-height: 240px; overflow: auto; border: 1px solid #e1e1e1; border-radius: 4px; padding: 4px 8px; margin: 8px 0; }
 .pivot-dialog .pv-row { display: grid; grid-template-columns: 1fr 90px 130px; gap: 6px; align-items: center; padding: 2px 0; }
 .pivot-dialog .pv-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combo { position: relative; display: inline-flex; align-items: stretch; }
+.combo > .inp { padding-right: 20px; }
+.combo-btn { position: absolute; right: 1px; top: 1px; bottom: 1px; width: 18px; border: 0; background: transparent; color: #555; cursor: pointer; font-size: 11px; padding: 0; }
+.combo-btn:hover { background: var(--accent-soft); color: var(--accent); }
+.combo-pop { position: fixed; z-index: 2000; max-height: 340px; overflow: auto; background: #fff; border: 1px solid #c8c8c8; border-radius: 4px; box-shadow: 0 6px 18px rgba(0,0,0,.16); padding: 3px 0; font-size: 13px; }
+.combo-group { padding: 5px 10px 3px; font-size: 11px; color: #777; border-top: 1px solid #eee; background: #fafafa; position: sticky; top: 0; }
+.combo-group:first-child { border-top: 0; }
+.combo-item { padding: 4px 12px; white-space: nowrap; cursor: default; }
+.combo-item:hover, .combo-item.active { background: var(--accent-soft); }
+.combo-item.current { font-weight: 600; color: var(--accent); }
+.combo-empty { padding: 6px 12px; color: #888; }
+.fld .combo { display: flex; width: 100%; }
+.fld .combo > .inp { flex: 1; width: 100%; min-width: 0; }
