@@ -341,10 +341,79 @@ def _pivot_source(p, sheet_name):
     return f"{A.quote_sheet(ws_src.sheet or sheet_name)}!{ws_src.ref}"
 
 
+def _shared_values(cf):
+    """A cache field's shared items as plain values (text, number, bool, date as Excel serial)."""
+    out = []
+    for x in getattr(getattr(cf, "sharedItems", None), "_fields", None) or []:
+        v = getattr(x, "v", None)
+        if isinstance(v, (dt.date, dt.datetime)):
+            v = _excel_value(v)
+        out.append(v)
+    return out
+
+
+def _pivot_layout(p, names):
+    """What refreshing in place needs (step 2), with item indices resolved to values:
+    rowFields/colFields (field names, "Σ" for the data-field position), rowItems/colItems (Excel's
+    list of what each output row/column shows: t data|default|grand|blank, r = leading fields kept
+    from the previous item, x = item values, i = data field), hidden items per field (filters),
+    and the data area's offset in the output (firstDataRow/Col)."""
+    shared = [_shared_values(cf) for cf in (p.cache.cacheFields or [])]
+    items = []  # pivot field k: item index -> value
+    for k, pf in enumerate(p.pivotFields or []):
+        vals = shared[k] if k < len(shared) else []
+        items.append([vals[it.x] if it.x is not None and it.x < len(vals) else None for it in (pf.items or []) if it.t == "data"])
+    hidden = {}
+    for k, pf in enumerate(p.pivotFields or []):
+        vals = shared[k] if k < len(shared) else []
+        h = [vals[it.x] for it in (pf.items or []) if it.t == "data" and it.h and it.x is not None and it.x < len(vals)]
+        if h:
+            hidden[names[k]] = h
+    for pg in p.pageFields or []:  # a report filter showing one item hides the others
+        if pg.item is not None and 0 <= pg.fld < len(items) and pg.item < len(items[pg.fld]):
+            keep = items[pg.fld][pg.item]
+            hidden[names[pg.fld]] = [v for v in items[pg.fld] if v != keep]
+
+    def axis(fields):
+        return [("Σ" if f.x == -2 else names[f.x]) for f in (fields or []) if f.x == -2 or 0 <= f.x < len(names)]
+
+    def resolve(row_items, fields):
+        out = []
+        for it in row_items or []:
+            xs, d = [], None
+            for j, x in enumerate(it.x or []):
+                pos = (it.r or 0) + j
+                f = fields[pos] if pos < len(fields) else None
+                if f is None or f.x == -2:
+                    xs.append(None)
+                    if f is not None:
+                        d = x.v or 0  # the data field shown here
+                else:
+                    lst = items[f.x] if f.x < len(items) else []
+                    xs.append(lst[x.v or 0] if (x.v or 0) < len(lst) else None)
+            if it.t == "grand":  # x carries no item for a grand total
+                xs = [None] * len(xs)
+            out.append({"t": it.t or "data", "r": it.r or 0, "i": it.i or 0, "x": xs, **({"d": d} if d is not None else {})})
+        return out
+
+    L = p.location
+    return {"rowFields": axis(p.rowFields), "colFields": axis(p.colFields),
+            "rowItems": resolve(p.rowItems, list(p.rowFields or [])) if p.rowItems else None,
+            "colItems": resolve(p.colItems, list(p.colFields or [])) if p.colItems else None,
+            "hidden": hidden, "firstDataRow": L.firstDataRow or 0, "firstDataCol": L.firstDataCol or 0,
+            "firstHeaderRow": L.firstHeaderRow or 0, "items": {names[k]: v for k, v in enumerate(items) if k < len(names) and v},
+            "fields": names}
+
+
 def _pivot_model(p, idx, sheet_name):
     names = [f.name for f in (p.cache.cacheFields or [])] if p.cache is not None else []
     nm = lambda i: names[i] if isinstance(i, int) and 0 <= i < len(names) else None  # noqa: E731 (-2 = "Values")
+    try:
+        layout = _pivot_layout(p, names)
+    except Exception:  # pragma: no cover - a pivot we cannot describe is still protected
+        layout = None
     return {
+        "layout": layout,
         "idx": idx, "name": p.name, "ref": p.location.ref,
         "source": _pivot_source(p, sheet_name),
         "rows": [nm(f.x) for f in (p.rowFields or []) if nm(f.x)],

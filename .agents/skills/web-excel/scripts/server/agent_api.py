@@ -874,6 +874,36 @@ def r_edit(h, m, q, body):
     return {**last, "batches": results, "summary": [x for r in results for x in r["summary"]]}
 
 
+@route("POST", r"/api/docs/([\w-]+)/pivots/refresh")
+@_wrap
+def r_pivot_refresh(h, m, q, body):
+    """Recompute pivot tables' data cells from their sources (all pivots, or one by name / sheet),
+    in the layout the file has. One undoable batch; the file's pivot cache is still rebuilt by Excel
+    when it opens the saved file (refreshOnLoad)."""
+    doc = _doc(m)
+    calc = ensure_calc(doc)
+    name, sheet = (body.get("name") or "").strip().lower(), (body.get("sheet") or "").strip().lower()
+    with doc.lock:
+        targets = [(sh, p) for sh in doc.sheets for p in sh.get("pivots") or []
+                   if (not name or p["name"].lower() == name) and (not sheet or sh["name"].lower() == sheet)]
+        if not targets:
+            raise ApiError(404, f"피벗 테이블을 찾을 수 없습니다: {body.get('name') or body.get('sheet') or '(문서에 없음)'}")
+        value_at = lambda s, r, c: cell_value(doc, s, r, c, s["cells"].get((r, c)) or {})  # noqa: E731
+        ops, done, notes = [], [], []
+        for sh, p in targets:
+            cells, n = PV.refresh(doc, sh, p, value_at)
+            notes += n
+            if cells:
+                ops.append({"op": "setCells", "sheet": sh["id"], "cells": cells})
+            done.append({"sheet": sh["name"], "name": p["name"], "range": p["ref"], "changed": len(cells)})
+        if not ops:
+            return {"version": doc.version, "batchId": None, "pivots": done, "notes": notes, "calc": calc}
+        batch = new_id("b")
+        v = doc.apply(ops, actor=body.get("actor", "agent"), client_id=body.get("clientId", "agent-cli"), batch_id=batch,
+                      label="피벗 새로 고침: " + ", ".join(p["name"] for _, p in targets), pivot_write=True)
+    return {"version": v, "batchId": batch, "pivots": done, "notes": notes, "calc": calc}
+
+
 # ------------------------------------------------------------------ reads
 
 @route("GET", r"/api/docs/([\w-]+)/range")

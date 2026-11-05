@@ -70,6 +70,7 @@ export const api = {
   presence: (id, payload) => call('POST', `${D(id)}/presence`, payload),
   calc: (id, payload) => call('POST', `${D(id)}/calc`, payload),
   saveDoc: (id, opts) => call('POST', `${D(id)}/save`, opts),
+  pivotRefresh: (id, payload) => call('POST', `${D(id)}/pivots/refresh`, payload),
   closeDoc: (id, force = false) => call('DELETE', D(id), { force }),
   streamTicket: () => call('POST', '/api/stream/ticket', {}),
   subscribe: (payload) => call('POST', '/api/stream/subscribe', payload),
