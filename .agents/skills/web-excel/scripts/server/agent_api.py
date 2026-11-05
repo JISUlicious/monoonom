@@ -919,7 +919,11 @@ def r_describe(h, m, q, body):
                     "autoFilter": (sh["autoFilter"] or {}).get("ref"),
                     "charts": [{"id": ch.get("id"), "type": ch.get("type"), "title": ch.get("title"),
                                 "at": A.a1(ch["anchor"].get("r", 0), ch["anchor"].get("c", 0)),
-                                "data": [s.get("val") for s in ch.get("series", [])][:6]} for ch in sh["charts"]]}
+                                "data": [s.get("val") for s in ch.get("series", [])][:6],
+                                # per series: name cell, X (categories / scatter x) and Y (values) ranges
+                                "series": [{"name": s.get("name"), "nameRef": s.get("nameRef"), "x": s.get("cat"), "y": s.get("val"),
+                                            **({"type": s["type"]} if s.get("type") else {})} for s in ch.get("series", [])]}
+                               for ch in sh["charts"]]}
             if mr >= 0:
                 r0, c0 = min(r for r, _ in sh["cells"]), min(c for _, c in sh["cells"])
                 info["used"] = A.range_a1(r0, c0, mr, mc)

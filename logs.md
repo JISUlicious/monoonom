@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-05: 차트를 선택하면 데이터 범위 표시 — 격자에 계열 이름(초록)·X/항목(보라)·Y/값(파랑) 테두리, 차트 아래에 계열별 범위 목록(행 클릭 시 그 계열만 강조). `chart ls`도 계열별 이름·X·Y 출력 (→ docs/skill-implementation.md)
 - 2026-11-05: 한 계열 막대 차트가 Excel에서 막대마다 다른 색·범례에 항목 이름으로 보이던 문제 — `varyColors`를 항상 기록(빠지면 Excel이 켜짐으로 읽음), 파일의 값을 읽어 미리보기도 같게, `chart set --vary-colors on|off` (→ docs/skill-implementation.md)
 - 2026-11-05: 차트 범례를 Excel처럼 — 꺾은선은 선 기호, 원형은 사각형, 누적·가로 막대의 옆 범례는 아래에서 위 순서, 가로 막대는 첫 항목·첫 계열이 아래 (→ docs/skill-implementation.md)
 - 2026-11-05: 차트 스타일 코드 리뷰 중 동작 영향 7건 수정 — 방사형 축 숨김·서식, 혼합 차트·빈 계열 색 불일치, 원형 조각 수, 한 색 원형, shade/tint 계산 (→ docs/skill-implementation.md)

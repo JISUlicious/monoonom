@@ -254,3 +254,15 @@ kbd { font: 11px Consolas, monospace; color: var(--muted); }
 .agent-busy { color: #7c3aed; white-space: nowrap; }
 .agent-busy[hidden] { display: none; }
 .sheet-tab .st-new { color: #7c3aed; font-size: 9px; margin-left: 4px; }
+
+/* the selected chart's data ranges (listed under the chart, outlined on the grid) */
+.chart-ranges { position: absolute; z-index: 30; background: #fff; border: 1px solid #d9d9d9; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.12);
+  padding: 6px 8px; font-size: 12px; color: #333; max-width: 640px; cursor: default; }
+.chart-ranges .cr-title { font-weight: 600; margin-bottom: 4px; color: #595959; }
+.chart-ranges .cr-row { padding: 2px 4px; border-radius: 3px; cursor: pointer; line-height: 1.7; }
+.chart-ranges .cr-row:hover, .chart-ranges .cr-row.on { background: #f0f4fa; }
+.chart-ranges .cr-row.dim { opacity: .45; }
+.chart-ranges .cr-part { margin-left: 8px; white-space: nowrap; }
+.chart-ranges .cr-part i { display: inline-block; width: 8px; height: 8px; margin-right: 3px; vertical-align: middle; }
+.chart-ranges code { font: 11px Consolas, monospace; }
+.chart-ranges .cr-note { color: #8a5a00; margin-top: 4px; font-size: 11px; }

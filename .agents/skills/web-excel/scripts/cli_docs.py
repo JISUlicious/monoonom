@@ -328,7 +328,11 @@ def cmd_chart(args):
     res = request(st, "GET", f"/api/docs/{d['docId']}/describe")
     for sh in res["sheets"]:
         for ch in sh["charts"]:
-            print(f"{sh['name']}  {ch['id']}  {ch['type']}  '{ch['title'] or ''}'  @{ch['at']}  {', '.join(x or '' for x in ch['data'])}")
+            print(f"{sh['name']}  {ch['id']}  {ch['type']}  '{ch['title'] or ''}'  @{ch['at']}")
+            for i, s in enumerate(ch.get("series", [])):
+                name = s.get("nameRef") or (f"'{s['name']}'" if s.get("name") else "-")
+                kind = f" ({s['type']})" if s.get("type") else ""
+                print(f"    계열 {i + 1}{kind}: 이름 {name}  X {s.get('x') or '-'}  Y {s.get('y') or '-'}")
     return 0
 
 

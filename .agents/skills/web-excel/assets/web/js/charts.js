@@ -5,6 +5,9 @@ import { formatValue } from './numfmt.js';
 import { newId } from './model.js';
 import { geom } from './geometry.js';
 
+// Excel's range finder colors for a selected chart: series name, X / categories, Y / values
+const RANGE_COLORS = { name: '#008000', cat: '#7030A0', x: '#7030A0', val: '#0070C0' };
+
 // Office 2013-2022 theme accents: the palette when a workbook brings no theme of its own
 export const PALETTE = ['#4472C4', '#ED7D31', '#A5A5A5', '#FFC000', '#5B9BD5', '#70AD47', '#264478', '#9E480E', '#636363', '#997300'];
 
@@ -220,6 +223,12 @@ export class ChartLayer {
       }
       inst.el.classList.toggle('selected', this.selected === model.id);
     }
+    const sel = this.selected && this.instances.get(this.selected);
+    // grid.draw() calls layout(): redraw only when the outlines change, or it would loop every frame
+    const sig = (r) => JSON.stringify(r.map((h) => [h.sheet?.name, h.range, h.color, h.dim]));
+    const before = sig(this.grid.chartRanges);
+    if (sel) this.showRanges(sel); else this.hideRanges();
+    if (sig(this.grid.chartRanges) !== before) this.grid.render();
     for (const [id, inst] of [...this.instances]) if (!seen.has(id)) { inst.chart?.destroy(); inst.el.remove(); this.instances.delete(id); }
   }
 
@@ -244,8 +253,77 @@ export class ChartLayer {
     return inst;
   }
 
-  select(id) { this.selected = id; this.app.editor?.active && this.app.editor.commit(); this.layout(); }
-  deselect() { if (this.selected) { this.selected = null; this.layout(); } }
+  select(id) {
+    if (this.selected !== id) this.focusSeries = null;
+    this.selected = id; this.app.editor?.active && this.app.editor.commit(); this.layout();
+  }
+  deselect() { if (this.selected) { this.selected = null; this.focusSeries = null; this.layout(); } }
+
+  /** The data ranges of a chart, per series: name (green), X / categories (purple), Y / values (blue),
+   * as Excel outlines them when a chart is selected. */
+  dataRanges(model) {
+    const wb = this.app.doc.wb, cur = wb.sheet;
+    const one = (ref, kind, i) => {
+      if (!ref) return null;
+      const p = parseSheetRef(ref);
+      const sheet = p ? (p.sheet ? wb.sheetByName(p.sheet) : cur) : null;
+      return { ref, kind, series: i, sheet, range: p?.range, color: RANGE_COLORS[kind] };
+    };
+    const xKind = model.type === 'scatter' ? 'x' : 'cat';
+    const nameOf = (s) => {
+      const nv = s.nameRef && this.resolveRef(s.nameRef, cur);
+      return nv?.length ? nv.map((x) => formatValue(x.v, x.nf).text).join(' ') : s.name;
+    };
+    return (model.series || []).map((s, i) => ({
+      index: i, name: nameOf(s), type: s.type || model.type,
+      parts: [one(s.nameRef, 'name', i), one(s.cat, xKind, i), one(s.val, 'val', i)].filter(Boolean),
+    }));
+  }
+
+  /** Outline the selected chart's ranges on the grid and list them in a panel under the chart. */
+  showRanges(inst) {
+    const series = this.dataRanges(inst.model);
+    const focus = this.focusSeries;
+    // one outline per range: series sharing the categories must not stack their fills
+    const seen = new Map();
+    for (const s of series) for (const p of s.parts) {
+      if (!p.sheet || !p.range) continue;
+      const k = `${p.sheet.name}|${p.color}|${p.range.r1},${p.range.c1},${p.range.r2},${p.range.c2}`;
+      const dim = focus != null && focus !== s.index;
+      const h = seen.get(k);
+      if (h) h.dim = h.dim && dim; else seen.set(k, { sheet: p.sheet, range: p.range, color: p.color, dim });
+    }
+    this.grid.chartRanges = [...seen.values()];
+    let panel = this.panel;
+    if (!panel) {
+      panel = this.panel = document.createElement('div');
+      panel.className = 'chart-ranges';
+      panel.addEventListener('pointerdown', (e) => e.stopPropagation());
+      panel.addEventListener('click', (e) => {
+        const row = e.target.closest('[data-series]');
+        if (!row) return;
+        const i = +row.dataset.series;
+        this.focusSeries = this.focusSeries === i ? null : i; // click again: all series
+        this.layout();
+      });
+      this.layer.append(panel);
+    }
+    const esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const label = { name: '이름', cat: 'X(항목)', x: 'X(값)', val: 'Y(값)' };
+    const cur = this.app.doc.wb.sheet;
+    const chip = (p) => `<span class="cr-part"><i style="background:${p.color}"></i>${label[p.kind]} <code>${esc(p.ref)}</code>${!p.sheet ? ' <em>(시트 없음)</em>' : ''}</span>`;
+    panel.innerHTML = `<div class="cr-title">데이터 범위${inst.model.title ? ` — ${esc(inst.model.title)}` : ''}</div>`
+      + series.map((s) => `<div class="cr-row${focus === s.index ? ' on' : ''}${focus != null && focus !== s.index ? ' dim' : ''}" data-series="${s.index}" title="클릭: 이 계열만 표시 / 다시 클릭: 모두">`
+        + `<b>${esc(s.name || `계열 ${s.index + 1}`)}</b>${s.type !== inst.model.type ? ` <small>(${esc(s.type)})</small>` : ''} ${s.parts.map(chip).join(' ')}</div>`).join('')
+      + (series.some((s) => s.parts.some((p) => p.sheet && p.sheet !== cur)) ? '<div class="cr-note">다른 시트의 범위는 이 시트에 표시되지 않습니다.</div>' : '');
+    const b = inst.el;
+    Object.assign(panel.style, { left: b.style.left, top: `calc(${b.style.top} + ${b.style.height} + 4px)`, minWidth: b.style.width, display: '' });
+  }
+
+  hideRanges() {
+    if (this.grid.chartRanges.length) this.grid.chartRanges = [];
+    if (this.panel) this.panel.style.display = 'none';
+  }
 
   onDown(e, inst) {
     if (e.button !== 0) return;
