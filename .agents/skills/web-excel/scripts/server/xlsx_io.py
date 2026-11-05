@@ -15,7 +15,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.cell.cell import MergedCell
 from openpyxl.chart import (AreaChart, BarChart, DoughnutChart, LineChart, PieChart,
                             RadarChart, ScatterChart)
-from openpyxl.chart.data_source import AxDataSource, NumRef, StrRef
+from openpyxl.chart.data_source import AxDataSource, NumDataSource, NumRef, StrRef
 from openpyxl.chart.legend import Legend
 from openpyxl.chart.marker import Marker
 from openpyxl.chart.shapes import GraphicalProperties
@@ -141,6 +141,24 @@ def _rich_text(title):
     return None
 
 
+def _lit_of(ds):
+    """A series' own list of values (numLit / strLit: no cell range), in point order, or None."""
+    if ds is None:
+        return None
+    for attr, num in (("numLit", True), ("strLit", False)):
+        d = getattr(ds, attr, None)
+        if d is not None and d.pt:
+            n = max(d.ptCount or 0, max(p.idx for p in d.pt) + 1)
+            out = [None] * n
+            for p in d.pt:
+                try:
+                    out[p.idx] = float(p.v) if num else p.v
+                except (TypeError, ValueError):
+                    out[p.idx] = None
+            return out
+    return None
+
+
 def _ref_of(ds):
     if ds is None:
         return None
@@ -246,6 +264,11 @@ def _chart_model(chart, idx, geom, warn, theme=None):
             else:
                 cat, val = _ref_of(s.cat), _ref_of(s.val)
             item = {"name": name, "nameRef": name_ref, "cat": cat, "val": val}
+            xs, ys = (s.xVal, s.yVal) if stype == "scatter" else (s.cat, s.val)
+            if not cat and _lit_of(xs):
+                item["catLit"] = _lit_of(xs)
+            if not val and _lit_of(ys):
+                item["valLit"] = _lit_of(ys)
             color = _series_color(s, stype, theme)
             if color:
                 item["color"] = color
@@ -590,17 +613,24 @@ def _build_chart(m: dict, theme: list[str] | None = None):
         vary = m.get("varyColors") is not False if pie_like else m.get("varyColors") is True
         ch.varyColors = vary
         for s in series:
-            if not s.get("val"):
+            if not s.get("val") and not s.get("valLit"):
                 continue
             i = counter[0]
             color = color_of(s)
+            if s.get("val"):
+                ser = Series(s["val"], xvalues=s.get("cat") or None) if t == "scatter" else Series(s["val"])
+            else:  # values stored in the chart itself (numLit), kept as they were
+                from openpyxl.chart.series import Series as _Ser
+                ser = _Ser()
+                setattr(ser, "yVal" if t == "scatter" else "val", NumDataSource(numLit=_num_data(s["valLit"])))
+                if t == "scatter" and s.get("cat"):
+                    ser.xVal = AxDataSource(numRef=NumRef(f=s["cat"]))
             if t == "scatter":
-                ser = Series(s["val"], xvalues=s.get("cat") or None)
                 ser.marker = CS.marker_circle(color)
-            else:
-                ser = Series(s["val"])
-                if s.get("cat"):
-                    ser.cat = AxDataSource(numRef=NumRef(f=s["cat"]))
+            elif s.get("cat"):
+                ser.cat = AxDataSource(numRef=NumRef(f=s["cat"]))
+            if not s.get("cat") and s.get("catLit"):
+                setattr(ser, "xVal" if t == "scatter" else "cat", _ax_lit(s["catLit"]))
             ser.graphicalProperties = CS.series_props(t, color)
             if t in ("line", "radar"):
                 ser.marker = CS.marker_none()
@@ -655,6 +685,18 @@ def _build_chart(m: dict, theme: list[str] | None = None):
     chart.graphical_properties = CS.chart_area()
     chart.style = None
     return chart
+
+
+def _num_data(xs):
+    from openpyxl.chart.data_source import NumData, NumVal
+    return NumData(ptCount=len(xs), pt=[NumVal(idx=i, v=x) for i, x in enumerate(xs) if isinstance(x, (int, float))])
+
+
+def _ax_lit(xs):
+    from openpyxl.chart.data_source import StrData, StrVal
+    if all(isinstance(x, (int, float)) or x is None for x in xs):
+        return AxDataSource(numLit=_num_data(xs))
+    return AxDataSource(strLit=StrData(ptCount=len(xs), pt=[StrVal(idx=i, v=str(x)) for i, x in enumerate(xs) if x is not None]))
 
 
 def _anchor(a: dict):

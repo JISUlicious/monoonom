@@ -13,6 +13,7 @@ DrawingML units: sizes in 1/100 pt, widths in EMU (12700 per pt). ECMA-376 Part 
 from __future__ import annotations
 
 from openpyxl.chart.axis import ChartLines
+from openpyxl.chart.data_source import NumFmt
 from openpyxl.chart.layout import Layout  # noqa: F401  (kept for callers that position the plot area)
 from openpyxl.chart.marker import Marker
 from openpyxl.chart.shapes import GraphicalProperties
@@ -99,6 +100,10 @@ def style_axes(chart) -> None:
     if x is not None:
         x.spPr = GraphicalProperties(ln=_line(LINE))
         x.majorGridlines = ChartLines(spPr=GraphicalProperties(ln=_line(LINE))) if scatter else None
+    # number labels in the source cells' format, as Excel's own charts (dates on a scatter X axis, %, ...)
+    for ax in ((x, y) if scatter else (y,)):
+        if ax is not None:
+            ax.numFmt = NumFmt(formatCode="General", sourceLinked=True)
     if y is not None:
         y.spPr = GraphicalProperties(ln=LineProperties(noFill=True))
         y.majorGridlines = ChartLines(spPr=GraphicalProperties(ln=_line(LINE)))

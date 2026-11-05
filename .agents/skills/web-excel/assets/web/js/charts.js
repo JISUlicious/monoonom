@@ -45,6 +45,20 @@ export const CHART_TYPES = [
   ['line', '꺾은선형'], ['area', '영역형'], ['pie', '원형'], ['doughnut', '도넛형'], ['scatter', '분산형'], ['radar', '방사형'],
 ];
 
+/** Excel's automatic value-axis limits (KB 214075 "How Chart Axis Limits Are Determined"): the axis
+ * starts at 0 unless all values have one sign and their spread is under 1/6 of the largest magnitude
+ * (the "5/6 rule"); either end gets a 5 % margin of the spread before rounding to the major unit.
+ * Chart.js: beginAtZero = include 0, grace = the margin; it rounds the ends to its tick step. */
+export function excelAutoRange(values) {
+  const xs = values.filter((v) => typeof v === 'number' && Number.isFinite(v));
+  if (!xs.length) return { beginAtZero: true };
+  const lo = Math.min(...xs), hi = Math.max(...xs), spread = hi - lo;
+  let zero = true;
+  if (spread > 0 && lo >= 0) zero = spread / hi >= 1 / 6;
+  else if (spread > 0 && hi <= 0) zero = spread / -lo >= 1 / 6;
+  return { beginAtZero: zero, grace: '5%' };
+}
+
 export class ChartLayer {
   constructor(app, grid) {
     this.app = app;
@@ -74,10 +88,13 @@ export class ChartLayer {
 
   dataOf(model, sheet) {
     const series = model.series.map((s, i) => {
-      const vals = (s.val && this.resolveRef(s.val, sheet)) || [];
+      // values from the range, or the series' own list of values (numLit in the file)
+      const vals = (s.val && this.resolveRef(s.val, sheet)) || (s.valLit || []).map((v) => ({ v }));
       let name = s.name;
       if (s.nameRef) { const nv = this.resolveRef(s.nameRef, sheet); if (nv?.length) name = nv.map((x) => formatValue(x.v, x.nf).text).join(' '); }
-      let cats = s.cat ? this.resolveRef(s.cat, sheet) : null;
+      let cats = s.cat ? this.resolveRef(s.cat, sheet) : s.catLit ? s.catLit.map((v) => ({ v })) : null;
+      const nfOf = (xs) => xs?.find((x) => x.nf)?.nf || null; // axis labels in the source format (sourceLinked)
+      const valNf = nfOf(vals), catNf = nfOf(cats);
       // scatter: if any X value is text, Excel plots the points at X = 1, 2, 3, ... instead
       if (cats && model.type === 'scatter' && cats.some((x) => typeof x.v === 'string' && x.v !== '')) cats = cats.map((_, j) => ({ v: j + 1 }));
       return {
@@ -87,6 +104,7 @@ export class ChartLayer {
         cats: cats ? cats.map((x) => (model.type === 'scatter' ? (typeof x.v === 'number' ? x.v : null) : formatValue(x.v, x.nf).text)) : null,
         color: s.color,
         pointColors: s.pointColors,
+        valNf, catNf,
       };
     });
     const labels = series.find((s) => s.cats)?.cats || (series[0] ? series[0].values.map((_, i) => String(i + 1)) : []);
@@ -174,7 +192,15 @@ export class ChartLayer {
       const valAxis = { stacked, beginAtZero: true, grid: { color: ST.line, lineWidth: 0.75 * PX, drawTicks: false }, border: { display: false }, ticks: { color: ST.text, font: text, padding: 6 }, title: axisTitle(horizontal ? model.xTitle : model.yTitle) };
       const catAxis = { stacked, grid: { display: false, drawTicks: false }, border: { display: true, color: ST.line, width: 0.75 * PX }, ticks: { color: ST.text, font: text, padding: 6 }, title: axisTitle(horizontal ? model.yTitle : model.xTitle) };
       if (pct) valAxis.max = 100;
-      if (t === 'scatter') { catAxis.type = 'linear'; catAxis.grid = { color: ST.line, lineWidth: 0.75 * PX, drawTicks: false }; }
+      else if (!stacked) Object.assign(valAxis, excelAutoRange(series.flatMap((s) => s.values)));
+      // tick labels in the format of the source cells (Excel: numFmt sourceLinked="1")
+      const tickFmt = (nf) => (nf ? { callback: (v) => formatValue(v, nf).text } : {});
+      Object.assign(valAxis.ticks, tickFmt(pct ? null : series.find((s) => s.valNf)?.valNf));
+      if (t === 'scatter') {
+        catAxis.type = 'linear'; catAxis.grid = { color: ST.line, lineWidth: 0.75 * PX, drawTicks: false };
+        Object.assign(catAxis, excelAutoRange(series.flatMap((s) => (s.cats || s.values.map((_, j) => j + 1)))));
+        Object.assign(catAxis.ticks, tickFmt(series.find((s) => s.catNf)?.catNf));
+      }
       opts.scales = horizontal ? { x: valAxis, y: catAxis } : { x: catAxis, y: valAxis };
       if (horizontal) { opts.indexAxis = 'y'; catAxis.reverse = true; }
     }
@@ -321,13 +347,15 @@ export class ChartLayer {
       return { ref, kind, series: i, sheet, range: p?.range, color: RANGE_COLORS[kind] };
     };
     const xKind = model.type === 'scatter' ? 'x' : 'cat';
+    // a list of values stored in the chart itself (numLit / strLit): no cells to outline
+    const lit = (xs, kind, i) => (xs?.length ? { ref: `{${xs.slice(0, 3).join(', ')}${xs.length > 3 ? ', …' : ''}}`, kind, series: i, sheet: null, range: null, lit: true, color: RANGE_COLORS[kind] } : null);
     const nameOf = (s) => {
       const nv = s.nameRef && this.resolveRef(s.nameRef, cur);
       return nv?.length ? nv.map((x) => formatValue(x.v, x.nf).text).join(' ') : s.name;
     };
     return (model.series || []).map((s, i) => ({
       index: i, name: nameOf(s), type: s.type || model.type,
-      parts: [one(s.nameRef, 'name', i), one(s.cat, xKind, i), one(s.val, 'val', i)].filter(Boolean),
+      parts: [one(s.nameRef, 'name', i), s.cat ? one(s.cat, xKind, i) : lit(s.catLit, xKind, i), s.val ? one(s.val, 'val', i) : lit(s.valLit, 'val', i)].filter(Boolean),
     }));
   }
 
@@ -363,7 +391,7 @@ export class ChartLayer {
     const esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const label = { name: '이름', cat: 'X(항목)', x: 'X(값)', val: 'Y(값)' };
     const cur = this.app.doc.wb.sheet;
-    const chip = (p) => `<span class="cr-part"><i style="background:${p.color}"></i>${label[p.kind]} <code>${esc(p.ref)}</code>${!p.sheet ? ' <em>(시트 없음)</em>' : ''}</span>`;
+    const chip = (p) => `<span class="cr-part"><i style="background:${p.color}"></i>${label[p.kind]} <code>${esc(p.ref)}</code>${p.lit ? ' <em>(차트에 저장된 값)</em>' : !p.sheet ? ' <em>(시트 없음)</em>' : ''}</span>`;
     panel.innerHTML = `<div class="cr-title">데이터 범위${inst.model.title ? ` — ${esc(inst.model.title)}` : ''}`
       + `${inst.model.type !== 'scatter' ? '<button class="cr-switch" data-switch title="계열과 항목(X)을 맞바꿉니다">⇄ 행/열 전환</button>' : ''}</div>`
       + series.map((s) => `<div class="cr-row${focus === s.index ? ' on' : ''}${focus != null && focus !== s.index ? ' dim' : ''}" data-series="${s.index}" title="클릭: 이 계열만 표시 / 다시 클릭: 모두">`

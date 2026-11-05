@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-05: 차트 축·계열 — 값 축 자동 범위를 Excel 규칙(5/6 규칙, 5% 여백)으로, 축 눈금을 원본 셀 서식으로(저장 파일 `sourceLinked=1`, 분산형 날짜 X), 차트에 값이 직접 저장된 계열(`numLit`/`strLit`) 읽기·표시·저장 (→ docs/skill-implementation.md)
 - 2026-11-05: 빈 xfrm 원인 정정 — 공식 XSD 검증 결과 빈 `<xfrm/>`은 규격상 문제없음(off·ext 선택 요소). Excel "제거된 요소: drawing1.xml"의 유력한 원인은 분산형의 `scatterStyle` 누락(유일한 스키마 위반, #13에서 수정; 실제 Excel·문제 파일로는 미확인 — 분산형이 없던 파일이면 원인 미상). xfrm 채우기는 예방 차원으로 유지, 주석·문서 문구 수정 (→ docs/skill-implementation.md)
 - 2026-11-05: 차트 틀의 빈 `<xfrm/>`을 Excel 형식(`a:off`·`a:ext`)으로 바꿔 저장 — "제거된 요소: drawing1.xml" 원인으로 의심했으나 아님(위 정정 참고) (→ docs/skill-implementation.md)
 - 2026-11-05: 분산형 차트 검토·수정 4건 — 에이전트가 X 열을 계열로 넣던 문제, X가 텍스트면 미리보기에 점이 안 그려지던 문제, 저장 파일에 필수 요소 `scatterStyle` 누락, 모든 차트의 축 위치가 왼쪽(`axPos=l`)으로 기록되던 문제 (→ docs/skill-implementation.md)
