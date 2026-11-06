@@ -3,6 +3,7 @@
 최신 항목이 위에 온다.
 
 - 2026-11-06: 저장소 이름 `JISUlicious/monoonom`으로 변경 — README 설치 명령, `plugin.json` 주소 갱신 (→ docs/project-setup.md)
+- 2026-11-06: README에 에이전트 작업 화면 추가(`docs/monoonom-agent.png`: 표와 차트, 에이전트가 바꾸는 열 강조)
 - 2026-11-06: 영어 기본 + 한국어 화면 — SKILL.md·references·CLI 출력·서버 메시지를 영어로, 미리보기는 브라우저 언어(또는 `?lang=`)로 영어/한국어, 한국어는 `js/i18n/ko/`에만. `xl.py new`·`pivot add`에 `--lang ko`(한국어 Excel 레이블). evals를 skill 밖(`evals/monoonom/`)으로. 값 필드 하나·열 필드 없는 피벗 저장 오류 수정 (→ docs/development.md "화면 언어", docs/skill-implementation.md)
 - 2026-11-06: 배포 구성 — Claude Code 플러그인·마켓플레이스(`.claude-plugin/`, 링크 없는 플러그인 skill), `npx skills add` 설치 확인, README를 사용자 안내 중심으로 재구성(영문 README.md, 한국어 README.ko.md)하고 개발 내용은 docs/development.md로 이동 (→ docs/skill-implementation.md)
 - 2026-11-06: 글꼴·크기 선택창을 실제 드롭다운으로 — `<datalist>`는 입력칸 값과 맞는 항목만 보여 줘서 비어 보였음. 펼치면 전체 목록(테마·이 문서·최근·모든 글꼴, 각 글꼴로 미리 보기), 입력하면 좁혀짐, 키보드 조작. 글꼴은 서버가 이 컴퓨터의 글꼴 파일 이름 표를 읽어 한국어·영어 이름으로 나열(`/api/fonts`, `xl.py fonts`). 크기는 1–409·0.5 단위 검사 (→ docs/skill-implementation.md)
