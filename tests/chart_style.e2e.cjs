@@ -35,7 +35,7 @@ wb.save(${JSON.stringify(path.join(ws, 'old.xlsx'))})
   xl('write', 'A1', '--data', '[["월","A","B","C"],["1월",3,4,5],["2월",5,2,4],["3월",4,6,3],["4월",6,5,2]]', '--doc', 'fresh');
   xl('chart', 'add', 'A1:D5', '--title', '막대', '--doc', 'fresh');
   xl('chart', 'add', 'A1:B5', '--type', 'line', '--at', 'F20', '--doc', 'fresh');
-  const browser = await chromium.launch();
+  const browser = require('./korean.cjs')(await chromium.launch());
   const errors = [];
   try {
     const p = await browser.newPage({ viewport: { width: 1200, height: 700 } });

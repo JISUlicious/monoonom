@@ -98,8 +98,8 @@ class DocSession:
         self.base_path = path
         self.format = fmt
         self.file_sig = _file_sig(path) if path else None
-        self.name = model.get("name") or (os.path.basename(path) if path else "통합 문서.xlsx")
-        self.default_font = model.get("defaultFont") or {"name": "맑은 고딕", "size": 11}
+        self.name = model.get("name") or (os.path.basename(path) if path else "Book.xlsx")
+        self.default_font = model.get("defaultFont") or {"name": "Calibri", "size": 11}
         # the workbook's theme colors (series colors of charts without explicit ones); a workbook
         # saved without an original file gets the Office 2013-2022 theme (xlsx_io.modern_theme_xml)
         self.theme_colors = model.get("themeColors") or list(DEFAULT_THEME)
@@ -227,7 +227,7 @@ class DocSession:
         for sh in self.sheets:
             if sh["name"].lower() == lc:
                 return sh
-        raise SessionError(404, f"시트를 찾을 수 없습니다: {ref}")
+        raise SessionError(404, f"Sheet not found: {ref}")
 
     # ------------------------------------------------------------ ops
     def apply(self, ops, *, actor="user", client_id=None, batch_id=None, label="",
@@ -239,23 +239,23 @@ class DocSession:
           or the batch replaces sheet properties of a shifted sheet."""
         with self.lock:
             if self.version and self.log and base_version is not None and base_version < self.log[0]["v"] - 1:
-                raise SessionError(409, "변경 기록이 너무 오래되었습니다. 다시 불러오세요.",
+                raise SessionError(409, "The change history is too old. Reload.",
                                    currentVersion=self.version, reason="log-truncated")
             transformed = False
             if base_version is not None and base_version < self.version:
                 since = [e for e in self.log if e["v"] > base_version and e["clientId"] != client_id]
                 struct = [e for e in since if e["structural"]]
                 if since and structural:
-                    raise SessionError(409, "다른 클라이언트가 그 사이 문서를 바꿨습니다. 최신 상태로 다시 불러오세요.",
+                    raise SessionError(409, "Another client changed the document in the meantime. Reload the latest state.",
                                        currentVersion=self.version, reason="structural-conflict")
                 if struct:
                     if any(not e.get("transformable") for e in struct):
-                        raise SessionError(409, "다른 클라이언트가 정렬·시트 삭제 등으로 위치를 바꿨습니다. 최신 상태로 다시 불러오세요.",
+                        raise SessionError(409, "Another client moved cells (sort, sheet delete, …). Reload the latest state.",
                                            currentVersion=self.version, reason="structural-conflict")
                     shifted = {sh["sheet"] for e in struct for sh in e.get("shifts", [])}
                     if any(op.get("op") in ("setSheetMeta", "sheets") and op.get("sheet") in shifted | {None} for op in ops
                            if op.get("op") != "setWorkbook"):
-                        raise SessionError(409, "다른 클라이언트가 행/열을 삽입·삭제한 시트의 속성을 바꾸려 했습니다. 다시 불러오세요.",
+                        raise SessionError(409, "Tried to change a sheet whose rows / columns another client inserted or deleted. Reload.",
                                            currentVersion=self.version, reason="structural-conflict")
                     for e in struct:
                         for sh in e.get("shifts", []):
@@ -387,9 +387,9 @@ class DocSession:
                 elif sid in added:
                     order.append(self._sheet_from_json(dict(added[sid], id=sid), []))
                 else:
-                    raise SessionError(400, f"알 수 없는 시트 id: {sid}")
+                    raise SessionError(400, f"Unknown sheet id: {sid}")
             if not order:
-                raise SessionError(400, "시트가 하나 이상 있어야 합니다.")
+                raise SessionError(400, "A workbook needs at least one sheet.")
             active_id = self.sheets[min(self.active_sheet, len(self.sheets) - 1)]["id"] if self.sheets else None
             self.sheets = order
             ids = [sh["id"] for sh in order]  # keep the same sheet active when sheets move or are added
@@ -401,7 +401,7 @@ class DocSession:
             if "activeSheet" in props:
                 self.active_sheet = int(props["activeSheet"])
         else:
-            raise SessionError(400, f"알 수 없는 op: {kind}")
+            raise SessionError(400, f"Unknown op: {kind}")
 
     def audit(self, rec):
         """Append-only JSON lines of who changed what (no cell contents, so nothing sensitive is copied)."""
@@ -448,7 +448,7 @@ class Registry:
     def get(self, doc_id) -> DocSession:
         d = self.docs.get(doc_id)
         if not d:
-            raise SessionError(404, f"열린 문서가 없습니다: {doc_id}")
+            raise SessionError(404, f"No open document: {doc_id}")
         return d
 
     def find_path(self, path):

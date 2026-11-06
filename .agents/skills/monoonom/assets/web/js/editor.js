@@ -3,7 +3,8 @@ import { key, MAX_ROWS, MAX_COLS, rangeA1, parseA1 } from './address.js';
 import { tokenize, cycleAbsolute, refsWithPositions, refToString, quoteSheetName, parse } from './formula.js';
 import { formatValue, isDateFormat, parseInput } from './numfmt.js';
 import { FUNCTION_NAMES } from './engine.js';
-import { FN_HELP } from './fnhelp.js';
+import { fnHelp } from './fnhelp.js';
+import { t } from './i18n.js';
 
 const REF_COLORS = ['#1a73e8', '#d93025', '#7b1fa2', '#188038', '#e37400', '#00838f', '#c2185b'];
 
@@ -15,7 +16,7 @@ export class Editor {
     this.ta.className = 'cell-editor idle';
     this.ta.spellcheck = false;
     this.ta.setAttribute('autocomplete', 'off');
-    this.ta.setAttribute('aria-label', '셀 입력');
+    this.ta.setAttribute('aria-label', t('Cell input'));
     host.append(this.ta);
     this.fx = fxInput;
     this.ac = document.createElement('div');
@@ -211,7 +212,7 @@ export class Editor {
       if (inStr) text += '"';
       while (depth-- > 0) text += ')';
       try { parse(text); } catch (e) {
-        this.app.toast(`수식에 문제가 있습니다: ${e.message}`, 'error');
+        this.app.toast(t('There is a problem with this formula: {message}', { message: e.message }), 'error');
         return false;
       }
       text = normalizeFormula(text);
@@ -297,7 +298,7 @@ export class Editor {
       const res = cycleAbsolute(el.value, el.selectionStart);
       this.setText(res.text); el.setSelectionRange(res.caret, res.caret); this.onInput(); return;
     }
-    if (k === 'F2') { e.preventDefault(); this.mode = this.mode === 'edit' ? 'enter' : 'edit'; this.app.setStatus(this.mode === 'edit' ? '편집' : '입력'); return; }
+    if (k === 'F2') { e.preventDefault(); this.mode = this.mode === 'edit' ? 'enter' : 'edit'; this.app.setStatus(this.mode === 'edit' ? t('Edit') : t('Enter')); return; }
     const arrows = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
     if (arrows[k]) {
       const [dr, dc] = arrows[k];
@@ -349,7 +350,7 @@ export class Editor {
   }
   renderAc() {
     const rect = this.source.getBoundingClientRect();
-    this.ac.innerHTML = this.acItems.map((n, i) => `<div class="ac-item${i === this.acIndex ? ' on' : ''}" data-fn="${n}"><b>${n}</b><span>${FN_HELP[n]?.[2] || ''}</span></div>`).join('');
+    this.ac.innerHTML = this.acItems.map((n, i) => `<div class="ac-item${i === this.acIndex ? ' on' : ''}" data-fn="${n}"><b>${n}</b><span>${fnHelp(n)?.[2] || ''}</span></div>`).join('');
     this.ac.style.left = rect.left + 'px';
     this.ac.style.top = rect.bottom + 2 + 'px';
     this.ac.classList.remove('hidden');
@@ -382,7 +383,7 @@ export class Editor {
         depth--;
       } else if (ch === ',' && depth === 0) argIdx++;
     }
-    const h = name && FN_HELP[name];
+    const h = name && fnHelp(name);
     if (!h || !this.ac.classList.contains('hidden')) { this.hint.classList.add('hidden'); return; }
     this.hint.innerHTML = renderSignature(h[1], argIdx) + `<div class="fn-hint-desc">${escHtml(h[2] || '')}</div>`;
     const rect = this.source.getBoundingClientRect();

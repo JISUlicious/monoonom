@@ -35,6 +35,7 @@ from openpyxl.worksheet.formula import ArrayFormula
 
 from . import a1 as A
 from . import colors
+from . import pivots as PV
 from .formula_compat import add_prefixes, prefix_map, strip_prefixes, unsupported_functions
 from .units import (DEFAULT_COL_PX, DEFAULT_ROW_PX, EMU_PER_PX, colw_to_px, pt_to_px,
                     px_to_colw, px_to_pt)
@@ -248,7 +249,7 @@ def _chart_model(chart, idx, geom, warn, theme=None):
     subs = list(getattr(chart, "_charts", None) or [chart])
     main_type = CHART_TYPES.get(chart.tagname)
     if main_type is None:
-        warn.append(f"지원하지 않는 차트 유형({chart.tagname})은 막대형으로 표시됩니다.")
+        warn.append(f"Unsupported chart type ({chart.tagname}) is shown as a bar chart.")
         main_type = "bar"
     series = []
     for sub in subs:
@@ -510,6 +511,9 @@ def _create_pivot(wb, ws, pm):
             if it["t"] == "grand":
                 out.append(RowColItem(t="grand", x=[Index()]))
                 continue
+            if not axis_fields:  # one data field and no column field: a single empty item, <i/> (as Excel writes it)
+                out.append(RowColItem())
+                continue
             xs = []
             for j, v in enumerate(it["x"]):
                 f = axis_fields[it["r"] + j]
@@ -520,7 +524,7 @@ def _create_pivot(wb, ws, pm):
     col_axis = lay["colFields"]
     pt = TableDefinition(
         name=pm["name"], cacheId=1 + max([p.cacheId or 0 for w in wb.worksheets for p in getattr(w, "_pivots", [])] or [0]),
-        dataCaption="값", grandTotalCaption="총합계",
+        dataCaption=PV.labels(pm.get("lang"))["values"], grandTotalCaption=PV.labels(pm.get("lang"))["grand"],
         updatedVersion=6, minRefreshableVersion=3, createdVersion=6, useAutoFormatting=True, itemPrintTitles=True,
         indent=0, compact=False, compactData=False, outline=False, outlineData=False, gridDropZones=False,
         applyNumberFormats=False, applyBorderFormats=False, applyFontFormats=False, applyPatternFormats=False,
@@ -646,20 +650,20 @@ def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
             try:
                 charts.append(_chart_model(ch, i, geom, warn, theme))
             except Exception as exc:  # pragma: no cover
-                warn.append(f"차트를 읽지 못했습니다: {exc}")
+                warn.append(f"Could not read a chart: {exc}")
         pivots = []
         for i, p in enumerate(getattr(ws, "_pivots", None) or []):
             try:
                 pivots.append(_pivot_model(p, i, ws.title))
             except Exception as exc:  # pragma: no cover
-                warn.append(f"피벗 테이블을 읽지 못했습니다: {exc}")
+                warn.append(f"Could not read a pivot table: {exc}")
         if pivots:
-            warn.append(f"'{ws.title}' 시트의 피벗 테이블({', '.join(p['name'] for p in pivots)})은 보존되고 영역은 편집할 수 없습니다. "
-                        "원본 데이터를 바꾸면 Excel이 파일을 열 때 새로 고칩니다.")
+            warn.append(f"Pivot tables on sheet '{ws.title}' ({', '.join(p['name'] for p in pivots)}) are kept and their areas cannot be edited. "
+                        "When the source data changes, Excel refreshes them when it opens the file.")
         if getattr(ws, "_images", None):
-            warn.append(f"'{ws.title}' 시트의 이미지는 화면에 표시되지 않지만 저장 시 보존됩니다.")
+            warn.append(f"Images on sheet '{ws.title}' are not shown but are kept when saving.")
         if ws.conditional_formatting:
-            warn.append(f"'{ws.title}' 시트의 조건부 서식은 화면에 표시되지 않지만 저장 시 보존됩니다.")
+            warn.append(f"Conditional formatting on sheet '{ws.title}' is not shown but is kept when saving.")
 
         tab = ws.sheet_properties.tabColor
         sheets.append({
@@ -694,7 +698,7 @@ def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
     if unsupported:
         warn.insert(0, unsupported_warning(unsupported))
     if wb.chartsheets:
-        warn.append("차트 시트는 화면에 표시되지 않지만 저장 시 보존됩니다.")
+        warn.append("Chart sheets are not shown but are kept when saving.")
     active = wb.worksheets.index(wb.active) if wb.active in wb.worksheets else 0
     return {"sheets": sheets, "styles": styles, "activeSheet": active,
             "definedNames": names, "warnings": warn, "themeColors": theme,
@@ -708,10 +712,10 @@ def unsupported_warning(found) -> str:
         for n in bad:
             if n not in names:
                 names.append(n)
-    cells = ", ".join(f"'{s}'!{ref}" for s, ref, _ in found[:5]) + (f" 외 {len(found) - 5}개" if len(found) > 5 else "")
-    return (f"이 앱이 계산할 수 없는 함수가 있습니다: {', '.join(names)} ({len(found)}개 셀: {cells}). "
-            "해당 셀은 파일에 저장돼 있던 결과를 보여 주고, 수식을 고치지 않으면 저장할 때 원래 수식 그대로 저장됩니다. "
-            "이 셀을 참조하는 다른 수식의 결과는 Excel에서 다시 계산하면 달라질 수 있습니다.")
+    cells = ", ".join(f"'{s}'!{ref}" for s, ref, _ in found[:5]) + (f" and {len(found) - 5} more" if len(found) > 5 else "")
+    return (f"Some functions cannot be computed by this app: {', '.join(names)} ({len(found)} cells: {cells}). "
+            "Those cells show the results stored in the file, and unless their formulas are edited they are saved with the original formulas. "
+            "Formulas that refer to them may give different results when Excel recalculates.")
 
 
 # --------------------------------------------------------------------------- write

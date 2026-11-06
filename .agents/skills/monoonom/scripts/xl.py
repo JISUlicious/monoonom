@@ -56,12 +56,12 @@ def check_deps(quiet=False) -> dict:
         except ImportError:
             found[name] = None
     if not found["openpyxl"]:
-        raise CliError("Python 패키지 openpyxl이 없습니다. 설치한 뒤 다시 실행하세요:\n  " + install_hint(), EXIT_DEPS)
+        raise CliError("The Python package openpyxl is missing. Install it and run again:\n  " + install_hint(), EXIT_DEPS)
     if not quiet:
         if not found["openpyxl"].startswith("3.1."):
-            print(f"주의: openpyxl {found['openpyxl']}은 검증된 3.1.x가 아닙니다. 문제가 있으면: {install_hint()}")
+            print(f"warning: openpyxl {found['openpyxl']} is not the tested 3.1.x. If something breaks: {install_hint()}")
         if not found["xlrd"]:
-            print(f"참고: xlrd가 없어 .xls 파일은 열 수 없습니다(.xlsx/.xlsm은 가능). 필요하면: {install_hint()}")
+            print(f"note: xlrd is missing, so .xls files cannot be opened (.xlsx/.xlsm can). If needed: {install_hint()}")
     return found
 
 
@@ -81,9 +81,9 @@ def workspace_root(arg=None) -> str:
     real = os.path.normcase(os.path.realpath(root))
     if any(real == s or real.startswith(s + os.sep) for s in skills):
         raise CliError(
-            f"작업 폴더가 skill 폴더 안({root})으로 잡혔습니다. xl.py는 사용자의 작업 폴더(프로젝트 폴더)에서 "
-            f"실행하세요: cd <작업 폴더> && python \"{os.path.join(HERE, 'xl.py')}\" ... "
-            "또는 --root <작업 폴더>를 지정하세요.", EXIT_USAGE)
+            f"The workspace resolved to the skill folder ({root}). Run xl.py from the user's workspace (project folder): "
+            f"cd <workspace> && python \"{os.path.join(HERE, 'xl.py')}\" ... "
+            "or pass --root <workspace>.", EXIT_USAGE)
     _migrate_state(root)
     return root
 
@@ -174,7 +174,7 @@ def workspace_token(root) -> str:
                 if os.path.exists(tmp):
                     os.remove(tmp)
         time.sleep(0.05)  # a token file that is still empty or unreadable: retry
-    raise CliError(f"토큰 파일을 읽을 수 없습니다: {path}")
+    raise CliError(f"Cannot read the token file: {path}")
 
 
 def token_path(root) -> str:
@@ -221,7 +221,7 @@ def request(st, method, path, body=None, timeout=30):
         code = EXIT_CONFLICT if e.code == 409 else EXIT_FILE if e.code in (403, 404, 422) else 1
         raise CliError(f"{msg} (HTTP {e.code})", code)
     except (urllib.error.URLError, ConnectionError, socket.timeout) as e:
-        raise CliError(f"서버에 연결할 수 없습니다: {e}", EXIT_NOSERVER)
+        raise CliError(f"Cannot connect to the server: {e}", EXIT_NOSERVER)
 
 
 def alive(st) -> bool:
@@ -237,7 +237,7 @@ def alive(st) -> bool:
 def connect(root):
     st = read_state(root)
     if not alive(st):
-        raise CliError(f"monoonom 서버가 실행 중이 아닙니다. 먼저 `xl.py serve`를 실행하세요. (root={root})", EXIT_NOSERVER)
+        raise CliError(f"The monoonom server is not running. Run `xl.py serve` first. (root={root})", EXIT_NOSERVER)
     return st
 
 
@@ -277,8 +277,8 @@ def run_foreground(args):
     try:
         httpd = app.serve("127.0.0.1", port)
     except OSError as e:
-        sys.stderr.write(f"[monoonom] 127.0.0.1:{port}에 바인딩할 수 없습니다: {e}\n"
-                         "에이전트 샌드박스가 루프백 바인딩을 막는 경우(예: Codex workspace-write) 승인 또는 전체 권한이 필요합니다.\n")
+        sys.stderr.write(f"[monoonom] cannot bind 127.0.0.1:{port}: {e}\n"
+                         "If the agent sandbox blocks loopback binding (e.g. Codex workspace-write), it needs approval or full access.\n")
         return EXIT_USAGE
     pid = os.getpid()
     base = f"http://localhost:{port}/"
@@ -331,8 +331,8 @@ def cmd_serve(args):
     st = read_state(root)
     if args.new_token:
         if alive(st):
-            raise CliError("서버가 실행 중입니다. 토큰을 바꾸려면 먼저 `xl.py stop` 하세요"
-                           "(열린 미리보기는 새 주소로 다시 열어야 합니다).", EXIT_CONFLICT)
+            raise CliError("The server is running. Run `xl.py stop` before changing the token "
+                           "(open previews must then be reopened at the new URL).", EXIT_CONFLICT)
         try:
             os.remove(token_path(root))
         except FileNotFoundError:
@@ -368,16 +368,16 @@ def cmd_serve(args):
             tail = fh.read()[-1500:].decode("utf-8", "replace")
     except OSError:
         pass
-    raise CliError("서버를 시작하지 못했습니다.\n" + tail, 1)
+    raise CliError("The server did not start.\n" + tail, 1)
 
 
-URL_HINT = ("사용자에게 아래 주소를 한 글자도 바꾸지 말고 그대로 전달하세요 "
-            "(끝의 #t= 토큰 포함. localhost 주소를 직접 만들거나 줄이지 말 것):")
+URL_HINT = ("Give the user this URL exactly as printed "
+            "(including the #t= token at the end; never build or shorten a localhost URL yourself):")
 
 
 def print_status(st, reused=None, extra=None):
-    tag = " (기존 서버 재사용)" if reused else " (새로 시작)" if reused is False else ""
-    print(f"monoonom 서버 실행 중{tag}")
+    tag = " (reused the running server)" if reused else " (started)" if reused is False else ""
+    print(f"monoonom server running{tag}")
     print(URL_HINT)
     print(page_url(st))
     print(f"  root: {st['root']}")
@@ -390,7 +390,7 @@ def cmd_url(args):
     """Only the preview URL with its token, for copying verbatim."""
     st = read_state(workspace_root(args.root))
     if not alive(st):
-        raise CliError("monoonom 서버가 실행 중이 아닙니다. 먼저 `xl.py serve`를 실행하세요.", EXIT_NOSERVER)
+        raise CliError("The monoonom server is not running. Run `xl.py serve` first.", EXIT_NOSERVER)
     if not args.bare:
         print(URL_HINT)
     print(page_url(st))
@@ -404,14 +404,14 @@ def cmd_status(args):
         if args.brief:
             print(f"monoonom: not running (root={root})")
             return 0
-        print(f"monoonom 서버가 실행 중이 아닙니다 (root={root}).")
+        print(f"monoonom server not running (root={root}).")
         return EXIT_NOSERVER
     extra = []
     try:
         docs = request(st, "GET", "/api/docs").get("docs", [])
         for d in docs:
             extra.append(f"doc {d['docId']}: {d.get('path') or d['name']}  v{d['version']}"
-                         f"{'  *수정됨*' if d.get('dirty') else ''}  clients={d.get('clients', 0)}")
+                         f"{'  *modified*' if d.get('dirty') else ''}  clients={d.get('clients', 0)}")
     except CliError:
         pass
     if args.brief:
@@ -429,7 +429,7 @@ def cmd_stop(args):
     root = workspace_root(args.root)
     st = read_state(root)
     if not alive(st):
-        print("실행 중인 서버가 없습니다.")
+        print("No server is running.")
         clear_state(root, (st or {}).get("pid"))
         return 0
     res = request(st, "POST", "/api/shutdown", {"force": args.force})
@@ -437,7 +437,7 @@ def cmd_stop(args):
         time.sleep(0.1)
         if not alive(st):
             break
-    print("서버를 종료했습니다." + (f" (저장 안 된 문서 버림: {', '.join(res.get('dirty', []))})" if res.get("dirty") else ""))
+    print("Server stopped." + (f" (discarded unsaved documents: {', '.join(res.get('dirty', []))})" if res.get("dirty") else ""))
     return 0
 
 
@@ -462,9 +462,9 @@ def cmd_launch_config(args):
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(cfg, fh, ensure_ascii=False, indent=2)
         fh.write("\n")
-    print(f"{path}에 'monoonom' 미리보기 구성을 기록했습니다 (port {port}).")
+    print(f"Wrote the 'monoonom' preview configuration to {path} (port {port}).")
     if alive(st):
-        print(f"이미 {st['url']}에서 서버가 실행 중입니다. 미리보기가 같은 포트를 쓰므로 기존 서버를 먼저 `stop` 하거나 그대로 URL을 여세요.")
+        print(f"A server is already running at {st['url']}. The preview uses the same port, so `stop` it first or open that URL as is.")
     return 0
 
 
@@ -521,7 +521,7 @@ def main(argv=None):
     try:
         return args.fn(args) or 0
     except CliError as e:
-        print(f"오류: {e}", file=sys.stderr)
+        print(f"error: {e}", file=sys.stderr)
         return e.code
     except KeyboardInterrupt:
         return 130

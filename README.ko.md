@@ -56,7 +56,8 @@ npx skills add JISUlicious/web-excel-agent-skills -g -a codex # 모든 프로젝
 - "내가 방금 고친 셀 확인해서 나머지 행도 같은 식으로 맞춰 줘"
 
 에이전트가 서버를 띄우고 미리보기 주소(`http://127.0.0.1:8765/#t=토큰`)를 알려 줍니다. Claude Code 데스크톱에서는 미리보기 창에 바로 열리고,
-VS Code·Cursor에서는 Simple Browser, 그 밖에는 일반 브라우저로 엽니다. 저장하면 이전 파일은 `<작업 폴더>/.monoonom/backups/`에 남습니다.
+VS Code·Cursor에서는 Simple Browser, 그 밖에는 일반 브라우저로 엽니다.
+화면은 영어로 표시되고 브라우저 언어가 한국어이면 한국어로 표시됩니다. 주소에 `?lang=ko` 또는 `?lang=en`을 붙여 고를 수 있습니다(브라우저에 기억됨). 저장하면 이전 파일은 `<작업 폴더>/.monoonom/backups/`에 남습니다.
 
 에이전트가 쓰는 명령(직접 실행해도 됩니다):
 

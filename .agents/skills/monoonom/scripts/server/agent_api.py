@@ -33,7 +33,7 @@ ERRORS = {"#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A"}
 def resolve(doc, ref, sheet=None):
     """'Sheet!A1:B2' | 'A1:B2' (+ optional sheet) -> (sheet dict, (r1,c1,r2,c2))."""
     if not ref:
-        raise ApiError(400, "범위(range)가 필요합니다.")
+        raise ApiError(400, "A range is required.")
     sname, rng = A.split_sheet(ref)
     sh = doc.sheet(sname or sheet) if (sname or sheet) else doc.sheets[min(doc.active_sheet, len(doc.sheets) - 1)]
     try:
@@ -48,7 +48,7 @@ def parse_at(doc, at):
     try:
         r, c = A.parse_range(rng)[:2]
     except ValueError as e:
-        raise ApiError(400, f"차트 위치(--at)가 잘못됐습니다: {at} ({e})")
+        raise ApiError(400, f"Invalid chart position (--at): {at} ({e})")
     return (doc.sheet(sname) if sname else None), r, c
 
 
@@ -67,9 +67,9 @@ def find_chart(doc, meta, meta_of, cid=None, sheet=None, index=None):
         for i, ch in enumerate(current):
             if (cid and ch.get("id") == cid) or (not cid and index is not None and i == int(index)):
                 return sh, meta_of(sh, "charts"), i
-    where = f"'{sheets[0]['name']}' 시트" if len(sheets) == 1 else "모든 시트"
-    raise ApiError(404, f"차트를 찾을 수 없습니다: {cid or f'#{index}'} ({where}에서 찾음). 차트 id는 파일을 다시 열거나 "
-                        "서버를 다시 시작하면 바뀝니다. `xl.py chart ls`로 현재 id를 확인하세요.")
+    where = f"sheet '{sheets[0]['name']}'" if len(sheets) == 1 else "all sheets"
+    raise ApiError(404, f"Chart not found: {cid or f'#{index}'} (searched {where}). Chart ids change when the file is reopened or "
+                        "the server restarts. Get the current ids with `xl.py chart ls`.")
 
 
 def used_extent(sh, pending=None):
@@ -162,7 +162,7 @@ def merged_style(cur, patch=None, unset=()):
     st = dict(cur or {})
     for k, v in (patch or {}).items():
         if k not in STYLE_KEYS:
-            raise ApiError(400, f"알 수 없는 서식 키: {k} (사용 가능: {', '.join(sorted(STYLE_KEYS))})")
+            raise ApiError(400, f"Unknown format key: {k} (available: {', '.join(sorted(STYLE_KEYS))})")
         if v is None or v is False:
             st.pop(k, None)
         else:
@@ -211,9 +211,9 @@ def ensure_calc(doc, wait=2.0):
             err = res.stderr[-300:]
         except (OSError, subprocess.TimeoutExpired, ValueError) as e:
             err = str(e)
-        return {"status": "stale", "source": doc.calc_source, "note": f"Node 계산 실패: {err}"}
+        return {"status": "stale", "source": doc.calc_source, "note": f"Node calculation failed: {err}"}
     return {"status": "stale", "source": doc.calc_source,
-            "note": "수식 결과가 최신이 아닐 수 있습니다. 미리보기 창을 열거나 Node.js 18+를 설치하면 계산됩니다."}
+            "note": "Formula results may be out of date. Open the preview or install Node.js 18+ to compute them."}
 
 
 def cell_value(doc, sh, r, c, cell):
@@ -293,9 +293,9 @@ def build_ops(doc, edits):
             if not fill and (r1, c1) == (r2, c2):
                 r2, c2 = r1 + h - 1, c1 + w - 1
             if not fill and (r2 - r1 + 1, c2 - c1 + 1) != (h, w):
-                raise ApiError(400, f"값 크기({h}x{w})가 범위({A.range_a1(r1, c1, r2, c2)})와 다릅니다.")
+                raise ApiError(400, f"The values ({h}x{w}) do not match the range ({A.range_a1(r1, c1, r2, c2)}).")
             if (r2 - r1 + 1) * (c2 - c1 + 1) > 200000:
-                raise ApiError(400, "한 번에 쓸 수 있는 셀은 200,000개까지입니다.")
+                raise ApiError(400, "At most 200,000 cells can be written at once.")
             for i in range(r2 - r1 + 1):
                 for j in range(c2 - c1 + 1):
                     raw = vals[0][0] if fill else (vals[i][j] if j < len(vals[i]) else None)
@@ -303,7 +303,7 @@ def build_ops(doc, edits):
                     if fill and "f" in fields:
                         fields["f"] = translate(fields["f"], i, j)
                     put(sh, r1 + i, c1 + j, cell_with(cur(sh, r1 + i, c1 + j), fields, nf))
-            summary.append(f"{sh['name']}!{A.range_a1(r1, c1, r2, c2)} 입력")
+            summary.append(f"{sh['name']}!{A.range_a1(r1, c1, r2, c2)} write")
         elif kind == "clear":
             sh, g = resolve(doc, e.get("range"), sheet)
             r1, c1, r2, c2 = clamp(sh, g, pending=cellbuf.get(sh["id"]))
@@ -320,14 +320,14 @@ def build_ops(doc, edits):
                     else:
                         keep = {k: v for k, v in cell.items() if k in ("s", "cm")}
                         put(sh, r, c, keep or None)
-            summary.append(f"{sh['name']}!{A.range_a1(r1, c1, r2, c2)} 지우기({what})")
+            summary.append(f"{sh['name']}!{A.range_a1(r1, c1, r2, c2)} clear ({what})")
         elif kind == "format":
             sh, g = resolve(doc, e.get("range"), sheet)
             r1, c1, r2, c2 = clamp(sh, g, pending=cellbuf.get(sh["id"]))
             patch, unset = dict(e.get("set") or {}), e.get("unset") or []
             border = patch.pop("border", None) or e.get("border")
             if (r2 - r1 + 1) * (c2 - c1 + 1) > 200000:
-                raise ApiError(400, "서식은 한 번에 200,000셀까지 적용할 수 있습니다.")
+                raise ApiError(400, "Formats can be applied to at most 200,000 cells at once.")
             for r in range(r1, r2 + 1):
                 for c in range(c1, c2 + 1):
                     cell = dict(cur(sh, r, c) or {})
@@ -339,7 +339,7 @@ def build_ops(doc, edits):
                     else:
                         cell.pop("s", None)
                     put(sh, r, c, cell or None)
-            summary.append(f"{sh['name']}!{A.range_a1(r1, c1, r2, c2)} 서식")
+            summary.append(f"{sh['name']}!{A.range_a1(r1, c1, r2, c2)} format")
         elif kind in ("merge", "unmerge"):
             sh, (r1, c1, r2, c2) = resolve(doc, e.get("range"), sheet)
             merges = meta_of(sh, "merges")
@@ -368,14 +368,14 @@ def build_ops(doc, edits):
                     cell["s"] = dict(cell.get("s") or {}, ha="center")
                     put(sh, r1, c1, cell)
             meta[sh["id"]]["merges"] = keep
-            summary.append(f"{sh['name']}!{A.range_a1(r1, c1, r2, c2)} {'병합' if kind == 'merge' else '병합 해제'}")
+            summary.append(f"{sh['name']}!{A.range_a1(r1, c1, r2, c2)} {'merge' if kind == 'merge' else 'unmerge'}")
         elif kind in ("colWidth", "rowHeight", "hide", "unhide"):
             sh, (r1, c1, r2, c2) = resolve(doc, e.get("range") or e.get("cols") or e.get("rows"), sheet)
             axis = "cols" if (kind == "colWidth" or (kind in ("hide", "unhide") and r1 == 0 and r2 == A.MAX_ROWS - 1)) else "rows"
             dims = meta_of(sh, axis)
             lo, hi = (c1, c2) if axis == "cols" else (r1, r2)
             if hi - lo > 5000:
-                raise ApiError(400, "한 번에 5,000개 행/열까지 바꿀 수 있습니다.")
+                raise ApiError(400, "At most 5,000 rows / columns can be changed at once.")
             for i in range(lo, hi + 1):
                 d = dict(dims.get(str(i)) or {})
                 if kind == "colWidth":
@@ -395,7 +395,7 @@ def build_ops(doc, edits):
             sh = doc.sheet(sheet) if sheet else doc.sheets[doc.active_sheet]
             cellref = e.get("cell")
             meta.setdefault(sh["id"], {})["freeze"] = (A.a1(*A.parse_range(cellref)[:2]) if cellref and cellref not in ("A1", "none") else None)
-            summary.append(f"{sh['name']} 틀 고정 {cellref or '해제'}")
+            summary.append(f"{sh['name']} freeze panes {cellref or 'off'}")
         elif kind == "filter":
             sh, g = (resolve(doc, e["range"], sheet) if e.get("range") else (doc.sheet(sheet) if sheet else doc.sheets[doc.active_sheet], None))
             if g:
@@ -405,22 +405,22 @@ def build_ops(doc, edits):
             else:
                 meta.setdefault(sh["id"], {})["autoFilter"] = None
             meta[sh["id"]]["filterHidden"] = []
-            summary.append(f"{sh['name']} 자동 필터 {'켜기' if g else '끄기'}")
+            summary.append(f"{sh['name']} autofilter {'on' if g else 'off'}")
         elif kind == "chart":
             sh_data, g = resolve(doc, e.get("data"), sheet)
             g, _ = RG.auto_range(sh_data, g, cur)
             at_sheet = parse_at(doc, e["at"])[0] if e.get("at") else None
             if at_sheet and e.get("sheet") and doc.sheet(e["sheet"]) is not at_sheet:
-                raise ApiError(400, "--sheet와 --at의 시트가 다릅니다.")
+                raise ApiError(400, "--sheet and --at name different sheets.")
             target = doc.sheet(e["sheet"]) if e.get("sheet") else at_sheet or sh_data
             chart = chart_from_range(doc, sh_data, g, e, cellbuf.get(sh_data["id"], {}))
             charts = meta_of(target, "charts")
             charts.append(chart)
-            summary.append(f"{target['name']} 차트 추가({chart['type']}, id={chart['id']})")
+            summary.append(f"{target['name']} add chart ({chart['type']}, id={chart['id']})")
         elif kind == "deleteChart":
             sh, charts, idx = find_chart(doc, meta, meta_of, e.get("id"), sheet, e.get("index"))
             meta[sh["id"]]["charts"] = [ch for i, ch in enumerate(charts) if i != idx]
-            summary.append(f"{sh['name']} 차트 삭제")
+            summary.append(f"{sh['name']} delete chart")
         elif kind == "addSheet":
             name = (e.get("name") or "").strip() or _unique_name(doc, "Sheet")
             _check_sheet_name(doc, name)
@@ -430,7 +430,7 @@ def build_ops(doc, edits):
             order.insert(max(0, min(at, len(order))), sid)
             ops.append({"op": "sheets", "order": order, "add": {sid: {"name": name, "cells": []}}})
             structural = True
-            summary.append(f"시트 추가 '{name}'")
+            summary.append(f"add sheet '{name}'")
         elif kind == "renameSheet":
             sh = doc.sheet(sheet or e.get("from"))
             name = (e.get("name") or "").strip()
@@ -465,15 +465,15 @@ def build_ops(doc, edits):
                      for k, v in doc.defined_names.items()}
             ops.append({"op": "setWorkbook", "props": {"definedNames": names}})
             structural = True
-            summary.append(f"시트 이름 '{old}' → '{name}'")
+            summary.append(f"rename sheet '{old}' → '{name}'")
         elif kind == "deleteSheet":
             sh = doc.sheet(sheet or e.get("name"))
             if len(doc.sheets) <= 1:
-                raise ApiError(400, "마지막 시트는 삭제할 수 없습니다.")
+                raise ApiError(400, "The last sheet cannot be deleted.")
             ops.append({"op": "sheets", "order": [s["id"] for s in doc.sheets if s is not sh], "add": {}})
             structural = True
             ctx.transformable = False
-            summary.append(f"시트 삭제 '{sh['name']}'")
+            summary.append(f"delete sheet '{sh['name']}'")
         elif kind == "name":
             names = dict(doc.defined_names)
             if e.get("ref"):
@@ -481,11 +481,11 @@ def build_ops(doc, edits):
             else:
                 names.pop(e["name"], None)
             ops.append({"op": "setWorkbook", "props": {"definedNames": names}})
-            summary.append(f"이름 정의 {e['name']}")
+            summary.append(f"define name {e['name']}")
         elif kind in agent_more.HANDLERS:
             agent_more.HANDLERS[kind](ctx, e)
         else:
-            raise ApiError(400, f"알 수 없는 편집 op: {kind} (references/edits.md 참고)")
+            raise ApiError(400, f"Unknown edit op: {kind} (see references/edits.md)")
 
     for sid, cells in cellbuf.items():
         ops.append({"op": "setCells", "sheet": sid, "cells": [[r, c, cell] for (r, c), cell in sorted(cells.items())]})
@@ -513,7 +513,7 @@ def apply_border(st, spec, top, bottom, left, right):
             st.pop(k, None)
         return st
     if kind not in sel:
-        raise ApiError(400, f"테두리 종류: {', '.join(sel)} 또는 none")
+        raise ApiError(400, f"Border kinds: {', '.join(sel)} or none")
     for k, on in zip(("bt", "bb", "bl", "br"), sel[kind]):
         if on:
             st[k] = side
@@ -522,9 +522,9 @@ def apply_border(st, spec, top, bottom, left, right):
 
 def _check_sheet_name(doc, name, exclude=None):
     if not name or len(name) > 31 or re.search(r"[\\/?*\[\]:]", name):
-        raise ApiError(400, "시트 이름은 1~31자이고 \\ / ? * [ ] : 를 쓸 수 없습니다.")
+        raise ApiError(400, "Sheet names are 1–31 characters without \\ / ? * [ ] :")
     if any(s is not exclude and s["name"].lower() == name.lower() for s in doc.sheets):
-        raise ApiError(409, f"같은 이름의 시트가 있습니다: {name}")
+        raise ApiError(409, f"A sheet with this name exists: {name}")
 
 
 def _unique_name(doc, base):
@@ -540,7 +540,7 @@ def _lit_label(xs):
     if not xs:
         return None
     shown = ", ".join("" if x is None else (f"{x:g}" if isinstance(x, float) else str(x)) for x in xs[:3])
-    return f"{{{shown}{', …' if len(xs) > 3 else ''}}} (차트에 저장된 값 {len(xs)}개)"
+    return f"{{{shown}{', …' if len(xs) > 3 else ''}}} ({len(xs)} values stored in the chart)"
 
 
 def chart_from_range(doc, sh, g, e, pending=None):
@@ -576,7 +576,7 @@ def chart_from_range(doc, sh, g, e, pending=None):
     preset = {"barH": ("bar", "bar", "clustered"), "barStacked": ("bar", "col", "stacked")}.get(ctype)
     t, bar_dir, grouping = preset or (ctype, "col", "standard" if ctype in ("line", "area") else "clustered")
     if t not in ("bar", "line", "area", "pie", "doughnut", "scatter", "radar"):
-        raise ApiError(400, "차트 종류: bar, barH, barStacked, line, area, pie, doughnut, scatter, radar")
+        raise ApiError(400, "Chart types: bar, barH, barStacked, line, area, pie, doughnut, scatter, radar")
     at = e.get("at")
     ar, ac = (parse_at(doc, at)[1:] if at else (r1, min(c2 + 2, A.MAX_COLS - 10)))
     return {"id": new_id("ch"), "type": t, "barDir": bar_dir, "grouping": grouping, "title": e.get("title"),
@@ -599,9 +599,9 @@ def _axis_pos(spec, axis):
         lo = conv(a)
         hi = conv(b) if b else lo
     except ValueError:
-        raise ApiError(400, f"{'행' if axis == 'row' else '열'} 위치가 잘못되었습니다: {spec}")
+        raise ApiError(400, f"Invalid {'row' if axis == 'row' else 'column'} position: {spec}")
     if lo < 0 or hi < lo:
-        raise ApiError(400, f"잘못된 위치: {spec}")
+        raise ApiError(400, f"Invalid position: {spec}")
     return lo, hi - lo + 1
 
 
@@ -743,7 +743,7 @@ def sort_ops(doc, sh, g, keys, header):
     r1, c1, r2, c2 = clamp(sh, g)
     pv = PV.overlapping(sh, (r1, c1, r2, c2))
     if pv:
-        raise ApiError(409, f"피벗 테이블 '{pv[0]['name']}'({pv[0]['ref']})이 있는 범위는 정렬할 수 없습니다.")
+        raise ApiError(409, f"Cannot sort a range that contains pivot table '{pv[0]['name']}' ({pv[0]['ref']}).")
     if header is None:
         top = [cell_value(doc, sh, r1, c, sh["cells"].get((r1, c)) or {}) for c in range(c1, c2 + 1)]
         nxt = [cell_value(doc, sh, r1 + 1, c, sh["cells"].get((r1 + 1, c)) or {}) for c in range(c1, c2 + 1)]
@@ -808,13 +808,13 @@ def structural_batch(doc, e):
         for k in e.get("by") or []:
             if isinstance(k, str):
                 col, _, d = k.partition(":")
-                k = {"col": col, "asc": d.lower() not in ("desc", "d", "내림차순")}
+                k = {"col": col, "asc": d.lower() not in ("desc", "d")}
             col = k["col"]
             keys.append((A.col_index(col) if str(col).isalpha() else int(col) - 1, bool(k.get("asc", True))))
         if not keys:
-            raise ApiError(400, "정렬 기준(by)이 필요합니다. 예: [\"C:desc\"]")
+            raise ApiError(400, "Sort keys (by) are required, e.g. [\"C:desc\"]")
         ops, header, rng = sort_ops(doc, sh, g, keys, e.get("header"))
-        return ops, [], False, f"{sh['name']}!{rng} 정렬({', '.join(A.col_name(c) + ('↑' if a else '↓') for c, a in keys)})" + (" 머리글 제외" if header else "")
+        return ops, [], False, f"{sh['name']}!{rng} sort ({', '.join(A.col_name(c) + ('↑' if a else '↓') for c, a in keys)})" + (" excluding header" if header else "")
     axis = "row" if kind.endswith("Rows") else "col"
     sh = doc.sheet(sheet) if sheet else doc.sheets[doc.active_sheet]
     if "range" in e and "!" in str(e["range"]):
@@ -823,13 +823,13 @@ def structural_batch(doc, e):
     at, n = _axis_pos(e.get("at", e.get("range")), axis)
     count = int(e.get("count", n))
     if count <= 0:
-        raise ApiError(400, "count는 1 이상이어야 합니다.")
+        raise ApiError(400, "count must be 1 or more.")
     if count > (5000 if axis == "col" else 100000):
-        raise ApiError(400, "한 번에 삽입/삭제할 수 있는 개수를 넘었습니다.")
+        raise ApiError(400, "Too many rows / columns to insert or delete at once.")
     signed = count if kind.startswith("insert") else -count
     ops = shift_ops(doc, sh, axis, at, signed)
     what = f"{at + 1}" if axis == "row" else A.col_name(at)
-    label = f"{sh['name']} {'행' if axis == 'row' else '열'} {what}{'부터 ' + str(count) + '개' if count > 1 else ''} {'삽입' if signed > 0 else '삭제'}"
+    label = f"{sh['name']} {'insert' if signed > 0 else 'delete'} {'rows' if axis == 'row' else 'columns'} {what}{' (' + str(count) + ')' if count > 1 else ''}"
     return ops, [{"sheet": sh["id"], "axis": axis, "at": at, "count": signed}], True, label
 
 
@@ -887,7 +887,7 @@ def r_pivot_refresh(h, m, q, body):
         targets = [(sh, p) for sh in doc.sheets for p in sh.get("pivots") or []
                    if (not name or p["name"].lower() == name) and (not sheet or sh["name"].lower() == sheet)]
         if not targets:
-            raise ApiError(404, f"피벗 테이블을 찾을 수 없습니다: {body.get('name') or body.get('sheet') or '(문서에 없음)'}")
+            raise ApiError(404, f"Pivot table not found: {body.get('name') or body.get('sheet') or '(none in this document)'}")
         value_at = lambda s, r, c: cell_value(doc, s, r, c, s["cells"].get((r, c)) or {})  # noqa: E731
         ops, done, notes = [], [], []
         for sh, p in targets:
@@ -900,7 +900,7 @@ def r_pivot_refresh(h, m, q, body):
             return {"version": doc.version, "batchId": None, "pivots": done, "notes": notes, "calc": calc}
         batch = new_id("b")
         v = doc.apply(ops, actor=body.get("actor", "agent"), client_id=body.get("clientId", "agent-cli"), batch_id=batch,
-                      label="피벗 새로 고침: " + ", ".join(p["name"] for _, p in targets), pivot_write=True)
+                      label="refresh pivot: " + ", ".join(p["name"] for _, p in targets), pivot_write=True)
     return {"version": v, "batchId": batch, "pivots": done, "notes": notes, "calc": calc}
 
 
@@ -919,11 +919,11 @@ def r_pivot_create(h, m, q, body):
         g, _ = RG.auto_range(ssh, g, None, trim_totals=True)  # one cell / whole columns -> the table there
         r1, c1, r2, c2 = clamp(ssh, g)
         if r2 <= r1:
-            raise ApiError(400, "원본 범위에 머리글 행과 데이터 행이 필요합니다.")
+            raise ApiError(400, "The source range needs a header row and data rows.")
         val = lambda r, c: cell_value(doc, ssh, r, c, ssh["cells"].get((r, c)) or {})  # noqa: E731
         header = [val(r1, c) for c in range(c1, c2 + 1)]
         if any(hv in (None, "") for hv in header):
-            raise ApiError(400, "원본의 첫 행(머리글)에 빈 칸이 있습니다. 모든 열에 이름이 있어야 합니다.")
+            raise ApiError(400, "The source's first row (header) has an empty cell. Every column needs a name.")
         header = [str(hv) for hv in header]
         recs = [{header[j]: val(r, c1 + j) for j in range(len(header))} for r in range(r1 + 1, r2 + 1)]
         recs = [x for x in recs if any(v not in (None, "") for v in x.values())]
@@ -931,7 +931,8 @@ def r_pivot_create(h, m, q, body):
         for v in body.get("values") or []:
             parse_vals.append(dict(v) if isinstance(v, dict) else dict(zip(("field", "fn"), (str(v).split(":", 1) + ["sum"])[:2])))
         try:
-            built = PV.build(recs, header, list(body.get("rows") or []), list(body.get("cols") or []), parse_vals, list(body.get("filters") or []))
+            L = PV.labels(body.get("lang"))
+            built = PV.build(recs, header, list(body.get("rows") or []), list(body.get("cols") or []), parse_vals, list(body.get("filters") or []), body.get("lang"))
         except ValueError as e:
             raise ApiError(400, str(e))
         at = body.get("at") or ""
@@ -939,7 +940,7 @@ def r_pivot_create(h, m, q, body):
         try:
             tr, tc = A.parse_range(cell or "A3")[:2]
         except ValueError as e:
-            raise ApiError(400, f"피벗 위치(--at)가 잘못됐습니다: {at} ({e})")
+            raise ApiError(400, f"Invalid pivot position (--at): {at} ({e})")
         if not at:
             sname = None
         ops, structural = [], False
@@ -948,7 +949,7 @@ def r_pivot_create(h, m, q, body):
             tsh = next((s for s in doc.sheets if s["name"].lower() == sname.lower()), None)
         new_sheet = tsh is None
         if new_sheet:
-            sname = sname or _unique_name(doc, "피벗")
+            sname = sname or _unique_name(doc, L["sheet"])
             _check_sheet_name(doc, sname)
             sid = new_id("s")
             sj = {"id": sid, "name": sname, "cells": [], "charts": [], "pivots": [], "merges": [], "cols": {}, "rows": {}}
@@ -963,11 +964,11 @@ def r_pivot_create(h, m, q, body):
             busy = [k for k in tsh["cells"] if area[0] <= k[0] <= area[2] and area[1] <= k[1] <= area[3]
                     and (tsh["cells"][k].get("v") not in (None, "") or tsh["cells"][k].get("f"))]
             if busy or PV.overlapping(tsh, area):
-                raise ApiError(409, f"피벗을 놓을 영역 {A.range_a1(*area)}에 데이터가 있습니다. 빈 곳이나 새 시트(--at '새시트!A3')를 지정하세요.")
+                raise ApiError(409, f"The pivot's area {A.range_a1(*area)} has data. Choose an empty place or a new sheet (--at 'NewSheet!A3').")
         names = {p["name"].lower() for x in doc.sheets for p in x.get("pivots") or []}
-        name = (body.get("name") or "").strip() or next(f"피벗 테이블{i}" for i in range(1, 999) if f"피벗 테이블{i}".lower() not in names)
+        name = (body.get("name") or "").strip() or next(L["table"].format(n=i) for i in range(1, 999) if L["table"].format(n=i).lower() not in names)
         if name.lower() in names:
-            raise ApiError(409, f"같은 이름의 피벗 테이블이 있습니다: {name}")
+            raise ApiError(409, f"A pivot table with this name exists: {name}")
         top = built["table_top"]
         bold = {"b": True}
         header_rows = built["layout"]["firstDataRow"]
@@ -979,7 +980,7 @@ def r_pivot_create(h, m, q, body):
                 cell = {"v": v}
                 n_rows = len(body.get("rows") or [])
                 is_header = top <= i < top + header_rows
-                is_total = any(isinstance(x, str) and (x.endswith(" 요약") or x == PV.GRAND) for x in line[:n_rows])
+                is_total = any(PV.is_total_label(x) for x in line[:n_rows])
                 if is_header or is_total or (i < top and j == 0):
                     cell["s"] = dict(bold)
                 cells.append([tr + i, tc + j, cell])
@@ -987,7 +988,7 @@ def r_pivot_create(h, m, q, body):
         pm = {"name": name, "ref": A.range_a1(tr + top, tc, tr + height - 1, tc + width - 1), "source": source,
               "rows": list(body.get("rows") or []), "cols": list(body.get("cols") or []), "filters": list(body.get("filters") or []),
               "values": [{"name": v["name"], "field": v["field"], "fn": v["fn"]} for v in built["values"]],
-              "layout": built["layout"], "create": True}
+              "layout": built["layout"], "create": True, "lang": "ko" if body.get("lang") == "ko" else "en"}
         sheets_now = [{"name": x["name"], "cells": [[r, c, it] for (r, c), it in x["cells"].items()]} for x in doc.sheets]
         from .xlsx_io import pivot_source_sig
         pm["srcSig"] = pivot_source_sig(sheets_now, source)
@@ -996,7 +997,7 @@ def r_pivot_create(h, m, q, body):
         ops.append({"op": "setSheetMeta", "sheet": target_id, "meta": {"pivots": (list(tsh.get("pivots") or []) if tsh else []) + [pm]}})
         batch = new_id("b")
         v = doc.apply(ops, actor=body.get("actor", "agent"), client_id=body.get("clientId", "agent-cli"), batch_id=batch,
-                      label=f"피벗 테이블 만들기: {name}", structural=structural, pivot_write=True)
+                      label=f"create pivot table: {name}", structural=structural, pivot_write=True)
     return {"version": v, "batchId": batch, "name": name, "sheet": sname or tsh["name"], "range": pm["ref"],
             "area": A.range_a1(*area), "source": source, "calc": calc}
 
@@ -1150,11 +1151,11 @@ def r_changes(h, m, q, body):
                     rs = [x[0] for x in op["cells"]]
                     cs = [x[1] for x in op["cells"]]
                     ranges.append(f"{names.get(op['sheet'], op['sheet'])}!{A.range_a1(min(rs), min(cs), max(rs), max(cs))}"
-                                  f" ({len(op['cells'])}셀)")
+                                  f" ({len(op['cells'])} cells)")
                 elif op["op"] == "setSheetMeta":
                     metas.append(f"{names.get(op['sheet'], op['sheet'])}: {', '.join(sorted(op['meta']))}")
                 elif op["op"] == "sheets":
-                    metas.append("시트 구성: " + ", ".join(names.get(i, i) for i in op["order"]))
+                    metas.append("sheets: " + ", ".join(names.get(i, i) for i in op["order"]))
             out.append({"v": e["v"], "actor": e["actor"], "label": e["label"], "batchId": e["batchId"],
                         "time": time.strftime("%H:%M:%S", time.localtime(e["ts"])), "cells": ranges, "meta": metas})
     return {"version": doc.version, "dirty": doc.dirty, "changes": out}
@@ -1179,7 +1180,7 @@ def r_find(h, m, q, body):
     doc = _doc(m)
     text = (q.get("q") or [""])[0]
     if not text:
-        raise ApiError(400, "찾을 내용(q)이 필요합니다.")
+        raise ApiError(400, "Text to find (q) is required.")
     where = (q.get("in") or ["values"])[0]
     rx = _matcher(text, (q.get("case") or ["0"])[0] == "1", (q.get("whole") or ["0"])[0] == "1")
     sheet = (q.get("sheet") or [None])[0]

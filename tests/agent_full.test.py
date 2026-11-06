@@ -45,9 +45,9 @@ try:
 
     # filter criteria (custom / values / clear / reapply)
     r = js("filter", "col", "B", "--where", ">150")
-    check("filter custom condition hides rows", "숨김 2행" in " ".join(r["summary"]), str(r["summary"]))
+    check("filter custom condition hides rows", "2 rows hidden" in " ".join(r["summary"]), str(r["summary"]))
     r = js("filter", "col", "A", "--values", "3월|4월")
-    check("filter by displayed values (AND with B)", "숨김 4행" in " ".join(r["summary"]), str(r["summary"]))
+    check("filter by displayed values (AND with B)", "4 rows hidden" in " ".join(r["summary"]), str(r["summary"]))
     xl("filter", "clear")
     check("filter clear", json.loads(xl("describe", "--json").stdout)["sheets"][0]["autoFilter"] == "A1:F7")
 
@@ -105,7 +105,7 @@ try:
     xl("write", "V1", "이름", "--down")
     xl("write", "V2", "a", "b", "a", "c", "--down")
     r = js("dedupe", "V1:V5")
-    check("remove duplicates", rows("V1:V4") == [["이름"], ["a"], ["b"], ["c"]] and "중복 1행" in " ".join(r["summary"]))
+    check("remove duplicates", rows("V1:V4") == [["이름"], ["a"], ["b"], ["c"]] and "removed 1 duplicate rows" in " ".join(r["summary"]))
 
     # find / replace
     f = js("find", "*월", "--max", "50")

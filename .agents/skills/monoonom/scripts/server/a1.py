@@ -53,11 +53,11 @@ def parse_range(text: str):
         return r1, 0, r2, MAX_COLS - 1
     mp, mq = re.fullmatch(r"([A-Z]{1,3})(\d+)", p), re.fullmatch(r"([A-Z]{1,3})(\d+)", q)
     if not mp or not mq:
-        raise ValueError(f"잘못된 범위: {text}")
+        raise ValueError(f"Invalid range: {text}")
     r1, r2 = sorted((int(mp.group(2)) - 1, int(mq.group(2)) - 1))
     c1, c2 = sorted((col_index(mp.group(1)), col_index(mq.group(1))))
     if r1 < 0 or c2 >= MAX_COLS or r2 >= MAX_ROWS:
-        raise ValueError(f"범위가 시트를 벗어납니다: {text}")
+        raise ValueError(f"Range is outside the sheet: {text}")
     return r1, c1, r2, c2
 
 

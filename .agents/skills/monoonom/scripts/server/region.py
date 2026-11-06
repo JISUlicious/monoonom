@@ -10,6 +10,7 @@ import re
 from . import a1 as A
 from . import refs
 
+# Total-row labels in the data, English and Korean (합계 = total, 소계 = subtotal, 평균 = average, ...).
 TOTAL_LABEL = re.compile(r"^\s*(합\s*계|총\s*계|소\s*계|계|누\s*계|평\s*균|total|totals|grand total|sum|subtotal|average)\s*$", re.I)
 AGG_FN = re.compile(r"\b(SUM|SUBTOTAL|AVERAGE|COUNT|COUNTA|MAX|MIN|AGGREGATE)\s*\(", re.I)
 
@@ -45,7 +46,7 @@ def current_region(sh, r, c, cur=None):
 
 
 def is_total_row(sh, r, r1, c1, c2, cur=None):
-    """A row under the data that summarises it: a 합계/Total label or an aggregate over the rows above."""
+    """A row under the data that summarises it: a total label (TOTAL_LABEL) or an aggregate over the rows above."""
     get = (lambda rr, cc: (cur(sh, rr, cc) if cur else sh["cells"].get((rr, cc))) or {})
     first = get(r, c1).get("v")
     if isinstance(first, str) and TOTAL_LABEL.match(first):

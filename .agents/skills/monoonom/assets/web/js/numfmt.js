@@ -1,6 +1,7 @@
 // Excel number-format renderer (subset of ECMA-376 Part 1 §18.8.31 numFmt codes).
 // Supports sections (pos;neg;zero;text), conditions/colors, literals, thousands/scaling,
 // decimals, percent, scientific, dates/times incl. [h], AM/PM and Korean 오전/오후.
+import { FORMATS } from './i18n.js';
 
 const cache = new Map();
 const DAY_MS = 86400000;
@@ -9,22 +10,22 @@ const EN_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday
 const EN_MON = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
   'September', 'October', 'November', 'December'];
 
-// Built-in format ids that openpyxl may surface as strings already; keep a few aliases.
+// Format Cells presets. Labels are English keys (dialogs.js shows t(label)); the currency and long
+// date codes follow the UI language, as in Excel in that language (see FORMATS in i18n.js).
 export const FORMAT_PRESETS = [
-  { label: '일반', code: 'General' },
-  { label: '숫자', code: '0.00' },
-  { label: '숫자(쉼표)', code: '#,##0' },
-  { label: '통화(₩)', code: '"₩"#,##0' },
-  { label: '통화($)', code: '"$"#,##0.00' },
-  { label: '회계', code: '_-* #,##0_-;-* #,##0_-;_-* "-"_-;_-@_-' },
-  { label: '간단한 날짜', code: 'yyyy-mm-dd' },
-  { label: '자세한 날짜', code: 'yyyy"년" m"월" d"일" dddd' },
-  { label: '시간', code: 'h:mm:ss' },
-  { label: '백분율', code: '0%' },
-  { label: '백분율(소수)', code: '0.00%' },
-  { label: '분수', code: '# ?/?' },
-  { label: '지수', code: '0.00E+00' },
-  { label: '텍스트', code: '@' },
+  { label: 'General', code: 'General' },
+  { label: 'Number', code: '0.00' },
+  { label: 'Number (comma)', code: '#,##0' },
+  { label: 'Currency', code: FORMATS.currency },
+  { label: 'Accounting', code: '_-* #,##0_-;-* #,##0_-;_-* "-"_-;_-@_-' },
+  { label: 'Short Date', code: 'yyyy-mm-dd' },
+  { label: 'Long Date', code: FORMATS.longDate },
+  { label: 'Time', code: 'h:mm:ss' },
+  { label: 'Percentage', code: '0%' },
+  { label: 'Percentage (decimals)', code: '0.00%' },
+  { label: 'Fraction', code: '# ?/?' },
+  { label: 'Scientific', code: '0.00E+00' },
+  { label: 'Text', code: '@' },
 ];
 
 /** Excel serial (1900 system, incl. the Lotus 1900-02-29 bug) -> UTC Date parts */
@@ -364,7 +365,7 @@ export function parseInput(text) {
   if ((m = /^(\d{1,2})[/-](\d{1,2})$/.exec(t))) {
     const mo = +m[1], d = +m[2];
     if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
-      return { v: dateToSerial(new Date().getFullYear(), mo, d), nf: 'm"월" d"일"' };
+      return { v: dateToSerial(new Date().getFullYear(), mo, d), nf: FORMATS.monthDay };
     }
   }
   if ((m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|오전|오후)?$/i.exec(t))) {

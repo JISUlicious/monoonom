@@ -12,7 +12,7 @@ let failures = 0;
 const check = (name, cond, extra = '') => { console.log(`${cond ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); if (!cond) failures++; };
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = require('./korean.cjs')(await chromium.launch());
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 860 } });
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
   const page = await ctx.newPage();

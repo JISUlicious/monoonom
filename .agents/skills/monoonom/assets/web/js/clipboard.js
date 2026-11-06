@@ -2,6 +2,7 @@
 import { key, MAX_ROWS, MAX_COLS } from './address.js';
 import { formatValue, parseInput } from './numfmt.js';
 import { internStyle } from './model.js';
+import { t } from './i18n.js';
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -59,7 +60,7 @@ export class Clipboard {
     const { text, html } = this.capture(cut);
     e.clipboardData.setData('text/plain', text);
     e.clipboardData.setData('text/html', html);
-    this.app.setStatus(cut ? '잘라낸 범위를 붙여넣을 위치를 선택하고 Enter 또는 붙여넣기를 누르세요.' : '복사됨. 붙여넣을 위치를 선택하세요.');
+    this.app.setStatus(cut ? t('Select where to paste the cut range and press Enter or Paste.') : t('Copied. Select where to paste.'));
   }
 
   /** copy via button (no user-gesture clipboard event) */
@@ -77,7 +78,7 @@ export class Clipboard {
     try { text = await navigator.clipboard.readText(); } catch { /* permission denied */ }
     if (this.state && (text === null || normalizeText(text) === this.state.text)) return this.pasteInternal(only, transpose);
     if (text !== null) return this.pasteText(text, null);
-    this.app.toast('브라우저가 클립보드 읽기를 허용하지 않습니다. Ctrl+V를 사용하세요.', 'warn');
+    this.app.toast(t('The browser does not allow reading the clipboard. Use Ctrl+V.'), 'warn');
   }
 
   onPaste(e) {
@@ -102,7 +103,7 @@ export class Clipboard {
     const selH = sel.r2 - sel.r1 + 1, selW = sel.c2 - sel.c1 + 1;
     const tilesR = selH % bh === 0 && selH < MAX_ROWS ? selH / bh : 1;
     const tilesC = selW % bw === 0 && selW < MAX_COLS ? selW / bw : 1;
-    wb.begin(st.cut ? '잘라내기' : '붙여넣기');
+    wb.begin(st.cut ? t('Cut') : t('Paste'));
     if (st.cut && st.sheet === sh || st.cut) {
       // clear source first (move semantics)
       for (let r = st.range.r1; r <= st.range.r2; r++) for (let c = st.range.c1; c <= st.range.c2; c++) wb.setCell(st.sheet, r, c, null);
@@ -149,7 +150,7 @@ export class Clipboard {
     if (!rows) rows = parseTSV(text);
     if (!rows.length) return;
     const sel = app.view().sel;
-    wb.begin('붙여넣기');
+    wb.begin(t('Paste'));
     rows.forEach((row, i) => row.forEach((t, j) => {
       const r = sel.r1 + i, c = sel.c1 + j;
       if (r >= MAX_ROWS || c >= MAX_COLS) return;

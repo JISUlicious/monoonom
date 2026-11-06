@@ -51,25 +51,30 @@ class ApiError(Exception):
 
 def _norm(path: str) -> str:
     if not path:
-        raise ApiError(400, "경로가 비어 있습니다.")
+        raise ApiError(400, "The path is empty.")
     p = os.path.abspath(os.path.expanduser(path))
     if Config.root:
         root = os.path.abspath(Config.root)
         if os.path.commonpath([root, p]) != root:
-            raise ApiError(403, f"허용된 루트({root}) 밖의 경로입니다.")
+            raise ApiError(403, f"The path is outside the allowed root ({root}).")
     return p
 
 
 def _fmt_of(path: str) -> str:
     ext = os.path.splitext(path)[1].lower()
     if ext not in EXTS:
-        raise ApiError(400, "xlsx / xlsm / xls 파일만 지원합니다.")
+        raise ApiError(400, "Only xlsx / xlsm / xls files are supported.")
     return EXTS[ext]
 
 
-def blank_workbook(name="통합 문서1.xlsx") -> dict:
-    return {"name": name, "path": None, "format": "xlsx", "activeSheet": 0, "styles": [],
-            "definedNames": {}, "warnings": [], "defaultFont": {"name": "맑은 고딕", "size": 11},
+# A new workbook's name and body font, as Excel in that UI language makes them ("ko": Korean Excel).
+NEW_WORKBOOK = {"en": ("Book1.xlsx", "Calibri"), "ko": ("통합 문서1.xlsx", "맑은 고딕")}
+
+
+def blank_workbook(name=None, lang=None) -> dict:
+    default_name, font = NEW_WORKBOOK.get(lang or "en") or NEW_WORKBOOK["en"]
+    return {"name": name or default_name, "path": None, "format": "xlsx", "activeSheet": 0, "styles": [],
+            "definedNames": {}, "warnings": [], "defaultFont": {"name": font, "size": 11},
             "sheets": [{"name": "Sheet1", "origName": None, "state": "visible", "tabColor": None,
                         "defaultColW": DEFAULT_COL_PX, "defaultRowH": DEFAULT_ROW_PX,
                         "cols": {}, "rows": {}, "cells": [], "merges": [], "freeze": None,
@@ -90,12 +95,12 @@ def api_info(_q):
 def api_fs(q):
     path = _norm(q.get("path", [Config.root or Config.start])[0])
     if not os.path.isdir(path):
-        raise ApiError(404, f"폴더가 없습니다: {path}")
+        raise ApiError(404, f"Folder not found: {path}")
     entries = []
     try:
         names = os.listdir(path)
     except PermissionError:
-        raise ApiError(403, f"폴더 접근 권한이 없습니다: {path}")
+        raise ApiError(403, f"No permission to read the folder: {path}")
     for name in names:
         if name.startswith(".") or name.startswith("~$"):
             continue  # hidden files and Office lock files
@@ -117,23 +122,23 @@ def api_fs(q):
 
 
 def read_workbook(path: str) -> dict:
-    """Python 파일 읽기 함수: 경로 -> JSON 워크북 모델 (DRM-safe, fileio.read_bytes 사용)."""
+    """The Python file reader: path -> JSON workbook model (DRM-safe, through fileio.read_bytes)."""
     fmt = _fmt_of(path)
     if not os.path.isfile(path):
-        raise ApiError(404, f"파일이 없습니다: {path}")
+        raise ApiError(404, f"File not found: {path}")
     data = fileio.read_bytes(path)
     if fmt == "xls":
         try:
             from .xls_io import read_xls
         except ImportError:
-            raise ApiError(422, ".xls 파일을 열려면 Python 패키지 xlrd가 필요합니다: "
-                                "python -m pip install -r scripts/requirements.txt (skill 폴더 기준)")
+            raise ApiError(422, "Opening .xls files needs the Python package xlrd: "
+                                "python -m pip install -r scripts/requirements.txt (in the skill folder)")
         model = read_xls(data)
     else:
         from .xlsx_io import read_xlsx
         if data[:2] != b"PK":
-            raise ApiError(422, "xlsx(zip) 형식이 아닙니다. 파일이 DRM으로 암호화되어 있다면 "
-                                "MONOONOM_READ_HOOK으로 복호화 함수를 지정하세요.")
+            raise ApiError(422, "Not an xlsx (zip) file. If it is DRM-encrypted, "
+                                "set MONOONOM_READ_HOOK to a decryption function.")
         model = read_xlsx(data, keep_vba=(fmt == "xlsm"))
     model.update({"path": path, "name": os.path.basename(path), "format": fmt})
     return model
@@ -159,11 +164,11 @@ def xlsx_target(path: str, fmt: str | None) -> tuple[str, str, bool]:
 
 
 def write_workbook(path: str, fmt: str, model: dict, base: str | None) -> list[str]:
-    """Python 파일 쓰기 함수: JSON 워크북 모델 -> 파일."""
+    """The Python file writer: JSON workbook model -> file."""
     warns: list[str] = []
     if fmt == "xls" or path.lower().endswith(".xls"):
         # .xls is read-only (see xls_io); callers convert the target with xlsx_target() first
-        raise ApiError(400, "xls 형식으로는 저장하지 않습니다. .xlsx로 저장하세요.")
+        raise ApiError(400, "Files are not saved as xls. Save as .xlsx.")
     from .xlsx_io import write_xlsx
     base_bytes = None
     if base and os.path.isfile(base) and EXTS.get(os.path.splitext(base)[1].lower()) in ("xlsx", "xlsm"):
@@ -184,11 +189,11 @@ def api_save(body):
     path, fmt, _ = xlsx_target(_norm(body.get("path", "")), None)
     fmt = fmt or _fmt_of(path)
     if os.path.isdir(path):
-        raise ApiError(400, "폴더 경로에는 저장할 수 없습니다.")
+        raise ApiError(400, "Cannot save to a folder path.")
     if not os.path.isdir(os.path.dirname(path)):
-        raise ApiError(404, "저장할 폴더가 없습니다.")
+        raise ApiError(404, "The folder to save in does not exist.")
     if os.path.exists(path) and not body.get("overwrite"):
-        raise ApiError(409, "같은 이름의 파일이 이미 있습니다.")
+        raise ApiError(409, "A file with this name already exists.")
     base = body.get("base")
     base = _norm(base) if base else None
     warns = write_workbook(path, fmt, body["workbook"], base)
@@ -232,7 +237,7 @@ def r_info(h, m, q, body):
 def r_fonts(h, m, q, body):
     """Fonts installed on this computer (server/fonts.py), for the preview's font picker."""
     from .fonts import list_fonts
-    return list_fonts(refresh=(q.get("refresh") or [""])[0] == "1")
+    return list_fonts(refresh=(q.get("refresh") or [""])[0] == "1", lang=(q.get("lang") or ["en"])[0])
 
 
 @route("GET", "/api/fs")
@@ -244,7 +249,7 @@ def r_fs(h, m, q, body):
 def r_shutdown(h, m, q, body):
     dirty = Config.dirty_check() if Config.dirty_check else []
     if dirty and not body.get("force"):
-        raise ApiError(409, "저장되지 않은 문서가 있습니다: " + ", ".join(dirty))
+        raise ApiError(409, "Unsaved documents: " + ", ".join(dirty))
     if Config.shutdown_cb:
         threading.Timer(0.2, Config.shutdown_cb).start()
     return {"ok": True, "dirty": dirty}
@@ -308,11 +313,11 @@ class Handler(BaseHTTPRequestHandler):
         sys.stderr.write(f"[monoonom] 401 {self.command} {urlparse(self.path).path} reason={self.auth_reason}"
                          f" sec-fetch-site={site}\n")
         if self.auth_reason == "token-mismatch":
-            msg = ("인증 토큰이 이 서버와 다릅니다. 서버가 다른 토큰으로 다시 시작됐거나 다른 서버의 주소입니다. "
-                   "에이전트가 알려 준 최신 주소(#t=… 포함)로 다시 여세요.")
+            msg = ("The token does not match this server: it restarted with another token, or the URL belongs to another server. "
+                   "Reopen the latest URL the agent gave you (with #t=…).")
         else:
-            msg = ("인증 정보가 없습니다. 에이전트가 알려 준 주소를 #t=… 부분까지 그대로 여세요"
-                   + (" (미리보기가 페이지를 다른 사이트 안에 띄우면 쿠키가 전달되지 않습니다)." if site == "cross-site" else "."))
+            msg = ("No credentials. Open the URL the agent gave you exactly, including the #t=… part"
+                   + (" (cookies are not sent when the preview shows the page inside another site)." if site == "cross-site" else "."))
         return self._err(401, msg, reason=self.auth_reason)
 
     def _send(self, status, body: bytes, ctype: str, extra=None):
@@ -385,7 +390,7 @@ class Handler(BaseHTTPRequestHandler):
             except ApiError as e:
                 return self._err(e.status, e.message, **getattr(e, "extra", {}))
             except PermissionError as e:
-                return self._err(403, f"권한이 없습니다(파일이 다른 프로그램에서 열려 있을 수 있음): {e}")
+                return self._err(403, f"Permission denied (the file may be open in another program): {e}")
             except (BrokenPipeError, ConnectionResetError):
                 return None
             except Exception as e:

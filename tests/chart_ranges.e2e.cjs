@@ -21,8 +21,8 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
   // agent side: per-series name / X / Y
   const ls = xl('chart', 'ls');
   check('chart ls: one line per series with name, X and Y ranges',
-    /계열 1: 이름 '매출'!B1  X '매출'!\$A\$2:\$A\$7  Y '매출'!\$B\$2:\$B\$7/.test(ls) && /계열 4 \(line\)/.test(ls), ls);
-  const browser = await chromium.launch();
+    /series 1: name '매출'!B1  X '매출'!\$A\$2:\$A\$7  Y '매출'!\$B\$2:\$B\$7/.test(ls) && /series 4 \(line\)/.test(ls), ls);
+  const browser = require('./korean.cjs')(await chromium.launch());
   const errors = [];
   try {
     const p = await browser.newPage({ viewport: { width: 1300, height: 760 } });
@@ -82,7 +82,7 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
     s = await st();
     check('…the outlines follow (names A2:A7 green, X B1:E1 purple)', has('#008000', [1, 0, 1, 0]) && has('#7030A0', [0, 1, 0, 4]) && has('#0070C0', [6, 1, 6, 4]), JSON.stringify(s.ranges));
     const agentSees = xl('chart', 'ls');
-    check('…the server (agent) sees the switched chart', /계열 6: 이름 '?매출'?!\$A\$7 {2}X '?매출'?!\$B\$1:\$E\$1 {2}Y '?매출'?!\$B\$7:\$E\$7/.test(agentSees), agentSees);
+    check('…the server (agent) sees the switched chart', /series 6: name '?매출'?!\$A\$7 {2}X '?매출'?!\$B\$1:\$E\$1 {2}Y '?매출'?!\$B\$7:\$E\$7/.test(agentSees), agentSees);
     const cid = await p.evaluate(() => window.monoonom.doc.wb.sheet.charts[0].id);
     xl('chart', 'set', cid, '--switch');
     await p.waitForFunction(() => window.monoonom.doc.wb.sheet.charts[0].series.length === 4, null, { timeout: 4000 }).catch(() => {});

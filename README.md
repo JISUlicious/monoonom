@@ -57,7 +57,8 @@ Ask the agent as usual, for example:
 - "Check the cell I just changed and fix the other rows the same way"
 
 The agent starts the server and gives you the preview URL (`http://127.0.0.1:8765/#t=<token>`). Claude Code desktop opens it in its preview pane;
-in VS Code or Cursor use Simple Browser, elsewhere any browser. When saving, the previous file is kept in `<workspace>/.monoonom/backups/`.
+in VS Code or Cursor use Simple Browser, elsewhere any browser. The preview is in English, or in Korean
+when the browser's language is Korean; add `?lang=en` or `?lang=ko` to the URL to choose (remembered). When saving, the previous file is kept in `<workspace>/.monoonom/backups/`.
 
 Commands the agent uses (you can run them too):
 

@@ -102,7 +102,7 @@ def to_excel_custom(op, val):
         eop, pat = UI_OPS[op]
         return {"op": eop, "val": pat.format(val)}
     if op not in EXCEL_OPS:
-        raise ApiError(400, f"필터 조건: {', '.join(sorted(EXCEL_OPS | set(UI_OPS)))} 또는 = <> > >= < <=")
+        raise ApiError(400, f"Filter conditions: {', '.join(sorted(EXCEL_OPS | set(UI_OPS)))} or = <> > >= < <=")
     return {"op": op, "val": str(val)}
 
 
@@ -160,11 +160,11 @@ def op_filter_column(ctx, e):
     doc, sh = ctx.doc, ctx.sheet_of(e)
     af = copy.deepcopy(ctx.meta_of(sh, "autoFilter"))
     if not af:
-        raise ApiError(400, "먼저 자동 필터를 켜세요: filter RANGE")
+        raise ApiError(400, "Turn on the autofilter first: filter RANGE")
     r1, c1, r2, c2 = A.parse_range(af["ref"])
     col = A.col_index(e["column"]) if str(e["column"]).isalpha() else int(e["column"]) - 1
     if not c1 <= col <= c2:
-        raise ApiError(400, f"{A.col_name(col)}열은 필터 범위({af['ref']}) 밖입니다.")
+        raise ApiError(400, f"Column {A.col_name(col)} is outside the filter range ({af['ref']}).")
     key = str(col - c1)
     entry = {}
     if e.get("values") is not None:
@@ -180,8 +180,8 @@ def op_filter_column(ctx, e):
         af["cols"].pop(key, None)
     ctx.meta[sh["id"]]["autoFilter"] = af
     ctx.meta[sh["id"]]["filterHidden"] = filter_hidden(doc, sh, af)
-    ctx.summary.append(f"{sh['name']} {A.col_name(col)}열 필터 {'해제' if not entry else '설정'}"
-                       f" (숨김 {len(ctx.meta[sh['id']]['filterHidden'])}행)")
+    ctx.summary.append(f"{sh['name']} column {A.col_name(col)} filter {'cleared' if not entry else 'set'}"
+                       f" ({len(ctx.meta[sh['id']]['filterHidden'])} rows hidden)")
 
 
 def op_filter_clear(ctx, e):
@@ -191,7 +191,7 @@ def op_filter_clear(ctx, e):
         af["cols"] = {}
         ctx.meta[sh["id"]]["autoFilter"] = af
     ctx.meta.setdefault(sh["id"], {})["filterHidden"] = []
-    ctx.summary.append(f"{sh['name']} 필터 조건 모두 지우기")
+    ctx.summary.append(f"{sh['name']} clear all filter conditions")
 
 
 def op_filter_reapply(ctx, e):
@@ -207,7 +207,7 @@ def op_filter_reapply(ctx, e):
     af["ref"] = A.range_a1(r1, c1, r2, c2)
     ctx.meta[sh["id"]]["autoFilter"] = af
     ctx.meta[sh["id"]]["filterHidden"] = filter_hidden(ctx.doc, sh, af)
-    ctx.summary.append(f"{sh['name']} 필터 다시 적용")
+    ctx.summary.append(f"{sh['name']} reapply filter")
 
 
 # ------------------------------------------------------------------ charts
@@ -247,10 +247,10 @@ def switch_row_col(series):
     the series' own references (no guessing), so switching twice gives the original back.
     Same rules as ChartLayer.switchRowCol in assets/web/js/charts.js."""
     if not series:
-        raise ApiError(400, "계열이 없는 차트입니다.")
+        raise ApiError(400, "The chart has no series.")
     vals = [_ref(s.get("val")) for s in series]
     if any(v is None for v in vals) or len({v[0] for v in vals}) > 1:
-        raise ApiError(400, "행/열 전환: 모든 계열의 값이 같은 시트의 일반 범위여야 합니다.")
+        raise ApiError(400, "Switch row/column: every series' values must be a plain range on one sheet.")
     sh = vals[0][0]
     n = len(vals)
     if all(v[2] == v[4] and v[1:5:2] == vals[0][1:5:2] for v in vals) and all(v[2] == vals[0][2] + i for i, v in enumerate(vals)):
@@ -260,15 +260,15 @@ def switch_row_col(series):
         c1, c2, r1 = vals[0][2], vals[0][4], vals[0][1]  # series in rows -> one per column
         new_vals = [(sh, r1, c, r1 + n - 1, c) for c in range(c1, c2 + 1)]
     else:
-        raise ApiError(400, "행/열 전환: 계열의 값 범위가 같은 크기로 나란히 붙어 있어야 합니다(한 표).")
+        raise ApiError(400, "Switch row/column: the series' value ranges must be the same size and next to each other (one table).")
     cats = [_ref(s.get("cat")) for s in series if s.get("cat")]  # a series without one shares the first's (Excel)
     cat = cats[0] if cats else None
     if cat is not None:
         if any(c != cat for c in cats) or not (cat[1] == cat[3] or cat[2] == cat[4]):
-            raise ApiError(400, "행/열 전환: 계열마다 항목(X) 범위가 다릅니다.")
+            raise ApiError(400, "Switch row/column: the series have different category (X) ranges.")
         cells = [(cat[0], r, c, r, c) for r in range(cat[1], cat[3] + 1) for c in range(cat[2], cat[4] + 1)]
         if len(cells) != len(new_vals):
-            raise ApiError(400, "행/열 전환: 항목(X) 범위와 값 범위의 길이가 다릅니다.")
+            raise ApiError(400, "Switch row/column: the category (X) range and the value ranges differ in length.")
     names = [_ref(s.get("nameRef")) for s in series]
     new_cat = _line_of(names) if all(names) else None
     return [{"name": None, "nameRef": _fmt(*cells[j]) if cat else None,
@@ -288,7 +288,7 @@ def op_chart_update(ctx, e):
         ch["series"] = fresh["series"]
     if st.pop("switchRowCol", False):
         if ch.get("type") == "scatter":
-            raise ApiError(400, "분산형 차트는 행/열 전환을 할 수 없습니다(X 값과 Y 값이 짝으로 묶여 있음).")
+            raise ApiError(400, "A scatter chart cannot switch row/column (its X and Y values are paired).")
         ch["series"] = switch_row_col(ch.get("series"))  # per-series types and colors do not carry over
     if "type" in st:
         t = st.pop("type")
@@ -310,16 +310,16 @@ def op_chart_update(ctx, e):
     if "varyColors" in st:
         ch["varyColors"] = bool(st.pop("varyColors"))
     if st:
-        raise ApiError(400, f"알 수 없는 차트 속성: {', '.join(st)} (type, data, switchRowCol, title, legend, xTitle, yTitle, at, width, height, grouping, barDir, varyColors)")
+        raise ApiError(400, f"Unknown chart properties: {', '.join(st)} (type, data, switchRowCol, title, legend, xTitle, yTitle, at, width, height, grouping, barDir, varyColors)")
     ch["dirty"] = True
     if move_to is not None:
         ch["orig"] = None  # rebuilt on save: it no longer belongs to the original sheet's drawing
         del charts[idx]
         ctx.meta_of(move_to, "charts").append(ch)
-        ctx.summary.append(f"{sh['name']} 차트 {ch['id']} → '{move_to['name']}' 시트로 이동")
+        ctx.summary.append(f"{sh['name']} chart {ch['id']} → moved to sheet '{move_to['name']}'")
         return
     charts[idx] = ch
-    ctx.summary.append(f"{sh['name']} 차트 {ch['id']} 수정")
+    ctx.summary.append(f"{sh['name']} edit chart {ch['id']}")
 
 
 # ------------------------------------------------------------------ sheets & view
@@ -335,7 +335,7 @@ def op_move_sheet(ctx, e):
     order.insert(to, sh["id"])
     ctx.ops.append({"op": "sheets", "order": order, "add": {}})
     ctx.structural = True
-    ctx.summary.append(f"시트 '{sh['name']}' 이동 → {to + 1}번째")
+    ctx.summary.append(f"move sheet '{sh['name']}' → position {to + 1}")
 
 
 def op_duplicate_sheet(ctx, e):
@@ -359,7 +359,7 @@ def op_duplicate_sheet(ctx, e):
     order.insert(order.index(src["id"]) + 1, sid)
     ctx.ops.append({"op": "sheets", "order": order, "add": {sid: sj}})
     ctx.structural = True
-    ctx.summary.append(f"시트 '{src['name']}' 복사 → '{name}'")
+    ctx.summary.append(f"copy sheet '{src['name']}' → '{name}'")
 
 
 def op_sheet_prop(ctx, e):
@@ -368,7 +368,7 @@ def op_sheet_prop(ctx, e):
     m = ctx.meta.setdefault(sh["id"], {})
     if kind in ("hideSheet", "unhideSheet"):
         if kind == "hideSheet" and sum(1 for s in ctx.doc.sheets if s["state"] == "visible") <= 1:
-            raise ApiError(400, "표시된 시트가 하나뿐이면 숨길 수 없습니다.")
+            raise ApiError(400, "The only visible sheet cannot be hidden.")
         m["state"] = "hidden" if kind == "hideSheet" else "visible"
     elif kind == "tabColor":
         m["tabColor"] = e.get("color")
@@ -379,6 +379,7 @@ def op_sheet_prop(ctx, e):
 
 # ------------------------------------------------------------------ fill series (port of app.js makeSeries)
 
+# Excel's built-in custom lists, English and Korean (Korean Excel ships the Korean ones; they are cell data).
 LISTS = [
     ["일", "월", "화", "수", "목", "금", "토"],
     ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"],
@@ -430,7 +431,7 @@ def op_fill_series(ctx, e):
     _, (tr1, tc1, tr2, tc2) = resolve(ctx.doc, e["target"], sh["name"])
     vertical = (tc1, tc2) == (sc1, sc2) and (tr1 != sr1 or tr2 != sr2)
     if not vertical and (tr1, tr2) != (sr1, sr2):
-        raise ApiError(400, "target은 source를 위/아래 또는 왼쪽/오른쪽으로 늘린 범위여야 합니다(예: source A2:A3, target A2:A20).")
+        raise ApiError(400, "target must extend source up / down or left / right (e.g. source A2:A3, target A2:A20).")
     lines = range(sc1, sc2 + 1) if vertical else range(sr1, sr2 + 1)
     hidden = set(sh["filterHidden"])
     for line in lines:
@@ -451,7 +452,7 @@ def op_fill_series(ctx, e):
             if cell:
                 cell.pop("a", None)
             ctx.put(sh, p, line, cell) if vertical else ctx.put(sh, line, p, cell)
-    ctx.summary.append(f"{sh['name']}!{A.range_a1(tr1, tc1, tr2, tc2)} 연속 데이터 채우기")
+    ctx.summary.append(f"{sh['name']}!{A.range_a1(tr1, tc1, tr2, tc2)} fill series")
 
 
 # ------------------------------------------------------------------ copy / move / shift cells / duplicates
@@ -463,7 +464,7 @@ def op_copy(ctx, e, move=False):
     what = "all" if move else e.get("what", "all")
     transpose = bool(e.get("transpose")) and not move
     if (r2 - r1 + 1) * (c2 - c1 + 1) > 200000:
-        raise ApiError(400, "한 번에 복사할 수 있는 셀은 200,000개까지입니다.")
+        raise ApiError(400, "At most 200,000 cells can be copied at once.")
     block = [[(ctx.cur(ssh, r, c), cell_value(ctx.doc, ssh, r, c, ctx.cur(ssh, r, c) or {})) for c in range(c1, c2 + 1)]
              for r in range(r1, r2 + 1)]
     if move:
@@ -499,8 +500,8 @@ def op_copy(ctx, e, move=False):
                 cell.pop("a", None)
             ctx.put(tsh, r, c, cell or None)
     h, w = (c2 - c1 + 1, r2 - r1 + 1) if transpose else (r2 - r1 + 1, c2 - c1 + 1)
-    ctx.summary.append(f"{ssh['name']}!{A.range_a1(r1, c1, r2, c2)} {'이동' if move else '복사'} → "
-                       f"{tsh['name']}!{A.range_a1(tr, tc, tr + h - 1, tc + w - 1)}{' (행/열 바꿈)' if transpose else ''}")
+    ctx.summary.append(f"{ssh['name']}!{A.range_a1(r1, c1, r2, c2)} {'move' if move else 'copy'} → "
+                       f"{tsh['name']}!{A.range_a1(tr, tc, tr + h - 1, tc + w - 1)}{' (transposed)' if transpose else ''}")
 
 
 def op_shift_cells(ctx, e):
@@ -533,7 +534,7 @@ def op_shift_cells(ctx, e):
         elif d == "up" and r > r2:
             ctx.put(sh, r - h, c, cell)
     ctx.structural, ctx.transformable = True, False
-    ctx.summary.append(f"{sh['name']}!{A.range_a1(r1, c1, r2, c2)} 셀 {'삽입' if e['op'] == 'insertCells' else '삭제'}({d})")
+    ctx.summary.append(f"{sh['name']}!{A.range_a1(r1, c1, r2, c2)} {'insert' if e['op'] == 'insertCells' else 'delete'} cells ({d})")
 
 
 def op_remove_duplicates(ctx, e):
@@ -565,7 +566,7 @@ def op_remove_duplicates(ctx, e):
                 cell = dict(cell, f=refs.translate(cell["f"], dst - keep[i], 0))
             ctx.put(sh, dst, c1 + j, cell)
     ctx.structural, ctx.transformable = True, False
-    ctx.summary.append(f"{sh['name']}!{A.range_a1(r1, c1, r2, c2)} 중복 {(r2 - start + 1) - len(keep)}행 제거")
+    ctx.summary.append(f"{sh['name']}!{A.range_a1(r1, c1, r2, c2)} removed {(r2 - start + 1) - len(keep)} duplicate rows")
 
 
 # ------------------------------------------------------------------ find / replace, comments, links
@@ -594,7 +595,7 @@ def op_replace(ctx, e):
                 if nv != cell["v"]:
                     ctx.put(sh, r, c, dict(cell, v=nv))
                     n += 1
-    ctx.summary.append(f"바꾸기 '{e['find']}' → '{rep}' {n}개")
+    ctx.summary.append(f"replace '{e['find']}' → '{rep}' ({n})")
 
 
 def op_comment(ctx, e):
@@ -606,7 +607,7 @@ def op_comment(ctx, e):
     else:
         cell.pop("cm", None)
     ctx.put(sh, r, c, cell or None)
-    ctx.summary.append(f"{sh['name']}!{A.a1(r, c)} 메모 {'설정' if e.get('text') else '삭제'}")
+    ctx.summary.append(f"{sh['name']}!{A.a1(r, c)} note {'set' if e.get('text') else 'deleted'}")
 
 
 def op_link(ctx, e):
@@ -627,7 +628,7 @@ def op_link(ctx, e):
     else:
         cell.pop("h", None)
     ctx.put(sh, r, c, cell or None)
-    ctx.summary.append(f"{sh['name']}!{A.a1(r, c)} 하이퍼링크 {'설정' if url else '삭제'}")
+    ctx.summary.append(f"{sh['name']}!{A.a1(r, c)} hyperlink {'set' if url else 'deleted'}")
 
 
 # ------------------------------------------------------------------ autofit, format copy, decimals
@@ -642,7 +643,7 @@ def op_autofit(ctx, e):
     is_cols = r1 == 0 and r2 == A.MAX_ROWS - 1
     lo, hi = (c1, c2) if is_cols else (r1, r2)
     if hi - lo > 2000:
-        raise ApiError(400, "자동 맞춤은 한 번에 2,000개 행/열까지입니다.")
+        raise ApiError(400, "Autofit handles at most 2,000 rows / columns at once.")
     keys = [(r, c) for (r, c) in set(sh["cells"]) | set(ctx.cellbuf.get(sh["id"], {})) if lo <= (c if is_cols else r) <= hi]
     texts = display_texts(ctx.doc, [(sh["id"], min((k[0] for k in keys), default=0), min((k[1] for k in keys), default=0),
                                      max((k[0] for k in keys), default=0), max((k[1] for k in keys), default=0))]) if keys else {}
@@ -673,7 +674,7 @@ def op_autofit(ctx, e):
             dims[str(i)] = d
         else:
             dims.pop(str(i), None)
-    ctx.summary.append(f"{sh['name']} {'열 너비' if is_cols else '행 높이'} 자동 맞춤")
+    ctx.summary.append(f"{sh['name']} autofit {'column widths' if is_cols else 'row heights'}")
 
 
 def op_copy_format(ctx, e):
@@ -689,7 +690,7 @@ def op_copy_format(ctx, e):
             if src.get("s"):
                 cell["s"] = src["s"]
             ctx.put(tsh, r, c, cell or None)
-    ctx.summary.append(f"서식 복사 {ssh['name']}!{A.range_a1(r1, c1, r2, c2)} → {tsh['name']}!{A.range_a1(tr1, tc1, tr2, tc2)}")
+    ctx.summary.append(f"copy formats {ssh['name']}!{A.range_a1(r1, c1, r2, c2)} → {tsh['name']}!{A.range_a1(tr1, tc1, tr2, tc2)}")
 
 
 def op_decimals(ctx, e):
@@ -717,7 +718,7 @@ def op_decimals(ctx, e):
             st["nf"] = ";".join(parts)
             cell["s"] = st
             ctx.put(sh, r, c, cell)
-    ctx.summary.append(f"{sh['name']}!{A.range_a1(r1, c1, r2, c2)} 소수 자릿수 {'+' if delta > 0 else ''}{delta}")
+    ctx.summary.append(f"{sh['name']}!{A.range_a1(r1, c1, r2, c2)} decimals {'+' if delta > 0 else ''}{delta}")
 
 
 HANDLERS = {

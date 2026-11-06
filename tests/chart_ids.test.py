@@ -49,17 +49,17 @@ try:
     check("…and only that sheet is touched (no no-op changes for the other sheets searched)", v["meta"] == ["비중: charts"], str(v.get("meta")))
 
     p = xl("chart", "set", pie, "--title", "x", "--sheet", "매출")
-    check("--sheet limits the search and says where it looked", p.returncode == 5 and "'매출' 시트" in p.stderr, p.stderr.strip())
+    check("--sheet limits the search and says where it looked", p.returncode == 5 and "sheet '매출'" in p.stderr, p.stderr.strip())
     p = xl("chart", "rm", "chNOPE")
-    check("unknown id: 404 that says every sheet was searched", p.returncode == 5 and "모든 시트" in p.stderr, p.stderr.strip())
+    check("unknown id: 404 that says every sheet was searched", p.returncode == 5 and "all sheets" in p.stderr, p.stderr.strip())
 
     p = xl("chart", "add", "매출!A1:B7", "--type", "line", "--at", "비중!E12")
     c = charts()
     check("add --at 'Sheet!E12' puts the chart on that sheet", p.returncode == 0 and any(at == "E12" for _, _, at in c["비중"]), p.stderr.strip() or str(c))
     p = xl("chart", "add", "매출!A1:B7", "--sheet", "매출", "--at", "비중!E30")
-    check("--sheet and a different --at sheet: clear 400", p.returncode != 0 and "--sheet와 --at" in p.stderr, p.stderr.strip())
+    check("--sheet and a different --at sheet: clear 400", p.returncode != 0 and "--sheet and --at" in p.stderr, p.stderr.strip())
     p = xl("chart", "add", "매출!A1:B7", "--at", "A0")
-    check("bad --at: 400 with the reason, not a server error", p.returncode != 0 and "차트 위치" in p.stderr and "500" not in p.stderr, p.stderr.strip())
+    check("bad --at: 400 with the reason, not a server error", p.returncode != 0 and "chart position" in p.stderr and "500" not in p.stderr, p.stderr.strip())
 
     line = next(i for i, _, at in charts()["비중"] if at == "E12")
     p = xl("chart", "set", line, "--at", "매출!K30")

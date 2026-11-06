@@ -21,9 +21,9 @@
 - [.agents/skills/monoonom/references/edits.md](.agents/skills/monoonom/references/edits.md) — 일괄 편집(JSON) 형식
 - [.claude/skills/monoonom](.claude/skills/monoonom) — 이 저장소의 Claude Code 프로젝트 skill (SKILL.md + 원본 링크)
 - [.claude-plugin/](.claude-plugin/) — Claude Code 플러그인·마켓플레이스 (`plugin.json`, `marketplace.json`, 플러그인 skill)
-- [.agents/skills/monoonom/evals/](.agents/skills/monoonom/evals/) — 평가 시나리오·트리거 질문 (패키징 제외)
+- [evals/monoonom/](evals/monoonom/) — skill 평가 시나리오·트리거 질문 (skill 패키지 밖)
 - [tools/build_claude_code_skill.py](tools/build_claude_code_skill.py) — SKILL.md에서 Claude Code판 생성
 
 ## tests/
 
-- [tests/](tests/) — Python 왕복 테스트, 수식 엔진 테스트, 브라우저 E2E (실행 방법은 docs/development.md의 "테스트")
+- [tests/](tests/) — Python 왕복 테스트, 수식 엔진 테스트, 브라우저 E2E (실행 방법은 docs/development.md의 "테스트"). 브라우저 테스트는 `tests/korean.cjs`로 한국어 화면에서 실행

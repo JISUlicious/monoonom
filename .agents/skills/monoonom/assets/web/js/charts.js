@@ -4,6 +4,7 @@ import { quoteSheetName } from './formula.js';
 import { formatValue } from './numfmt.js';
 import { newId } from './model.js';
 import { geom } from './geometry.js';
+import { t } from './i18n.js';
 
 // Excel's range finder colors for a selected chart: series name, X / categories, Y / values
 const RANGE_COLORS = { name: '#008000', cat: '#7030A0', x: '#7030A0', val: '#0070C0' };
@@ -40,9 +41,9 @@ export function themePalette(themeColors) {
   return [...acc, ...acc.map((c) => lum(c, 60000, 0)), ...acc.map((c) => lum(c, 80000, 20000))];
 }
 export const CHART_TYPES = [
-  ['bar', '세로 막대형', { barDir: 'col' }], ['barH', '가로 막대형', { type: 'bar', barDir: 'bar' }],
-  ['barStacked', '누적 세로 막대형', { type: 'bar', barDir: 'col', grouping: 'stacked' }],
-  ['line', '꺾은선형'], ['area', '영역형'], ['pie', '원형'], ['doughnut', '도넛형'], ['scatter', '분산형'], ['radar', '방사형'],
+  ['bar', t('Column'), { barDir: 'col' }], ['barH', t('Bar'), { type: 'bar', barDir: 'bar' }],
+  ['barStacked', t('Stacked column'), { type: 'bar', barDir: 'col', grouping: 'stacked' }],
+  ['line', t('Line')], ['area', t('Area')], ['pie', t('Pie')], ['doughnut', t('Doughnut')], ['scatter', t('Scatter')], ['radar', t('Radar')],
 ];
 
 /** Excel's automatic value-axis limits (KB 214075 "How Chart Axis Limits Are Determined", and Jon
@@ -100,7 +101,7 @@ export class ChartLayer {
       // scatter: if any X value is text, Excel plots the points at X = 1, 2, 3, ... instead
       if (cats && model.type === 'scatter' && cats.some((x) => typeof x.v === 'string' && x.v !== '')) cats = cats.map((_, j) => ({ v: j + 1 }));
       return {
-        name: name || `계열${i + 1}`,
+        name: name || t('Series{n}', { n: i + 1 }),
         type: s.type || model.type,
         values: vals.map((x) => (typeof x.v === 'number' ? x.v : null)),
         cats: cats ? cats.map((x) => (model.type === 'scatter' ? (typeof x.v === 'number' ? x.v : null) : formatValue(x.v, x.nf).text)) : null,
@@ -274,11 +275,11 @@ export class ChartLayer {
     el.addEventListener('contextmenu', (e) => {
       e.preventDefault(); this.select(inst.model.id);
       this.app.menu(e.clientX, e.clientY, [
-        ['차트 편집…', () => this.app.chartDialog(inst.model)],
-        ['행/열 전환', () => this.switchChart(inst.model.id)],
-        ['차트 삭제', () => this.remove(inst.model.id)],
-        ['맨 앞으로 가져오기', () => this.reorder(inst.model.id, 1)],
-        ['맨 뒤로 보내기', () => this.reorder(inst.model.id, -1)],
+        [t('Edit Chart…'), () => this.app.chartDialog(inst.model)],
+        [t('Switch Row/Column'), () => this.switchChart(inst.model.id)],
+        [t('Delete Chart'), () => this.remove(inst.model.id)],
+        [t('Bring to Front'), () => this.reorder(inst.model.id, 1)],
+        [t('Send to Back'), () => this.reorder(inst.model.id, -1)],
       ]);
     });
     return inst;
@@ -295,27 +296,27 @@ export class ChartLayer {
    * Returns the new series, or throws an Error with the reason. Same rules as switch_row_col in
    * scripts/server/agent_more.py (the agent's `chart set ID --switch`). */
   static switchRowCol(series) {
-    const fail = (m) => { throw new Error(`행/열 전환: ${m}`); };
-    if (!series?.length) fail('계열이 없는 차트입니다.');
+    const fail = (m) => { throw new Error(m); };
+    if (!series?.length) fail(t('Switch row/column: the chart has no series.'));
     const ref = (t) => { const p = t && parseSheetRef(t); return p ? { sheet: p.sheet, ...p.range } : null; };
     const fmt = (x) => `${x.sheet ? quoteSheetName(x.sheet) + '!' : ''}${absRangeA1(x)}`;
     const vals = series.map((s) => ref(s.val));
-    if (vals.some((v) => !v) || new Set(vals.map((v) => v.sheet)).size > 1) fail('모든 계열의 값이 같은 시트의 일반 범위여야 합니다.');
+    if (vals.some((v) => !v) || new Set(vals.map((v) => v.sheet)).size > 1) fail(t("Switch row/column: every series' values must be a plain range on one sheet."));
     const v0 = vals[0], n = vals.length, sheet = v0.sheet;
     let nv;
     if (vals.every((v, i) => v.c1 === v.c2 && v.r1 === v0.r1 && v.r2 === v0.r2 && v.c1 === v0.c1 + i)) {
       nv = []; for (let r = v0.r1; r <= v0.r2; r++) nv.push({ sheet, r1: r, c1: v0.c1, r2: r, c2: v0.c1 + n - 1 });
     } else if (vals.every((v, i) => v.r1 === v.r2 && v.c1 === v0.c1 && v.c2 === v0.c2 && v.r1 === v0.r1 + i)) {
       nv = []; for (let c = v0.c1; c <= v0.c2; c++) nv.push({ sheet, r1: v0.r1, c1: c, r2: v0.r1 + n - 1, c2: c });
-    } else fail('계열의 값 범위가 같은 크기로 나란히 붙어 있어야 합니다(한 표).');
+    } else fail(t("Switch row/column: the series' value ranges must be the same size and next to each other (one table)."));
     const same = (a, b) => a.sheet === b.sheet && a.r1 === b.r1 && a.c1 === b.c1 && a.r2 === b.r2 && a.c2 === b.c2;
     const cats = series.filter((s) => s.cat).map((s) => ref(s.cat)); // a series without one shares the first's (Excel)
     const cat = cats[0] || null;
     let cells = null;
     if (cat) {
-      if (cats.some((c) => !c || !same(c, cat)) || !(cat.r1 === cat.r2 || cat.c1 === cat.c2)) fail('계열마다 항목(X) 범위가 다릅니다.');
+      if (cats.some((c) => !c || !same(c, cat)) || !(cat.r1 === cat.r2 || cat.c1 === cat.c2)) fail(t("Switch row/column: the series have different category (X) ranges."));
       cells = []; for (let r = cat.r1; r <= cat.r2; r++) for (let c = cat.c1; c <= cat.c2; c++) cells.push({ sheet: cat.sheet, r1: r, c1: c, r2: r, c2: c });
-      if (cells.length !== nv.length) fail('항목(X) 범위와 값 범위의 길이가 다릅니다.');
+      if (cells.length !== nv.length) fail(t('Switch row/column: the category (X) range and the value ranges differ in length.'));
     }
     const names = series.map((s) => ref(s.nameRef));
     let ncat = null;
@@ -331,7 +332,7 @@ export class ChartLayer {
   switchChart(id) {
     const m = this.app.doc.wb.sheet.charts.find((c) => c.id === id);
     if (!m) return;
-    if (m.type === 'scatter') return this.app.toast('분산형 차트는 행/열 전환을 할 수 없습니다(X 값과 Y 값이 짝으로 묶여 있음).', 'warn');
+    if (m.type === 'scatter') return this.app.toast(t('A scatter chart cannot switch row/column (its X and Y values are paired).'), 'warn');
     let series;
     try { series = ChartLayer.switchRowCol(m.series); } catch (e) { return this.app.toast(e.message, 'warn'); }
     this.focusSeries = null;
@@ -391,14 +392,14 @@ export class ChartLayer {
       this.layer.append(panel);
     }
     const esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
-    const label = { name: '이름', cat: 'X(항목)', x: 'X(값)', val: 'Y(값)' };
+    const label = { name: t('Name'), cat: t('X (categories)'), x: t('X (values)'), val: t('Y (values)') };
     const cur = this.app.doc.wb.sheet;
-    const chip = (p) => `<span class="cr-part"><i style="background:${p.color}"></i>${label[p.kind]} <code>${esc(p.ref)}</code>${p.lit ? ' <em>(차트에 저장된 값)</em>' : !p.sheet ? ' <em>(시트 없음)</em>' : ''}</span>`;
-    panel.innerHTML = `<div class="cr-title">데이터 범위${inst.model.title ? ` — ${esc(inst.model.title)}` : ''}`
-      + `${inst.model.type !== 'scatter' ? '<button class="cr-switch" data-switch title="계열과 항목(X)을 맞바꿉니다">⇄ 행/열 전환</button>' : ''}</div>`
-      + series.map((s) => `<div class="cr-row${focus === s.index ? ' on' : ''}${focus != null && focus !== s.index ? ' dim' : ''}" data-series="${s.index}" title="클릭: 이 계열만 표시 / 다시 클릭: 모두">`
-        + `<b>${esc(s.name || `계열 ${s.index + 1}`)}</b>${s.type !== inst.model.type ? ` <small>(${esc(s.type)})</small>` : ''} ${s.parts.map(chip).join(' ')}</div>`).join('')
-      + (series.some((s) => s.parts.some((p) => p.sheet && p.sheet !== cur)) ? '<div class="cr-note">다른 시트의 범위는 이 시트에 표시되지 않습니다.</div>' : '');
+    const chip = (p) => `<span class="cr-part"><i style="background:${p.color}"></i>${label[p.kind]} <code>${esc(p.ref)}</code>${p.lit ? ` <em>${t('(values stored in the chart)')}</em>` : !p.sheet ? ` <em>${t('(no sheet)')}</em>` : ''}</span>`;
+    panel.innerHTML = `<div class="cr-title">${t('Data Range')}${inst.model.title ? ` — ${esc(inst.model.title)}` : ''}`
+      + `${inst.model.type !== 'scatter' ? `<button class="cr-switch" data-switch title="${t('Swap the series and the categories (X)')}">⇄ ${t('Switch Row/Column')}</button>` : ''}</div>`
+      + series.map((s) => `<div class="cr-row${focus === s.index ? ' on' : ''}${focus != null && focus !== s.index ? ' dim' : ''}" data-series="${s.index}" title="${t('Click: show only this series / click again: all')}">`
+        + `<b>${esc(s.name || t('Series {n}', { n: s.index + 1 }))}</b>${s.type !== inst.model.type ? ` <small>(${esc(s.type)})</small>` : ''} ${s.parts.map(chip).join(' ')}</div>`).join('')
+      + (series.some((s) => s.parts.some((p) => p.sheet && p.sheet !== cur)) ? `<div class="cr-note">${t('Ranges on other sheets are not shown on this sheet.')}</div>` : '');
     const b = inst.el;
     Object.assign(panel.style, { left: b.style.left, top: `calc(${b.style.top} + ${b.style.height} + 4px)`, minWidth: b.style.width, display: '' });
   }
@@ -442,24 +443,24 @@ export class ChartLayer {
       inst.el.removeEventListener('pointermove', move); inst.el.removeEventListener('pointerup', up);
       if (!next) return;
       inst.model.anchor = a0;
-      this.update(inst.model.id, (m) => { m.anchor = next; }, '차트 이동');
+      this.update(inst.model.id, (m) => { m.anchor = next; }, t('Move Chart'));
     };
     inst.el.addEventListener('pointermove', move);
     inst.el.addEventListener('pointerup', up);
   }
 
-  update(id, fn, label = '차트') {
+  update(id, fn, label = t('Chart')) {
     const wb = this.app.doc.wb, sh = wb.sheet;
     wb.begin(label); wb.touchMeta(sh);
     const m = sh.charts.find((c) => c.id === id);
-    if (m) { fn(m); if (label !== '차트 이동') m.dirty = true; }
+    if (m) { fn(m); if (label !== t('Move Chart')) m.dirty = true; }
     wb.commit();
     this.layout();
   }
 
   remove(id) {
     const wb = this.app.doc.wb, sh = wb.sheet;
-    wb.begin('차트 삭제'); wb.touchMeta(sh);
+    wb.begin(t('Delete Chart')); wb.touchMeta(sh);
     sh.charts = sh.charts.filter((c) => c.id !== id);
     wb.commit();
     this.selected = null;
@@ -468,7 +469,7 @@ export class ChartLayer {
 
   reorder(id, dir) {
     const wb = this.app.doc.wb, sh = wb.sheet;
-    wb.begin('차트 순서'); wb.touchMeta(sh);
+    wb.begin(t('Chart Order')); wb.touchMeta(sh);
     const i = sh.charts.findIndex((c) => c.id === id);
     const [c] = sh.charts.splice(i, 1);
     if (dir > 0) sh.charts.push(c); else sh.charts.unshift(c);

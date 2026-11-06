@@ -21,7 +21,7 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
   const sys = JSON.parse(xl('fonts', '--json'));
   check('xl.py fonts: the fonts on this computer', sys.fonts.length > 0, `${sys.fonts.length} fonts`);
   const some = sys.fonts.find((f) => /sans/i.test(f.name)) || sys.fonts[0];
-  const browser = await chromium.launch();
+  const browser = require('./korean.cjs')(await chromium.launch());
   const errors = [];
   try {
     const p = await browser.newPage({ viewport: { width: 1300, height: 800 } });

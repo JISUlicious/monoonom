@@ -70,5 +70,26 @@ head = open(os.path.join(ROOT, plugin["icon"]), "rb").read(24)
 w, h = int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
 check("plugin: icon is a square PNG of 512–2048 px", head[:8] == b"\x89PNG\r\n\x1a\n" and w == h and 512 <= w <= 2048, f"{w}x{h}")
 
+# Korean in the skill: the UI dictionary (assets/web/js/i18n/ko/, checked by tests/i18n_keys.test.mjs)
+# and the web UI's data lines (same test); elsewhere only Korean Excel's data the code must know
+HANGUL = re.compile("[\uac00-\ud7a3]")
+ALLOWED = {  # file -> marker on every allowed line (Korean Excel's labels and lists: workbook data)
+    "scripts/server/pivots.py": re.compile(r'"ko": \{|"countNums": "|"value": "\{fn\} :|"sheet": "'),
+    "scripts/server/app.py": re.compile(r"^NEW_WORKBOOK = "),
+    "scripts/server/agent_more.py": re.compile(r'^\s*\["(일|1월|1분기)'),
+    "scripts/server/region.py": re.compile(r"^TOTAL_LABEL = |^# Total-row labels"),
+}
+stray = []
+for d, _ds, fs in os.walk(PKG):
+    for fn in fs:
+        p = os.path.join(d, fn)
+        rel = os.path.relpath(p, PKG).replace(os.sep, "/")
+        if rel.startswith("assets/web/") or not fn.endswith((".md", ".py", ".mjs", ".json", ".txt")):
+            continue
+        for i, line in enumerate(open(p, encoding="utf-8", errors="replace"), 1):
+            if HANGUL.search(line) and not (rel in ALLOWED and ALLOWED[rel].search(line.strip())):
+                stray.append(f"{rel}:{i}")
+check("no Korean in SKILL.md, references and scripts outside Korean Excel data", not stray, ", ".join(stray[:10]))
+
 print(f"{fails} FAILED" if fails else "ALL PASSED")
 sys.exit(1 if fails else 0)

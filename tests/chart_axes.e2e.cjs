@@ -43,8 +43,8 @@ wb.save(${JSON.stringify(path.join(ws, 'axes.xlsx'))})
 (async () => {
   xl('serve', '--port', '8844'); xl('open', 'axes.xlsx');
   const ls = xl('chart', 'ls');
-  check('chart ls: a series stored in the chart shows its values', /'literal'[^\n]*\n\s+계열 1: 이름 '목록'\s+X \{가, 나, 다\} \(차트에 저장된 값 3개\)\s+Y \{7, 9, 8\} \(차트에 저장된 값 3개\)/.test(ls), ls);
-  const browser = await chromium.launch();
+  check('chart ls: a series stored in the chart shows its values', /'literal'[^\n]*\n\s+series 1: name '목록'\s+X \{가, 나, 다\} \(3 values stored in the chart\)\s+Y \{7, 9, 8\} \(3 values stored in the chart\)/.test(ls), ls);
+  const browser = require('./korean.cjs')(await chromium.launch());
   const errors = [];
   try {
     const p = await browser.newPage({ viewport: { width: 1400, height: 900 } });

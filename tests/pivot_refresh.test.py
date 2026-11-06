@@ -160,7 +160,7 @@ check("no rowItems: labels map rows/columns, last row/column = grand totals",
 pivot7 = dict(pivot, layout=dict(lay, rowItems=None, colItems=None))
 out7, notes7 = PV.refresh(Doc([data_sheet(RECS), psheet]), psheet, pivot7, value_at)
 check("no rowItems with two row fields: nothing written, note says Excel refreshes on open",
-      out7 == [] and any("Excel이 열 때 새로 고칩니다" in n for n in notes7), str(notes7))
+      out7 == [] and any("Excel refreshes it when it opens the file" in n for n in notes7), str(notes7))
 
 check("aggregates: stdDev / var / product / countNums like Excel",
       round(PV.aggregate("stddev", [1, 2, 3, 4]), 6) == 1.290994 and PV.aggregate("varp", [1, 2, 3, 4]) == 1.25

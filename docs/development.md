@@ -85,9 +85,20 @@ docs/                              development.md, project-setup.md, skill-spec.
 서버 상태는 `<작업 경로>/.monoonom/`(server.json: pid·port·url, token, server.log)에 있고 이 폴더는 git에서 제외됩니다.
 API는 토큰이 필요합니다. CLI와 페이지 모두 `X-Monoonom-Token` 헤더로 보냅니다. 페이지는 주소의 `#t=토큰`에서 토큰을 읽으므로, 페이지를 다른 사이트의 iframe 안에 띄우는 미리보기(VS Code Simple Browser, Tauri 앱 등)에서도 동작합니다. 토큰 없이 연 일반 탭은 포트별 쿠키(`mn_token_<포트>`, `SameSite=Strict`)로 동작합니다. 실시간 이벤트 스트림은 헤더를 보낼 수 없어 1분짜리 일회용 티켓을 씁니다. 토큰은 작업 경로별로 유지되어 서버를 다시 시작해도 열린 미리보기가 계속 동작합니다.
 
+## 화면 언어 (i18n)
+
+- 미리보기 화면은 영어가 기본이고, 브라우저 언어가 한국어(`navigator.language` ko*)이면 한국어다. 주소의 `?lang=en|ko`가 우선하며 `localStorage['monoonom.lang']`에 기억된다.
+- `assets/web/js/i18n.js`: `t('English', vars)`(영어 문장이 키, `{name}` 자리 표시), `LANG`, `FORMATS`(통화·자세한 날짜·월일 형식, 새 통합 문서 글꼴), `translateDom()`(index.html을 시작할 때 한 번), `serverText()`(서버의 영어 메시지를 한국어로).
+- 한국어는 `assets/web/js/i18n/ko/`에만 둔다: `page.js`(index.html), `app.js`, `dialogs.js`, `fnhelp.js`, `misc.js`(나머지 모듈), `server.js`(서버 메시지 정규식), `index.js`(합치기 + 한국어 Excel 형식).
+- 에이전트가 읽는 글(SKILL.md, references, `xl.py` 출력, 서버 오류·경고)은 영어다.
+- 한국어가 남는 곳(Korean Excel의 데이터): 피벗 레이블(`pivots.LABELS["ko"]`), 새 통합 문서 이름·글꼴(`app.NEW_WORKBOOK`), 연속 채우기 목록(일/월/화…, 1분기…, 갑을병정…), 합계 행 판정(합계·소계…), 숫자 서식의 오전/오후·년월일, 한국어 글꼴 이름. 이 데이터는 `xl.py new --lang ko`, `pivot add --lang ko`, 또는 한국어 화면에서만 쓰인다.
+- 검사: `node tests/i18n_keys.test.mjs`(모든 `t()` 키에 한국어가 있는지, 안 쓰는 항목·자리 표시 불일치, 사전 밖 한국어), `tests/skill_package.test.py`(SKILL.md·references·스크립트의 한국어는 위 데이터뿐인지), `node tests/i18n.e2e.cjs`(영어 기본·`?lang`·한국어 브라우저). 다른 브라우저 테스트는 `tests/korean.cjs`로 ko-KR 로캘에서 한국어 화면을 검사한다.
+
 ## 테스트
 
 ```bash
+node tests/i18n_keys.test.mjs             # 화면 문구 사전 검사 (키 누락·미사용·사전 밖 한국어)
+node tests/i18n.e2e.cjs                   # 화면 언어: 영어 기본, ?lang=ko, 한국어 브라우저 (서버를 스스로 띄움)
 python -m unittest tests.test_roundtrip   # Python 읽기/쓰기 왕복 (xlsx 패치, 차트, xls 읽기 전용, _xlfn)
 node tests/engine.test.mjs                # 수식 엔진 70개 검사
 python3 run.py --port 8765 --root . & node tests/e2e.cjs   # 브라우저 E2E 37개 (npm i playwright 필요)

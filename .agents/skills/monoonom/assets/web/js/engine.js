@@ -2,6 +2,7 @@
 import { parse, FormulaError } from './formula.js';
 import { key, MAX_COLS, MAX_ROWS, parseSheetRef, a1, colName } from './address.js';
 import { formatValue, serialToParts, dateToSerial, parseInput } from './numfmt.js';
+import { FORMATS } from './i18n.js';
 
 // ------------------------------------------------------------------ value helpers
 export class Err { constructor(err) { this.err = err; } toString() { return this.err; } }
@@ -714,7 +715,7 @@ def('VALUE', wrap((a, _c, e) => { const v = e.deref(a[0]); if (typeof v === 'num
 def('NUMBERVALUE', wrap((a, _c, e) => { let s = e.str(a[0]); const dec = a[1] != null ? e.str(a[1]) : '.', grp = a[2] != null ? e.str(a[2]) : ','; s = s.split(grp).join('').replace(dec, '.').replace(/\s/g, ''); let pct = 0; while (s.endsWith('%')) { s = s.slice(0, -1); pct++; } const v = Number(s); return isNaN(v) ? E.VALUE : v / 100 ** pct; }));
 def('TEXT', wrap((a, _c, e) => { const v = e.deref(a[0]); if (isErr(v)) return v; let x = v; if (typeof v === 'string') { const p = parseInput(v); if (typeof p.v === 'number') x = p.v; } return formatValue(x, e.str(a[1])).text; }));
 def('FIXED', wrap((a, _c, e) => { const d = optNum(e, a[1], 2); const nc = a[2] != null && e.bool(a[2]); const v = round(e.num(a[0]), d); return v.toLocaleString('en-US', { minimumFractionDigits: Math.max(0, d), maximumFractionDigits: Math.max(0, d), useGrouping: !nc }); }));
-def('DOLLAR', wrap((a, _c, e) => { const d = optNum(e, a[1], 2); return formatValue(e.num(a[0]), `"₩"#,##0${d > 0 ? '.' + '0'.repeat(d) : ''}`).text; }));
+def('DOLLAR', wrap((a, _c, e) => { const d = optNum(e, a[1], 2); return formatValue(e.num(a[0]), `"${FORMATS.currencySymbol}"#,##0${d > 0 ? '.' + '0'.repeat(d) : ''}`).text; }));
 def('TEXTBEFORE', wrap((a, _c, e) => { const s = e.str(a[0]), d = e.str(a[1]); const n = optNum(e, a[2], 1); let i = -1; if (n > 0) { for (let k = 0; k < n; k++) { i = s.indexOf(d, i + 1); if (i < 0) return E.NA; } } else { i = s.length; for (let k = 0; k < -n; k++) { i = s.lastIndexOf(d, i - 1); if (i < 0) return E.NA; } } return s.slice(0, i); }));
 def('TEXTAFTER', wrap((a, _c, e) => { const s = e.str(a[0]), d = e.str(a[1]); const n = optNum(e, a[2], 1); let i = -1; if (n > 0) { for (let k = 0; k < n; k++) { i = s.indexOf(d, i + 1); if (i < 0) return E.NA; } } else { i = s.length; for (let k = 0; k < -n; k++) { i = s.lastIndexOf(d, i - 1); if (i < 0) return E.NA; } } return s.slice(i + d.length); }));
 

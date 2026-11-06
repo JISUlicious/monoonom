@@ -45,9 +45,9 @@ def _register(doc, by=None, client=None):
     return REGISTRY.add(doc, by=by, client=client)
 
 
-def open_document(path=None, new=False, name=None, by=None, client=None) -> DocSession:
+def open_document(path=None, new=False, name=None, by=None, client=None, lang=None) -> DocSession:
     if new:
-        model = blank_workbook(name or "통합 문서1.xlsx")
+        model = blank_workbook(name or None, lang)
         return _register(DocSession(model, None, "xlsx"), by, client)
     path = _norm(path)
     existing = REGISTRY.find_path(path)
@@ -69,7 +69,7 @@ def r_docs(h, m, q, body):
 @route("POST", "/api/docs")
 def r_docs_open(h, m, q, body):
     by = "agent" if body.get("actor") == "agent" else "user"
-    doc = open_document(body.get("path"), bool(body.get("new")), body.get("name"), by=by, client=body.get("clientId"))
+    doc = open_document(body.get("path"), bool(body.get("new")), body.get("name"), by=by, client=body.get("clientId"), lang=body.get("lang"))
     out = doc.summary()
     out["warnings"] = doc.warnings
     return out
@@ -84,7 +84,7 @@ def r_doc(h, m, q, body):
 def r_doc_close(h, m, q, body):
     doc = _doc(m)
     if doc.dirty and not body.get("force"):
-        raise ApiError(409, f"'{doc.name}'에 저장되지 않은 변경이 있습니다.")
+        raise ApiError(409, f"'{doc.name}' has unsaved changes.")
     doc.audit({"event": "close", "discarded": bool(doc.dirty)})
     REGISTRY.remove(doc.id)
     return {"ok": True}
@@ -101,7 +101,7 @@ def r_ops(h, m, q, body):
     doc = _doc(m)
     ops = body.get("ops") or []
     if not isinstance(ops, list):
-        raise ApiError(400, "ops는 배열이어야 합니다.")
+        raise ApiError(400, "ops must be an array.")
     v = doc.apply(ops, actor=body.get("actor", "user"), client_id=body.get("clientId"),
                   batch_id=body.get("batchId"), label=body.get("label", ""),
                   base_version=body.get("baseVersion"), structural=bool(body.get("structural")),
@@ -144,43 +144,43 @@ def r_save_doc(h, m, q, body):
     doc = _doc(m)
     path = _norm(body["path"]) if body.get("path") else doc.path
     if not path:
-        raise ApiError(400, "저장할 경로가 필요합니다(새 문서).")
+        raise ApiError(400, "A path to save to is required (new document).")
     fmt = body.get("format") or _fmt_of(path)
     if os.path.splitext(path)[1].lower() not in EXTS:
         path += "." + fmt
     path, fmt, converted = xlsx_target(path, fmt)
     from_xls = doc.format == "xls"
     if not os.path.isdir(os.path.dirname(path)):
-        raise ApiError(404, "저장할 폴더가 없습니다.")
+        raise ApiError(404, "The folder to save in does not exist.")
     same = doc.path and os.path.normcase(path) == os.path.normcase(doc.path)
     if os.path.exists(path):
         if not same and not body.get("overwrite"):
             name = os.path.basename(path)
-            err = ApiError(409, f"'{name}' 파일이 이미 있습니다." + (
-                f" xls 파일은 {fmt}로 저장하므로 이 파일을 덮어쓰게 됩니다. 바꾸지 않으려면 다른 이름으로 저장하세요." if converted else ""))
+            err = ApiError(409, f"'{name}' already exists." + (
+                f" An xls file is saved as {fmt}, which would overwrite that file. Save under another name to keep it." if converted else ""))
             err.extra = {"target": path, "targetName": name, "converted": converted, "format": fmt}
             raise err
         if same and doc.file_sig and doc.file_sig != _sig(path) and not body.get("force"):
-            raise ApiError(409, "파일이 열린 뒤 디스크에서 바뀌었습니다(다른 프로그램이 저장). 덮어쓰려면 force가 필요합니다.")
+            raise ApiError(409, "The file changed on disk after it was opened (another program saved it). Overwriting needs force.")
     backup = None
     if os.path.exists(path) and body.get("backup", True):
         try:
             backup = backup_file(path, state_dir())
         except OSError as e:
-            raise ApiError(403, f"백업을 만들 수 없습니다({e}). backup=false로 다시 시도하세요.")
+            raise ApiError(403, f"Cannot create a backup ({e}). Try again with backup=false.")
     # formula results are written into the file as cached values, so make them current first
     from .agent_api import ensure_calc
     calc = ensure_calc(doc, wait=2.0)
     warns = write_workbook(path, fmt, doc.file_model(), doc.base_path)
     note = []
     if converted:
-        note.append(f"xls 형식으로는 저장하지 않으므로 '{os.path.basename(path)}'({fmt})로 저장했습니다. 원본 .xls는 그대로입니다.")
+        note.append(f"Files are not saved as xls, so this was saved as '{os.path.basename(path)}' ({fmt}). The original .xls is unchanged.")
     if from_xls:  # also for an explicit `--as new.xlsx` / Save As from a document read from .xls
-        note.append("xls에서 읽은 수식은 계산된 값으로만 저장됐습니다(xlrd는 xls의 수식 텍스트를 읽지 못함). "
-                    "다시 계산되어야 하는 셀은 수식을 다시 입력하세요.")
+        note.append("Formulas read from xls were saved as their computed values only (xlrd cannot read xls formula text). "
+                    "Re-enter the formulas of cells that need to recalculate.")
     warns = note + list(warns or [])
     if calc.get("status") == "stale":
-        warns = list(warns or []) + ["수식 결과가 최신이 아닐 수 있어 파일의 캐시 값이 이전 결과일 수 있습니다(Excel은 열 때 다시 계산)."]
+        warns = list(warns or []) + ["Formula results may be out of date, so cached values in the file may be old (Excel recalculates on opening)."]
     with doc.lock:
         doc.path, doc.base_path, doc.format = path, path, fmt
         doc.name = os.path.basename(path)
@@ -200,7 +200,7 @@ def r_save_doc(h, m, q, body):
                     p["idx"], n = n, n + 1
                 pivots.append(p)
             meta_ops.append({"op": "setSheetMeta", "sheet": sh["id"], "meta": {"origName": sh["name"], "charts": charts, "pivots": pivots}})
-        doc.apply(meta_ops, actor="system", label="저장")
+        doc.apply(meta_ops, actor="system", label="save")
         doc.dirty = False
         doc.audit({"event": "save", "to": path, "format": fmt, "backup": backup})
     info = {"path": path, "name": doc.name, "format": fmt, "warnings": warns, "backup": backup,
@@ -218,12 +218,12 @@ def r_undo(h, m, q, body):
     with doc.lock:
         entry = next((e for e in doc.log if e["batchId"] == body.get("batchId")), None)
         if not entry:
-            raise ApiError(404, "해당 변경(batch)을 찾을 수 없습니다(오래되어 기록에서 빠졌을 수 있음).")
+            raise ApiError(404, "That change (batch) was not found (it may have aged out of the history).")
         touched = _touched(entry["ops"])
         later = [e for e in doc.log if e["v"] > entry["v"] and _touched(e["ops"]) & touched]
         if later and not body.get("force"):
-            raise ApiError(409, f"이 변경 이후 같은 셀/시트를 {len(later)}번 더 바꿨습니다. 그래도 되돌리려면 force가 필요합니다.")
-        v = doc.apply(entry["undo"], actor=body.get("actor", "agent"), label=f"되돌리기: {entry['label']}",
+            raise ApiError(409, f"The same cells / sheets changed {len(later)} more times after this change. Undoing anyway needs force.")
+        v = doc.apply(entry["undo"], actor=body.get("actor", "agent"), label=f"undo: {entry['label']}",
                       structural=entry["structural"],
                       shifts=[{**x, "count": -x["count"]} for x in reversed(entry.get("shifts", []))],
                       transformable=entry.get("transformable"))
@@ -357,7 +357,7 @@ def r_stream_sub(h, m, q, body):
     with _streams_lock:
         st = STREAMS.get(body.get("client"))
     if not st:
-        raise ApiError(404, "스트림이 없습니다. /api/stream을 먼저 여세요.")
+        raise ApiError(404, "No stream. Open /api/stream first.")
     doc = REGISTRY.get(body["docId"])
     since = int(body.get("since", -1))
     with doc.lock:  # replay + subscribe atomically: no gap, no duplicate

@@ -2,8 +2,8 @@
 
 The server runs on the user's machine, so it can list the fonts without the browser's Local Font
 Access permission prompt (which iframe previews may not allow at all). Each font file's OpenType
-`name` table gives the family name, in Korean where the font has one (as Korean Excel shows it,
-e.g. "맑은 고딕") and in English (e.g. "Malgun Gothic"); both work as a cell's font name and in CSS.
+`name` table gives the family name, in English (e.g. "Malgun Gothic") and in Korean where the font has one (as Korean Excel shows it);
+both work as a cell's font name and in CSS.
 Only the table directory and the name table are read, not whole files (CJK fonts are 10-20 MB).
 Format: OpenType spec, "name — Naming Table" and "Font Collections" (TTC header).
 """
@@ -98,30 +98,31 @@ def families_in(path: str) -> list[dict]:
     return out
 
 
-def list_fonts(refresh: bool = False) -> dict:
-    """{"fonts": [{"name": shown name, "names": [all names]}], "source", "ms"} — sorted, deduplicated."""
+def list_fonts(refresh: bool = False, lang: str = "en") -> dict:
+    """{"fonts": [{"name": shown name, "names": [all names]}], "files", "source", "ms"}: deduplicated and
+    sorted. The shown name is the English family name; with lang "ko" it is the Korean one where the
+    font has it (as Korean Excel shows it), and fonts with Korean names come first."""
     global _cache
-    if _cache is not None and not refresh:
-        return _cache
-    t0 = time.time()
-    fams: dict = {}
-    files = 0
-    for d in font_dirs():
-        for root, _dirs, names in os.walk(d):
-            for n in names:
-                if not n.lower().endswith((".ttf", ".otf", ".ttc", ".otc")):
-                    continue
-                files += 1
-                if files > 6000:
-                    break
-                for f in families_in(os.path.join(root, n)):
-                    if f["en"].startswith("."):  # macOS system UI fonts (".SF NS"): not for documents
+    if _cache is None or refresh:
+        t0 = time.time()
+        fams: dict = {}
+        files = 0
+        for d in font_dirs():
+            for root, _dirs, names in os.walk(d):
+                for n in names:
+                    if not n.lower().endswith((".ttf", ".otf", ".ttc", ".otc")):
                         continue
-                    shown = f["ko"] or f["en"]
-                    e = fams.setdefault(shown.lower(), {"name": shown, "names": []})
-                    for x in (f["ko"], f["en"]):
-                        if x and x not in e["names"]:
-                            e["names"].append(x)
-    fonts = sorted(fams.values(), key=lambda f: (not any("\uac00" <= ch <= "\ud7a3" for ch in f["name"]), f["name"].lower()))
-    _cache = {"fonts": fonts, "files": files, "source": "system", "ms": round((time.time() - t0) * 1000)}
-    return _cache
+                    files += 1
+                    if files > 6000:
+                        break
+                    for f in families_in(os.path.join(root, n)):
+                        if f["en"].startswith("."):  # macOS system UI fonts (".SF NS"): not for documents
+                            continue
+                        e = fams.setdefault(f["en"].lower(), {"en": f["en"], "ko": None})
+                        e["ko"] = e["ko"] or f["ko"]
+        _cache = {"families": list(fams.values()), "files": files, "ms": round((time.time() - t0) * 1000)}
+    ko = lang == "ko"
+    fonts = [{"name": (f["ko"] if ko and f["ko"] else f["en"]), "names": [x for x in (f["ko"], f["en"]) if x]}
+             for f in _cache["families"]]
+    fonts.sort(key=lambda f: (ko and not any("\uac00" <= ch <= "\ud7a3" for ch in f["name"]), f["name"].lower()))
+    return {"fonts": fonts, "files": _cache["files"], "source": "system", "ms": _cache["ms"]}

@@ -2,6 +2,7 @@
 // browser only lists the suggestions that match what is already in the box, so with "Calibri" or
 // "11" in it the list looked empty. Here the button / ArrowDown / Alt+ArrowDown open the whole
 // list with the current value marked; typing narrows it; Enter / click picks; Esc closes.
+import { t } from './i18n.js';
 
 /**
  * @param {HTMLInputElement} input
@@ -18,7 +19,7 @@ export function combo(input, { items, onPick, width = null }) {
   input.setAttribute('role', 'combobox');
   input.setAttribute('aria-expanded', 'false');
   const btn = document.createElement('button');
-  btn.type = 'button'; btn.className = 'combo-btn'; btn.tabIndex = -1; btn.setAttribute('aria-label', '목록 펼치기');
+  btn.type = 'button'; btn.className = 'combo-btn'; btn.tabIndex = -1; btn.setAttribute('aria-label', t('Open list'));
   btn.textContent = '▾';
   wrap.append(btn);
   let pop = null, list = [], shown = [], active = -1, filterText = null;
@@ -44,7 +45,7 @@ export function combo(input, { items, onPick, width = null }) {
       const style = it.font ? ` style="font-family:&quot;${esc(it.font)}&quot;, sans-serif"` : '';
       html += `<div class="combo-item${i === active ? ' active' : ''}${it.value.toLowerCase() === cur ? ' current' : ''}" data-i="${i}" role="option"${style}>${esc(it.label || it.value)}</div>`;
     });
-    pop.innerHTML = html || '<div class="combo-empty">맞는 항목이 없습니다</div>';
+    pop.innerHTML = html || `<div class="combo-empty">${t('No matches')}</div>`;
     const el = pop.querySelector('.combo-item.active') || (!q && pop.querySelector('.combo-item.current'));
     if (el) el.scrollIntoView({ block: active >= 0 ? 'nearest' : 'center' });
   }
@@ -60,7 +61,7 @@ export function combo(input, { items, onPick, width = null }) {
       pop.addEventListener('click', (e) => { const it = e.target.closest('.combo-item'); if (it) pick(shown[+it.dataset.i]); });
       input.setAttribute('aria-expanded', 'true');
       document.addEventListener('pointerdown', outside, true);
-      pop.innerHTML = '<div class="combo-empty">불러오는 중…</div>';
+      pop.innerHTML = `<div class="combo-empty">${t('Loading…')}</div>`;
       list = await items();
       if (!pop) return;
     }

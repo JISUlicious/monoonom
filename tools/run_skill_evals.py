@@ -8,9 +8,9 @@ Each run gets a fresh workspace with the skill installed as Claude Code reads it
 (.claude/skills/monoonom: the generated SKILL.md plus links into the package) and a copy of
 samples/sample.xlsx (also under samples/).
 
-trigger:   evals/trigger_queries.json. The agent may look around (Glob, Read) but Bash is disallowed,
+trigger:   evals/monoonom/trigger_queries.json (outside the skill package). The agent may look around (Glob, Read) but Bash is disallowed,
            so nothing runs; a run "triggers" when it calls the Skill tool for monoonom within 3 turns.
-scenarios: evals/evals.json. A server is started for the workspace and the preview is open in a
+scenarios: evals/monoonom/evals.json. A server is started for the workspace and the preview is open in a
            headless browser for the whole run (the "user"); some scenarios first act as the user
            (select a range, edit cells). The agent then works without limits on Bash. `Skill` must be in
            --allowedTools: the Claude Code SKILL.md has allowed-tools, which makes invoking the skill a
@@ -31,6 +31,7 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PKG = os.path.join(ROOT, ".agents", "skills", "monoonom")
+EVALS = os.path.join(ROOT, "evals", "monoonom")
 CC_SKILL = os.path.join(ROOT, ".claude", "skills", "monoonom", "SKILL.md")
 SAMPLE = os.path.join(ROOT, "samples", "sample.xlsx")
 
@@ -84,7 +85,7 @@ def result_of(events):
 # ------------------------------------------------------------------ trigger
 
 def run_trigger(models, out):
-    tq = json.load(open(os.path.join(PKG, "evals", "trigger_queries.json"), encoding="utf-8"))
+    tq = json.load(open(os.path.join(EVALS, "trigger_queries.json"), encoding="utf-8"))
     jobs = [(q, True, m) for q in tq["should_trigger"] for m in models] + [(q, False, m) for q in tq["should_not_trigger"] for m in models]
     os.makedirs(os.path.join(out, "transcripts"), exist_ok=True)
 
@@ -141,7 +142,7 @@ def xl(ws, *a):
 
 
 def run_scenarios(models, out, only=None):
-    ev = json.load(open(os.path.join(PKG, "evals", "evals.json"), encoding="utf-8"))["evals"]
+    ev = json.load(open(os.path.join(EVALS, "evals.json"), encoding="utf-8"))["evals"]
     if only:
         ev = [e for e in ev if e["id"] in only]
     jobs = [(e, m, i) for i, (e, m) in enumerate((e, m) for e in ev for m in models)]

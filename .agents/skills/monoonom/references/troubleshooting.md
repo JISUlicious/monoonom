@@ -1,27 +1,27 @@
 # Troubleshooting
 
-## "openpyxl이 없습니다" / exit code 6
+## "The Python package openpyxl is missing" / exit code 6
 The Python packages are not bundled. Install them for the same Python that runs `xl.py`:
 `python -m pip install -r scripts/requirements.txt` (openpyxl required; xlrd only for `.xls`). Offline PCs:
 on a connected machine run `pip download -r scripts/requirements.txt -d wheels`, copy `wheels/`, then
 `pip install --no-index --find-links wheels -r scripts/requirements.txt`. If `.xls` files fail to open
-with "xlrd가 필요합니다", only xlrd is missing.
+with "Opening .xls files needs the Python package xlrd", only xlrd is missing.
 
-## "차트를 찾을 수 없습니다" (HTTP 404) for an id from an earlier `chart ls`
+## "Chart not found" (HTTP 404) for an id from an earlier `chart ls`
 Chart ids are assigned when the workbook is loaded and are not saved in the file, so they change
 after the workbook is reopened or the server restarts (it stops itself after an hour without use).
 Run `xl.py chart ls` and use the current id.
 
-## Preview shows the menus but no workbook opens ("인증 정보가 없습니다", HTTP 401)
+## Preview shows the menus but no workbook opens ("No credentials", HTTP 401)
 The page was opened without its token (the page shows a panel saying so). Give the user the URL from
 `xl.py url`, verbatim, including `#t=…`.
 Previews that embed the page in an iframe of another site (VS Code Simple Browser, apps built with
 Tauri/Electron webviews) do not send cookies, so the token in the URL is the only way in there.
-"토큰이 이 서버와 다릅니다": the URL belongs to another server or workspace; use the current `status` URL.
+"The token does not match this server": the URL belongs to another server or workspace; use the current `status` URL.
 `.monoonom/server.log` shows each 401 with `reason=` and `sec-fetch-site=` (`cross-site` = embedded page).
 If a preview URL with the token leaked, `xl.py stop` then `xl.py serve --new-token` and reopen with the new URL.
 
-## "서버에 연결할 수 없습니다" / exit code 3
+## "The monoonom server is not running" / "Cannot connect to the server" / exit code 3
 Run `xl.py serve`. State lives in `<workspace>/.monoonom/server.json`; the log is `.monoonom/server.log`.
 
 ## Port already in use
