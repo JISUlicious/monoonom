@@ -15,6 +15,9 @@ paper) written in English so that it reads from either end: MoNooN + NooNoM.
 - **Excel-compatible**: about 200 formula functions, formatting, filters and sorting, charts (bar, line, pie, scatter, combo and more), pivot tables, Excel keyboard shortcuts. Saving keeps what the app does not edit, such as conditional formatting, images and VBA.
 - **Local only**: the Python server listens on `127.0.0.1` only, and files never leave the workspace folder. All file reads and writes go through one Python function, so a DRM hook can be plugged in.
 
+![The agent adds a Share column and a chart while the user watches](docs/monoonom-agent.png)
+*The agent has just added the chart and is filling the Share column: the cells it changes are highlighted, and the status bar says what it did.*
+
 ## Install
 
 You need **Python 3.9+** with `openpyxl` (required) and `xlrd` (only to open .xls). With Node.js 18+, formulas are also computed when no preview is open.
