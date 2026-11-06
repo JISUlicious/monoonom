@@ -41,7 +41,7 @@ for n in z.namelist():
     if n.startswith('xl/charts/chart'):
         s = z.read(n).decode()
         out[n] = {'pivotSource': re.findall(r'<pivotSource>.*?</pivotSource>', s, re.S), 'pivotFmts': '<pivotFmts>' in s,
-                  'type': re.findall(r'<(barChart|lineChart|scatterChart)>', s), 'title': re.findall(r'<a:t>([^<]*)', s)[:1]}
+                  'type': re.findall(r'<(barChart|lineChart|scatterChart)>', s), 'title': re.findall(r'<a:t>([^<]*)', s)[:1], 'f': re.findall(r'<f>([^<]*)</f>', s)}
 print(json.dumps(out, ensure_ascii=False))`));
 
 (async () => {
@@ -100,13 +100,25 @@ print(all(sc.validate(etree.fromstring(z.read(n))) for n in z.namelist() if n.st
     check('…edit dialog: data range and scatter are disabled', dlg.range === true && dlg.scatter === true, JSON.stringify(dlg));
     await p.fill('.chart-dialog [data-k=title]', 'from the preview');
     await p.click('.chart-dialog [data-act=ok]'); await sleep(600);
+    // step 2: the pivot chart follows its pivot table
+    const data = () => p.evaluate(() => { const a = window.monoonom, m = a.doc.wb.sheet.charts[0]; return a.charts.instances.get(m.id).chart.data.datasets.map((d) => d.data.join(',')); });
+    const before = await data();
+    xl('write', '데이터!D2', '1000');  // 서울 A Q1 120 -> 1000
+    const ref = xl('pivot', 'refresh');
+    check('refresh: names the pivot charts that show the new values', ref.includes(`pivot charts ${cid} show them`), ref);
+    await p.waitForFunction((b) => { const a = window.monoonom, m = a.doc.wb.sheet.charts[0]; return a.charts.instances.get(m.id)?.chart.data.datasets[0].data.join(',') !== b; }, before[0], { timeout: 4000 }).catch(() => {});
+    const after = await data();
+    check('…the preview pivot chart redraws with the refreshed values (서울 A 250 -> 1130)', before[0] === '85,125,250' && after[0] === '85,125,1130', `${before[0]} -> ${after[0]}`);
+    xl('rows', 'insert', '2', '--count', '2', '--sheet', '피벗');
+    const moved = xl('chart', 'ls');
+    check('inserting rows above the pivot moves it, and the pivot chart\'s ranges move with it', /A7:D12/.test(xl('pivot', 'ls')) && /Y '?피벗'?!\$B\$9:\$B\$11/.test(moved), moved);
     check('no page errors', errors.length === 0, errors.join('; '));
   } finally {
     await browser.close();
   }
   xl('save', '--as', 'preview.xlsx');
   x = Object.values(chartXml('preview.xlsx'))[0];
-  check('saved after editing in the preview: still linked to 피벗1', x.pivotSource[0]?.includes('피벗1') && x.title[0] === 'from the preview', JSON.stringify(x));
+  check('saved after editing in the preview, refresh and row insert: still linked to 피벗1, ranges moved', x.pivotSource[0]?.includes('피벗1') && x.title[0] === 'from the preview' && x.f.some((f) => /^'?피벗'?!\$B\$9:\$B\$11$/.test(f)), JSON.stringify(x));
   try { xl('stop', '--force'); } catch { /* ignore */ }
   fs.rmSync(ws, { recursive: true, force: true });
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED');

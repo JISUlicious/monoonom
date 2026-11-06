@@ -874,6 +874,18 @@ def r_edit(h, m, q, body):
     return {**last, "batches": results, "summary": [x for r in results for x in r["summary"]]}
 
 
+def pivot_charts_of(doc, sh, p):
+    """Ids of the pivot charts (any sheet) linked to pivot table p on sheet sh. Their series refer to
+    the pivot's cells, so they show the refreshed values as the cells change."""
+    out = []
+    for s in doc.sheets:
+        for ch in s.get("charts") or []:
+            pv = ch.get("pivot") or {}
+            if (pv.get("table") or "").lower() == p["name"].lower() and (pv.get("sheet") or sh["name"]).lower() == sh["name"].lower():
+                out.append(ch.get("id"))
+    return out
+
+
 @route("POST", r"/api/docs/([\w-]+)/pivots/refresh")
 @_wrap
 def r_pivot_refresh(h, m, q, body):
@@ -895,7 +907,8 @@ def r_pivot_refresh(h, m, q, body):
             notes += n
             if cells:
                 ops.append({"op": "setCells", "sheet": sh["id"], "cells": cells})
-            done.append({"sheet": sh["name"], "name": p["name"], "range": p["ref"], "changed": len(cells)})
+            done.append({"sheet": sh["name"], "name": p["name"], "range": p["ref"], "changed": len(cells),
+                         "charts": pivot_charts_of(doc, sh, p)})
         if not ops:
             return {"version": doc.version, "batchId": None, "pivots": done, "notes": notes, "calc": calc}
         batch = new_id("b")

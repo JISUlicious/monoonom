@@ -342,7 +342,8 @@ def cmd_pivot(args):
     if args.json:
         return out_json(res)
     for p in res["pivots"]:
-        print(f"{p['sheet']}  '{p['name']}'  {p['range']}: {p['changed']} values changed")
+        print(f"{p['sheet']}  '{p['name']}'  {p['range']}: {p['changed']} values changed"
+              + (f"; pivot charts {', '.join(p['charts'])} show them" if p.get("charts") else ""))
     for n in res.get("notes", []):
         print("  note: " + n)
     if res.get("batchId"):
