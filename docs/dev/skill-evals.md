@@ -2,7 +2,7 @@
 
 실행기: `tools/run_skill_evals.py`(`trigger` / `scenarios` / `report`). Claude Code CLI(`claude -p`) 2.1.318으로 실행.
 실행마다 새 작업 폴더를 만들고, Claude Code가 읽는 형태(`.claude/skills/monoonom`: 생성된 SKILL.md + 패키지 링크)로 skill을 설치한다.
-결과 원본: `docs/evals/<날짜>/`(trigger.json, scenarios.json, report.md).
+결과 원본: `docs/dev/evals/<날짜>/`(trigger.json, scenarios.json, report.md).
 
 ## 2026-11-05 (첫 실행, Haiku·Sonnet·Opus)
 
