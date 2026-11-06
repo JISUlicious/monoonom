@@ -36,6 +36,7 @@ from openpyxl.worksheet.formula import ArrayFormula
 from . import a1 as A
 from . import colors
 from . import pivots as PV
+from openpyxl.chart.pivot import PivotSource
 from .formula_compat import add_prefixes, prefix_map, strip_prefixes, unsupported_functions
 from .units import (DEFAULT_COL_PX, DEFAULT_ROW_PX, EMU_PER_PX, colw_to_px, pt_to_px,
                     px_to_colw, px_to_pt)
@@ -245,6 +246,19 @@ def _series_color(s, stype, theme):
     return "#" + c if c else None
 
 
+def pivot_chart_source(chart):
+    """A pivot chart's link to its pivot table (DrawingML c:pivotSource: name "[file.xlsx]Sheet!PivotTable1"
+    and fmtId), as {"name", "fmtId", "sheet", "table"}; None for an ordinary chart."""
+    ps = getattr(chart, "pivotSource", None)
+    if ps is None or not getattr(ps, "name", None):
+        return None
+    ref = ps.name.split("]", 1)[-1]
+    sheet, _, table = ref.rpartition("!")
+    if len(sheet) > 1 and sheet[0] == sheet[-1] == "'":
+        sheet = sheet[1:-1].replace("''", "'")
+    return {"name": ps.name, "fmtId": ps.fmtId or 0, "sheet": sheet or None, "table": table}
+
+
 def _chart_model(chart, idx, geom, warn, theme=None):
     subs = list(getattr(chart, "_charts", None) or [chart])
     main_type = CHART_TYPES.get(chart.tagname)
@@ -294,6 +308,9 @@ def _chart_model(chart, idx, geom, warn, theme=None):
         "anchor": _anchor_model(chart.anchor, geom),
         "orig": idx,
     }
+    pivot = pivot_chart_source(chart)
+    if pivot:
+        m["pivot"] = pivot
     vary = getattr(chart, "varyColors", None)
     m["varyColors"] = True if vary is None else bool(vary)  # Excel reads a missing element as on
     if main_type == "bar":
@@ -1084,6 +1101,10 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
                 ch = orig_charts[o]
             else:
                 ch = _build_chart(cm, chart_theme)
+                if cm.get("pivot"):  # an edited pivot chart stays linked to its pivot table
+                    old = orig_charts[o] if isinstance(o, int) and 0 <= o < len(orig_charts) else None
+                    ch.pivotSource = getattr(old, "pivotSource", None) or PivotSource(name=cm["pivot"]["name"], fmtId=cm["pivot"].get("fmtId", 0))
+                    ch.pivotFormats = getattr(old, "pivotFormats", None) or ()
             ch.anchor = _anchor(cm.get("anchor", {}))
             new_charts.append(ch)
         ws._charts = new_charts

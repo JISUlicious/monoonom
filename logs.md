@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-06: 피벗 차트 1단계(보존·표시) — 수정한 피벗 차트가 일반 차트로 바뀌던 문제 수정(`pivotSource`·`pivotFmts` 유지), `chart ls`·`describe`·미리보기 범위 패널에 피벗 차트 표시, Excel처럼 데이터 범위·행/열 전환·분산형 변경 거부 (→ docs/dev/skill-implementation.md)
 - 2026-11-06: 문서 정리 — README를 첫 화면(소개·빠른 시작·문서 목록)으로 줄이고, 설치·사용·보안과 DRM·제한을 `docs/guide/`(영문+한국어)로, 개발 문서를 `docs/dev/`로 옮김. 문서 링크 검사 `tests/doc_links.test.py` 추가 (→ docs/dev/development.md "문서 구성")
 - 2026-11-06: 저장소 이름 `JISUlicious/monoonom`으로 변경 — README 설치 명령, `plugin.json` 주소 갱신 (→ docs/dev/project-setup.md)
 - 2026-11-06: README에 에이전트 작업 화면 추가(`docs/guide/images/monoonom-agent.png`: 표와 차트, 에이전트가 바꾸는 열 강조)

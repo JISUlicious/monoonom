@@ -159,7 +159,8 @@ def cmd_describe(args):
             print(f"  pivot table '{p['name']}' {p['range']} (read-only): source {p['source']}  rows {', '.join(p['rows']) or '-'}"
                   f"  columns {', '.join(p['cols']) or '-'}  values {', '.join(p['values']) or '-'}" + (f"  filters {', '.join(p['filters'])}" if p["filters"] else ""))
         for ch in sh["charts"]:
-            print(f"  chart {ch['id']}: {ch['type']} '{ch['title'] or ''}' @{ch['at']}  data {', '.join(x or '' for x in ch['data'])}")
+            print(f"  chart {ch['id']}: {ch['type']} '{ch['title'] or ''}' @{ch['at']}  data {', '.join(x or '' for x in ch['data'])}"
+                  + (f"  (pivot chart of '{ch['pivot']}')" if ch.get("pivot") else ""))
     if res["definedNames"]:
         print("\nDefined names: " + ", ".join(f"{k}={v}" for k, v in res["definedNames"].items()))
     return 0
@@ -371,7 +372,8 @@ def cmd_chart(args):
     res = request(st, "GET", f"/api/docs/{d['docId']}/describe")
     for sh in res["sheets"]:
         for ch in sh["charts"]:
-            print(f"{sh['name']}  {ch['id']}  {ch['type']}  '{ch['title'] or ''}'  @{ch['at']}")
+            pv = f"  pivot chart of '{ch['pivot']}'" if ch.get("pivot") else ""
+            print(f"{sh['name']}  {ch['id']}  {ch['type']}  '{ch['title'] or ''}'  @{ch['at']}{pv}")
             for i, s in enumerate(ch.get("series", [])):
                 name = s.get("nameRef") or (f"'{s['name']}'" if s.get("name") else "-")
                 kind = f" ({s['type']})" if s.get("type") else ""

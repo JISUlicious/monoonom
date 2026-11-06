@@ -1,6 +1,8 @@
 // Korean text for misc modules (numfmt, formula, model, filter, charts, grid, docsync, clipboard,
 // editor, combo): English key -> Korean.
 export default {
+  "This is a pivot chart of '{name}': its data comes from the pivot table. Change the pivot table's fields instead.": "피벗 테이블 '{name}'의 피벗 차트입니다. 데이터는 피벗 테이블에서 오므로 피벗 테이블의 필드를 바꾸세요.",
+  "Pivot chart of '{name}': its data comes from the pivot table.": "피벗 테이블 '{name}'의 피벗 차트: 데이터는 피벗 테이블에서 옵니다.",
   "General": "일반",
   "Number": "숫자",
   "Number (comma)": "숫자(쉼표)",

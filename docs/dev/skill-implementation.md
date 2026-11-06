@@ -872,3 +872,17 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 **작업 방식**: Python·문서·i18n 기반은 직접, 화면 모듈 5묶음(app.js, dialogs.js, 함수 도움말, 나머지 모듈, 서버 메시지 패턴)은 병렬 에이전트로 나눠 했고 사전 충돌·누락은 `tests/i18n_keys.test.mjs`로 확인했다.
 
 **검증**: 전체 테스트 통과. 브라우저 테스트 14개는 ko-KR 로캘(한국어 화면), 새 `tests/i18n.e2e.cjs`는 영어 기본(화면에 한국어 없음: 시작 화면, 리본, 오른쪽 클릭 메뉴, 셀 서식, 단축키 표, 함수 도움말), `?lang=ko` 전환·기억, 한국어 브라우저, 서버 메시지 한국어 표시를 확인한다.
+
+## 피벗 차트 1단계: 보존과 표시 (2026-11-06)
+**배경**: 피벗 차트는 일반 차트 XML(DrawingML chartSpace)에 `<c:pivotSource>`(이름 `[파일.xlsx]시트!피벗이름`, `fmtId`)와 `<c:pivotFmts>`가 붙은 것이다. 계열은 피벗 결과 셀을 가리킨다. openpyxl 3.1.5는 둘을 읽고(`chart/reader.py`: `chart.pivotSource`, `chart.pivotFormats`) 쓴다(`_chart.py`).
+
+**발견한 문제**: 건드리지 않은 피벗 차트는 원본 객체를 그대로 저장해 보존됐다. 그러나 제목 등을 고치면 `_build_chart`로 다시 만들면서 `pivotSource`가 빠져 일반 차트가 됐다(사용자의 피벗 차트가 Excel에서 일반 차트로 바뀜).
+
+**바꾼 것**:
+- 차트 모델에 `pivot: {name, fmtId, sheet, table}`(`xlsx_io.pivot_chart_source`). 수정한 피벗 차트를 저장할 때 원본의 `pivotSource`·`pivotFormats`를 붙인다(원본이 없으면 모델의 이름·fmtId로 만든다). 이름의 파일 부분은 바꾸지 않는다.
+- Excel이 피벗 차트에 허용하지 않는 것 거부: 데이터 범위 변경, 행/열 전환(Excel에서는 피벗 필드를 옮기는 동작), 분산형(Excel은 분산형·거품형·주식형 피벗 차트를 만들지 않음, [KB 215900 보관본](https://mskb.pkisolutions.com/kb/215900)). 에이전트(`chart set`)는 400과 이유, 미리보기는 안내 메시지·대화상자에서 데이터 범위와 분산형 비활성.
+- 표시: `chart ls`·`describe`에 "pivot chart of 'NAME'", 미리보기 데이터 범위 패널에 피벗 차트 안내(행/열 전환 단추 없음). SKILL.md에 한 문단, cli.md에 설명.
+
+**검증**: `tests/pivot_chart.e2e.cjs` 13개 — 목록 표시, 세 가지 거부, 건드리지 않고 저장·제목과 종류(꺾은선)를 바꿔 저장·미리보기에서 제목을 바꿔 저장 모두 `pivotSource`(이름·fmtId)와 `pivotFmts` 유지, 저장한 차트 XML이 ECMA-376 `dml-chart.xsd`에 맞음, 미리보기 패널·메뉴·대화상자. 실제 Excel에서는 확인하지 못했다.
+
+**다음 단계**: 2단계 새로 고침 연동(피벗 새로 고침 뒤 차트 다시 그리기, 항목 수가 바뀔 때), 3단계 만들기(삽입 → 피벗 차트, `chart add --pivot`).

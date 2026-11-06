@@ -281,6 +281,13 @@ def op_chart_update(ctx, e):
     ch = copy.deepcopy(charts[idx])
     move_to = None
     st = dict(e.get("set") or {})
+    pv = (ch.get("pivot") or {}).get("table")
+    if pv:  # what Excel itself allows on a pivot chart: its data and layout come from the pivot table
+        if "data" in st or st.get("switchRowCol"):
+            raise ApiError(400, f"This is a pivot chart of pivot table '{pv}': its data comes from the pivot table. "
+                                "Change the pivot table's fields or source instead.")
+        if st.get("type") == "scatter":
+            raise ApiError(400, "A pivot chart cannot be a scatter chart (Excel does not allow XY scatter, bubble or stock pivot charts).")
     if "data" in st:
         dsh, g = resolve(ctx.doc, st.pop("data"), sh["name"])
         fresh = chart_from_range(ctx.doc, dsh, g, {"type": st.get("type", ch["type"]), "byRows": st.pop("byRows", None)},

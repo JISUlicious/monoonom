@@ -1087,6 +1087,7 @@ def r_describe(h, m, q, body):
                     "unsupported": unsupported_cells(sh),
                     "autoFilter": (sh["autoFilter"] or {}).get("ref"),
                     "charts": [{"id": ch.get("id"), "type": ch.get("type"), "title": ch.get("title"),
+                                **({"pivot": ch["pivot"]["table"]} if ch.get("pivot") else {}),
                                 "at": A.a1(ch["anchor"].get("r", 0), ch["anchor"].get("c", 0)),
                                 "data": [s.get("val") for s in ch.get("series", [])][:6],
                                 # per series: name cell, X (categories / scatter x) and Y (values) ranges
