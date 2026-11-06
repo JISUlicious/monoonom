@@ -470,7 +470,11 @@ xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있�
 ### 검증
 - `tests/chart_style.test.py`(12개): 새 통합 문서 테마, 저장 XML의 모서리·테두리·간격·계열 색 순서·글자 크기·눈금선·꺾은선·제목 없음·원형 조각 색, Office 2007 테마 통합 문서에서는 그 테마 색, 수정한 원본 차트의 색 유지(accent6 25 % 어둡게 = `E46C0A` 포함).
 - `tests/chart_style.e2e.cjs`(7개): 미리보기 설정이 같은 색·크기·간격을 쓰는지, 원본 차트 색과 테마 색.
-- 육안 비교: 같은 차트를 미리보기(`docs/dev/images/chart-style-preview.png`)와 저장 파일의 LibreOffice 렌더링(`docs/dev/images/chart-style-libreoffice.png`)으로 비교 — 색·글자·눈금선·테두리·표식이 일치, 축 눈금 개수·범례 기호 모양만 프로그램별 차이. 실제 Excel 화면 비교는 사용자 확인 필요(이 환경에 Excel 없음).
+- 육안 비교: 같은 차트를 미리보기([chart-style-preview.png](images/chart-style-preview.png))와 저장 파일의 LibreOffice 렌더링([chart-style-libreoffice.png](images/chart-style-libreoffice.png))으로 비교 — 색·글자·눈금선·테두리·표식이 일치, 축 눈금 개수·범례 기호 모양만 프로그램별 차이. 실제 Excel 화면 비교는 사용자 확인 필요(이 환경에 Excel 없음).
+
+![chart-style-preview.png](images/chart-style-preview.png)
+
+![chart-style-libreoffice.png](images/chart-style-libreoffice.png)
 
 ### 코드 리뷰 반영 (같은 PR): 동작에 영향이 큰 7건
 리뷰 10건 중 결과가 틀리는 7건을 먼저 고쳤다(수정 전 코드로 새 검사 7개가 모두 실패하는 것을 확인).
@@ -492,7 +496,9 @@ xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있�
 - 기호: 꺾은선·방사형 계열은 선, 막대·영역·원형 조각은 사각형(원형이 원으로 그려지던 것 포함).
 - 순서: 범례가 오른쪽·왼쪽이면 아래에서 위로 그려지는 차트(누적 막대·누적 영역·가로 막대)는 범례를 거꾸로(C, B, A) 나열해 쌓인 순서와 맞춤. 위·아래 범례는 그리는 순서(A, B, C). 혼합 차트도 계열 순서(그리기 순서 `order`와 무관).
 - 가로 막대: 첫 항목(1월)과 각 묶음의 첫 계열이 아래(Excel). Chart.js는 묶음 안 막대를 위에서부터 놓으므로 데이터셋을 거꾸로 그리고 범례 순서를 그에 맞춤.
-- 확인하지 못한 것: 가로 막대 + 아래 범례에서 LibreOffice는 C, B, A로 그린다. Excel의 Excel 2007 이후 동작은 이 환경에서 확인할 수 없어(참고 자료 사이트 접근 불가) 일반 규칙(위·아래 범례는 그리는 순서)을 따랐다. 비교 화면: `docs/dev/images/chart-legend-preview.png`.
+- 확인하지 못한 것: 가로 막대 + 아래 범례에서 LibreOffice는 C, B, A로 그린다. Excel의 Excel 2007 이후 동작은 이 환경에서 확인할 수 없어(참고 자료 사이트 접근 불가) 일반 규칙(위·아래 범례는 그리는 순서)을 따랐다. 비교 화면: [chart-legend-preview.png](images/chart-legend-preview.png).
+
+![chart-legend-preview.png](images/chart-legend-preview.png)
 
 ### 한 계열 차트의 varyColors (같은 PR)
 **증상**(사용자, Excel): "항목 / 값" 표로 만든 막대 차트가 미리보기에서는 한 색·범례 "값"인데, Excel에서는 막대마다 다른 색이고 범례에 항목 이름("행 수", "층 수 평균" …)이 나옴.
@@ -511,7 +517,9 @@ xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있�
 - 패널(`charts.js` `showRanges`): 차트 바로 아래에 계열별로 이름(셀 값)·종류(혼합 차트의 꺾은선 등)·각 범위 참조. 행을 클릭하면 그 계열만 밝게, 다시 클릭하면 전체. 다른 시트를 가리키는 범위는 안내 문구.
 - 에이전트: `describe`의 차트 항목에 `series: [{name, nameRef, x, y, type}]`, `xl.py chart ls`가 계열마다 `계열 n (종류): 이름 … X … Y …`를 출력.
 - 주의: `grid.draw()`가 `charts.layout()`을 부르므로, 테두리 목록이 바뀔 때만 다시 그리도록 했다(처음 구현은 선택 중 매 프레임 다시 그림 — 테스트로 확인 후 수정).
-**검증**: `tests/chart_ranges.e2e.cjs` 12개(`chart ls` 출력, 색·범위, 항목 범위 중복 없음, 패널 이름·참조, 선택 중 다시 그리기 없음, 계열 강조 켜기/끄기, 선택 해제, 원형). 화면: `docs/dev/images/chart-ranges-preview.png`. 전체 Python·e2e 테스트 통과.
+**검증**: `tests/chart_ranges.e2e.cjs` 12개(`chart ls` 출력, 색·범위, 항목 범위 중복 없음, 패널 이름·참조, 선택 중 다시 그리기 없음, 계열 강조 켜기/끄기, 선택 해제, 원형). 화면: [chart-ranges-preview.png](images/chart-ranges-preview.png). 전체 Python·e2e 테스트 통과.
+
+![chart-ranges-preview.png](images/chart-ranges-preview.png)
 
 ### 행/열 전환 (같은 PR)
 **요청**: "축 반전" → Excel의 '행/열 전환'(계열과 항목(X)을 맞바꿈)으로 확인.
@@ -523,7 +531,9 @@ xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있�
 - 안 되는 경우는 이유를 알린다: 계열이 다른 시트에 있음, 값 범위가 떨어져 있음, 계열마다 X가 다름, 길이가 맞지 않음. 분산형은 X·Y가 짝이라 막는다.
 - 계열별 종류(혼합 차트의 꺾은선)와 계열별 색은 넘어가지 않는다(계열 수와 의미가 바뀌므로).
 **구현**: `charts.js` `ChartLayer.switchRowCol`(UI: 차트 오른쪽 클릭 '행/열 전환', 범위 패널의 '⇄ 행/열 전환' 버튼), `agent_more.py` `switch_row_col`(`chartUpdate`의 `switchRowCol`, CLI `chart set ID --switch`). 두 구현이 같은 결과를 내는지 테스트로 확인.
-**검증**: `chart_ranges.e2e.cjs`에 5개 추가(UI 전환 결과, 테두리 갱신, 서버가 보는 결과, 에이전트로 되돌리기, JS·Python 6개 사례 일치 — 오류 사례 포함). 저장한 xlsx에 6개 계열로 기록됨을 확인. 화면: `docs/dev/images/chart-switch-preview.png`.
+**검증**: `chart_ranges.e2e.cjs`에 5개 추가(UI 전환 결과, 테두리 갱신, 서버가 보는 결과, 에이전트로 되돌리기, JS·Python 6개 사례 일치 — 오류 사례 포함). 저장한 xlsx에 6개 계열로 기록됨을 확인. 화면: [chart-switch-preview.png](images/chart-switch-preview.png).
+
+![chart-switch-preview.png](images/chart-switch-preview.png)
 
 ## 분산형 차트 검토·수정 (2026-11-05)
 검토 결과 7건 가운데 1–4번을 수정했습니다. 남은 3건은 아래 "남은 것"에 적었습니다.
@@ -617,7 +627,9 @@ xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있�
   - 값 목록 계열의 그리기, 패널, `chart ls`, 저장
   - 저장 파일의 `sourceLinked`
 - 저장 파일의 차트·drawing 19개 파트를 ECMA-376 XSD로 검증해 모두 통과.
-- 전체 테스트 통과. 화면: `docs/dev/images/chart-axes-preview.png`.
+- 전체 테스트 통과. 화면: [chart-axes-preview.png](images/chart-axes-preview.png).
+
+![chart-axes-preview.png](images/chart-axes-preview.png)
 - 실제 Excel 화면은 확인하지 못했다.
 
 ## Agent Skills 컨벤션 진단과 Claude Code판 연결 (2026-11-05)
@@ -678,7 +690,9 @@ xlrd의 두 번째 라이선스(David Giffin 부분)에도 광고 조항이 있�
   - 시트를 복사하면 복사본은 일반 셀이 된다(파일의 피벗은 원래 시트에만 있다).
 - **표시**:
   - `describe`와 `chart ls` 옆에 피벗을 표시한다. 피벗 영역은 표 목록에서 뺀다.
-  - 미리보기는 보라색 점선 테두리와 "피벗 이름 · 편집 불가" 라벨을 그린다(`docs/dev/images/pivot-preview.png`).
+  - 미리보기는 보라색 점선 테두리와 "피벗 이름 · 편집 불가" 라벨을 그린다([pivot-preview.png](images/pivot-preview.png)).
+
+    ![pivot-preview.png](images/pivot-preview.png)
   - SKILL.md에 한 문단을 추가했다.
 
 **검증**:
@@ -765,7 +779,9 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 - 피벗·캐시·workbook.xml이 ECMA-376 `sml.xsd` 통과(환경 변수 `WX_SML_XSD`가 있을 때)
 - LibreOffice가 두 피벗을 같은 위치·같은 필드로 인식하고, 열 때 다시 계산한 숫자가 우리가 쓴 숫자와 같음
 
-실제 Excel에서는 확인하지 못했다. 화면: `docs/dev/images/pivot-create.png`.
+실제 Excel에서는 확인하지 못했다. 화면: [pivot-create.png](images/pivot-create.png).
+
+![pivot-create.png](images/pivot-create.png)
 
 ## 글꼴·크기 선택창 (2026-11-06)
 **증상**(사용자): 글꼴 칸이 드롭다운이 아니라 입력 기록만 보이고, 글꼴 크기 칸은 펼쳐도 내용이 없었다.
@@ -790,7 +806,9 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 **검증**:
 - `tests/fonts.test.py` 6개: 직접 만든 TTF/OTF/TTC 바이트로 한국어·영어 이름, ID 16 우선, 모음 파일, 깨진 파일, 정렬, 실제 폴더 읽기를 확인했다.
 - `tests/fonts.e2e.cjs` 16개: 전체 목록, 현재 값 표시, 좁히기, 선택, 그룹, Esc, 크기 목록·선택·0.5 단위·범위 밖·키보드, 에이전트가 읽은 서식, 셀 서식 대화상자.
-- 화면: `docs/dev/images/font-picker.png`.
+- 화면: [font-picker.png](images/font-picker.png).
+
+![font-picker.png](images/font-picker.png)
 - 이 환경(Linux)에는 한국어 이름을 가진 글꼴이 없어서, 한국어 이름은 합성 파일로만 확인했다. Windows·macOS의 실제 글꼴 폴더로는 확인하지 못했다.
 ## 이름·디자인 변경: web-excel → MoNooNoM (2026-11-06)
 **이유**: 상표·디자인을 검토한 결과, 다음 두 가지가 Microsoft 상표 가이드라인과 맞지 않았다.
@@ -825,7 +843,9 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 **검증**:
 - 전체 테스트 24종 통과
 - 예전 상태 폴더가 이전되고 토큰이 유지됨
-- 화면: `docs/guide/images/monoonom-preview.png`
+- 화면: [monoonom-preview.png](../guide/images/monoonom-preview.png)
+
+![monoonom-preview.png](../guide/images/monoonom-preview.png)
 
 ## 배포 구성: Claude Code 플러그인과 `npx skills` (2026-11-06)
 **목표**: `npx skills add`와 Claude Code 플러그인 마켓플레이스로 설치할 수 있게 한다.
