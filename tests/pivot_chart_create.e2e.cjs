@@ -68,13 +68,15 @@ const chartsOf = (ls, sheet) => ls.split('\n').filter((l) => l.startsWith(sheet 
     const drawn = await p.evaluate(() => { const a = window.monoonom, m = a.doc.wb.sheet.charts.at(-1); return a.charts.instances.get(m.id)?.chart.data.labels?.join(','); });
     check('…drawn with the region labels', drawn === '대구,부산,서울', drawn);
     const status = await p.evaluate(() => document.getElementById('status-msg').textContent);
-    check('…status bar confirms it (Korean)', /피벗 차트를 삽입했습니다/.test(status), status);
+    check('…status bar confirms it (Korean; the server\'s change event may replace it with the batch label)', /피벗 차트를 삽입했습니다|피벗 차트 삽입/.test(status), status);
     check('no page errors', errors.length === 0, errors.join('; '));
   } finally {
     await browser.close();
   }
 
-  // saved: real pivot charts, named after the saved file
+  // saved: real pivot charts, named after the saved file and the pivot's current sheet name
+  xl('sheet', 'rename', 'P2', 'Summary');
+  check('after renaming the pivot\'s sheet, refresh still lists its pivot charts', /pivot charts ch\w+, ch\w+ show them/.test(xl('pivot', 'refresh', 'PivotTable1')));
   xl('save', '--as', 'out.xlsx');
   const r = JSON.parse(py(`
 import json, re, zipfile
@@ -91,8 +93,8 @@ if xsd:
     ok = all(sc.validate(etree.fromstring(z.read(n))) for n in z.namelist() if n.startswith('xl/charts/chart'))
 print(json.dumps({'names': out, 'xsd': ok}, ensure_ascii=False))`));
   const names = r.names.flat().sort();
-  check('saved: three pivot charts, each pivotSource named [out.xlsx]<sheet>!<pivot>',
-    names.length === 3 && names.includes("[out.xlsx]'P2'!PivotTable1") && names.includes('[out.xlsx]피벗!피벗1'), JSON.stringify(r.names));
+  check('saved: three pivot charts, each pivotSource named [out.xlsx]<current sheet>!<pivot> (P2 renamed Summary)',
+    names.length === 3 && names.filter((n) => n === '[out.xlsx]Summary!PivotTable1').length === 2 && names.includes('[out.xlsx]피벗!피벗1'), JSON.stringify(r.names));
   if (process.env.WX_CHART_XSD) check('…every chart part valid against ECMA-376 dml-chart.xsd', r.xsd === true, String(r.xsd));
   else console.log('SKIP XSD check (set WX_CHART_XSD to the ECMA-376 transitional dml-chart.xsd)');
   try { xl('stop', '--force'); } catch { /* ignore */ }

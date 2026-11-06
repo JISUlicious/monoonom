@@ -1262,8 +1262,6 @@ class App {
     }
     return res;
   }
-  /** Recompute pivot tables from their sources on the server (one undoable batch; the result comes
-   * back on the event stream like any other client's edit). */
   /** Insert → PivotChart: a pivot chart of the pivot table at the selection (or the document's only
    * pivot). The server builds it (series = the pivot's data columns, linked by c:pivotSource). */
   async insertPivotChart() {
@@ -1281,6 +1279,8 @@ class App {
     } catch (e) { this.toast(e.message, 'error'); }
   }
 
+  /** Recompute pivot tables from their sources on the server (one undoable batch; the result comes
+   * back on the event stream like any other client's edit). */
   async refreshPivots(name = null) {
     const doc = this.doc;
     if (!doc.wb.sheets.some((s) => s.pivots?.length)) return this.toast(t('This document has no pivot tables.'), 'info');

@@ -908,3 +908,10 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 **확인하지 못한 것**: 실제 Excel에서 피벗 차트로 열리는지. LibreOffice는 xlsx의 `c:pivotSource`를 읽으면 차트를 피벗 차트처럼 다루지 않고 데이터 범위 대화상자만 막는다(oox `chartspacefragment.cxx`의 `mbPivotChart`, `chartspaceconverter.cxx`의 `DisableDataTableDialog`). 그래서 LibreOffice로는 연결을 확인할 수 없고, 스키마 검증과 저장된 XML로 확인했다.
 
 **검증**: `tests/pivot_chart_create.e2e.cjs` 14개 — LibreOffice 피벗(배치 정보 없음)과 여기서 만든 피벗(배치 정보 있음)에서 만들기·계열과 범위·총합계 제외·`--at`, 행 필드 2개·분산형·없는 피벗 거부, 미리보기 단추(피벗 밖 안내, 피벗 셀에서 만들기, 지역 레이블로 그림, 상태 표시줄), 저장한 세 차트의 `pivotSource` 이름, ECMA-376 `dml-chart.xsd` 검증.
+
+**코드 리뷰 반영**(검증 후 꼭 필요한 것만):
+- 행 필드 수를 `firstDataCol`이 아니라 `rowFields`로 센다. Excel 기본(압축) 레이아웃은 행 필드를 한 열에 모아 `firstDataCol`이 1이라, 행 필드가 둘인 피벗이 통과해 부분합이 항목에 섞일 수 있었다.
+- 행 필드가 하나이면 부분합이 없으므로 총합계 레이블(Grand Total, 총합계, Total Result)만 뺀다. "… Result"로 끝나는 실제 항목이 빠지던 문제.
+- 시트 이름을 바꾸면 저장할 때 `pivotSource` 이름의 시트를 현재 이름으로 다시 쓴다(`pivots.pivot_sheet`). 새로 고침의 연결 차트 목록도 같은 규칙.
+- `chart add --pivot`이 `--x-title`/`--y-title`을 넘긴다. app.js의 `refreshPivots` 주석 위치 복구.
+- 그대로 둔 것: `sheet`/`at` 동시 지정 순서(CLI·UI가 보내지 않는 조합), 같은 batch의 대기 셀(피벗 영역은 편집 불가), 대기 루프 중복·`parse_at` 두 번 호출(동작 문제 아님).

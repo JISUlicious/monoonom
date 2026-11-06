@@ -216,6 +216,15 @@ def labels(lang):
     return LABELS.get(lang or "en") or LABELS["en"]
 
 
+def pivot_sheet(sheets, table, recorded=None):
+    """The current name of the sheet holding pivot table `table` (a pivot chart records it, but sheets
+    can be renamed): the recorded sheet if it still has that pivot, else the one sheet that has it."""
+    has = [s["name"] for s in sheets if any(p["name"].lower() == (table or "").lower() for p in s.get("pivots") or [])]
+    if recorded in has or not has:
+        return recorded
+    return has[0] if len(has) == 1 else recorded
+
+
 def is_total_label(x):
     """A row label of a subtotal or grand total line, in any label language."""
     return isinstance(x, str) and any(x == L["grand"] or x.endswith(L["subtotal"].replace("{item}", "")) for L in LABELS.values())

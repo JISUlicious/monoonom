@@ -354,7 +354,8 @@ def cmd_pivot(args):
 def cmd_chart(args):
     if args.action == "add" and args.pivot:
         e = {"op": "chart", "pivot": args.pivot, "pivotSheet": args.sheet, "type": args.type, "title": args.title,
-             "at": args.at, "legend": args.legend, "width": args.width, "height": args.height}
+             "at": args.at, "legend": args.legend, "width": args.width, "height": args.height,
+             "xTitle": args.x_title, "yTitle": args.y_title}
         return edit(args, [{k: v for k, v in e.items() if v is not None}])
     if args.action == "add":
         e = {"op": "chart", "data": args.target, "type": args.type, "title": args.title, "at": args.at,

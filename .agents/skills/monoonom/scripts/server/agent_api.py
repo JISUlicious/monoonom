@@ -547,10 +547,6 @@ def _lit_label(xs):
     return f"{{{shown}{', …' if len(xs) > 3 else ''}}} ({len(xs)} values stored in the chart)"
 
 
-# LibreOffice writes "Total Result" / "<item> Result" and no item records (rowItems/colItems)
-_LO_TOTAL = re.compile(r"^(Total Result|.+ Result)$")
-
-
 def pivot_chart_from(doc, e, sheet=None):
     """A pivot chart of pivot table e["pivot"] (as Excel makes one: series = the data columns, categories =
     the row items, totals left out), linked to it by c:pivotSource. Returns (target sheet, chart)."""
@@ -566,11 +562,14 @@ def pivot_chart_from(doc, e, sheet=None):
         raise ApiError(400, "A pivot chart cannot be a scatter chart (Excel does not allow XY scatter, bubble or stock pivot charts).")
     lay = p.get("layout") or {}
     r1, c1, r2, c2 = A.parse_range(p["ref"])[:4]
-    fdr, fdc = lay.get("firstDataRow") or 1, lay.get("firstDataCol") or 1
-    if fdc != 1:
-        raise ApiError(400, f"Pivot charts are made for pivot tables with one row field; '{p['name']}' has {fdc}.")
+    fdr = lay["firstDataRow"] if lay.get("firstDataRow") is not None else 1
+    fdc = lay["firstDataCol"] if lay.get("firstDataCol") is not None else 1
+    nrow = len([f for f in lay.get("rowFields") or p.get("rows") or [] if f != "Σ"])  # compact form: all in one column
+    if nrow != 1 or fdc < 1:
+        raise ApiError(400, f"Pivot charts are made for pivot tables with one row field; '{p['name']}' has {nrow}.")
     val = lambda r, c: cell_value(doc, sh, r, c, sh["cells"].get((r, c)) or {})  # noqa: E731
-    total = lambda x: PV.is_total_label(x) or (isinstance(x, str) and bool(_LO_TOTAL.match(x)))  # noqa: E731
+    # one row field: no subtotals, so only grand-total labels are left out (an item may end in "Result")
+    total = lambda x: isinstance(x, str) and (x in {L["grand"] for L in PV.LABELS.values()} or x == "Total Result")  # noqa: E731
     head = r1 + fdr - 1  # the column labels sit right above the data rows (tabular and compact forms)
 
     def keep(items, k, label):
@@ -938,7 +937,7 @@ def pivot_charts_of(doc, sh, p):
     for s in doc.sheets:
         for ch in s.get("charts") or []:
             pv = ch.get("pivot") or {}
-            if (pv.get("table") or "").lower() == p["name"].lower() and (pv.get("sheet") or sh["name"]).lower() == sh["name"].lower():
+            if (pv.get("table") or "").lower() == p["name"].lower() and (PV.pivot_sheet(doc.sheets, pv.get("table"), pv.get("sheet")) or sh["name"]).lower() == sh["name"].lower():
                 out.append(ch.get("id"))
     return out
 
