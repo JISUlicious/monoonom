@@ -7,7 +7,7 @@
 A local web spreadsheet where **you and an AI agent work on the same workbook while both of you watch it**.
 The agent opens and edits Excel files (xlsx and xlsm; xls read-only), and you see every change live in the agent app's
 preview pane (or any browser) and can edit the same workbook yourself. The name is *monoon* (모눈, Korean for graph
-paper) written in English and mirrored: MoNooN + NooNoM.
+paper) written in English so that it reads from either end: MoNooN + NooNoM.
 
 ![Preview](docs/monoonom-preview.png)
 
