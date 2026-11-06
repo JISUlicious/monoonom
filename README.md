@@ -28,18 +28,18 @@ It must run on the **same computer** as the agent (the preview connects to `loca
 ### Claude Code: install the plugin (recommended)
 
 ```bash
-claude plugin marketplace add JISUlicious/web-excel-agent-skills
+claude plugin marketplace add JISUlicious/monoonom
 claude plugin install monoonom@monoonom
 ```
 
-Inside a session, `/plugin install monoonom --marketplace JISUlicious/web-excel-agent-skills` (Claude Code 2.1.275 or later) does both in one step.
+Inside a session, `/plugin install monoonom --marketplace JISUlicious/monoonom` (Claude Code 2.1.275 or later) does both in one step.
 Update with `claude plugin update monoonom@monoonom`. The skill is `/monoonom:monoonom`.
 
 ### Other agents (Codex, Cursor, Copilot, …): `npx skills`
 
 ```bash
-npx skills add JISUlicious/web-excel-agent-skills            # this project (choose agents)
-npx skills add JISUlicious/web-excel-agent-skills -g -a codex # all projects, one agent
+npx skills add JISUlicious/monoonom            # this project (choose agents)
+npx skills add JISUlicious/monoonom -g -a codex # all projects, one agent
 ```
 
 The [skills CLI](https://github.com/vercel-labs/skills) installs `.agents/skills/monoonom/` (the portable `SKILL.md`). This also works in Claude Code, but without the plugin version's pre-approved commands (`allowed-tools`), live server status and desktop preview instructions.

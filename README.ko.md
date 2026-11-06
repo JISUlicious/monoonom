@@ -27,18 +27,18 @@ python3 -m pip install openpyxl xlrd
 ### Claude Code: 플러그인으로 설치 (권장)
 
 ```bash
-claude plugin marketplace add JISUlicious/web-excel-agent-skills
+claude plugin marketplace add JISUlicious/monoonom
 claude plugin install monoonom@monoonom
 ```
 
-세션 안에서는 `/plugin install monoonom --marketplace JISUlicious/web-excel-agent-skills`(Claude Code 2.1.275 이상)로 한 번에 설치할 수 있습니다.
+세션 안에서는 `/plugin install monoonom --marketplace JISUlicious/monoonom`(Claude Code 2.1.275 이상)로 한 번에 설치할 수 있습니다.
 업데이트는 `claude plugin update monoonom@monoonom`. skill 이름은 `/monoonom:monoonom`입니다.
 
 ### 다른 에이전트 (Codex, Cursor, Copilot 등): `npx skills`
 
 ```bash
-npx skills add JISUlicious/web-excel-agent-skills            # 현재 프로젝트에 (에이전트 선택)
-npx skills add JISUlicious/web-excel-agent-skills -g -a codex # 모든 프로젝트, 특정 에이전트
+npx skills add JISUlicious/monoonom            # 현재 프로젝트에 (에이전트 선택)
+npx skills add JISUlicious/monoonom -g -a codex # 모든 프로젝트, 특정 에이전트
 ```
 
 [skills CLI](https://github.com/vercel-labs/skills)가 `.agents/skills/monoonom/`(이식판 `SKILL.md`)를 설치합니다. Claude Code에 이 방법으로 설치해도 동작하지만, 플러그인판에 있는 명령 자동 허용(`allowed-tools`)·서버 상태 표시·데스크톱 미리보기 안내는 빠집니다.
