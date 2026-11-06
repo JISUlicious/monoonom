@@ -1,6 +1,7 @@
 // Excel formula tokenizer, parser and reference rewriting.
 // Grammar/precedence follow Excel: ':' > unary '-' > '%' > '^' > '* /' > '+ -' > '&' > comparisons.
 import { colIndex, colName, MAX_COLS, MAX_ROWS } from './address.js';
+import { t } from './i18n.js';
 
 const SHEET = String.raw`(?:'((?:[^']|'')+)'|([A-Za-z_À-￿][\w.À-￿]*))!`;
 const CELL = String.raw`(\$?)([A-Za-z]{1,3})(\$?)(\d+)`;
@@ -42,7 +43,7 @@ export function tokenize(src) {
     if (ch === '"') {
       let j = i + 1, v = '';
       for (;;) {
-        if (j >= s.length) throw new FormulaError('문자열이 닫히지 않았습니다');
+        if (j >= s.length) throw new FormulaError(t('Unterminated string'));
         if (s[j] === '"') { if (s[j + 1] === '"') { v += '"'; j += 2; continue; } break; }
         v += s[j++];
       }
@@ -101,7 +102,7 @@ export function tokenize(src) {
     if ('+-*/^&=<>%:'.includes(ch)) { i++; push({ type: 'op', v: ch, s: start + off, e: i + off }); continue; }
     if ('(),;{}'.includes(ch)) { i++; push({ type: ch, s: start + off, e: i + off }); continue; }
     if (ch === '!') { i++; push({ type: 'op', v: '!', s: start + off, e: i + off }); continue; }
-    throw new FormulaError(`알 수 없는 문자: ${ch}`);
+    throw new FormulaError(t('Unknown character: {ch}', { ch }));
   }
   return toks;
 }
@@ -114,62 +115,62 @@ export function parse(src) {
   const peek = () => toks[p];
   const next = () => toks[p++];
   const expect = (type) => {
-    const t = next();
-    if (!t || t.type !== type) throw new FormulaError(`'${type}'가 필요합니다`);
-    return t;
+    const tk = next();
+    if (!tk || tk.type !== type) throw new FormulaError(t("Expected '{type}'", { type }));
+    return tk;
   };
   const isOp = (t, v) => t && t.type === 'op' && t.v === v;
 
   function primary() {
-    const t = next();
-    if (!t) throw new FormulaError('수식이 불완전합니다');
-    switch (t.type) {
-      case 'num': return { t: 'num', v: t.v };
-      case 'str': return { t: 'str', v: t.v };
-      case 'bool': return { t: 'bool', v: t.v };
-      case 'err': return { t: 'err', v: t.v };
-      case 'ref': return { t: 'ref', ref: t.ref };
-      case 'name': return { t: 'name', v: t.v };
+    const tk = next();
+    if (!tk) throw new FormulaError(t('Incomplete formula'));
+    switch (tk.type) {
+      case 'num': return { t: 'num', v: tk.v };
+      case 'str': return { t: 'str', v: tk.v };
+      case 'bool': return { t: 'bool', v: tk.v };
+      case 'err': return { t: 'err', v: tk.v };
+      case 'ref': return { t: 'ref', ref: tk.ref };
+      case 'name': return { t: 'name', v: tk.v };
       case '(': { const e = expr(0); expect(')'); return { t: 'paren', e }; }
       case '{': return arrayConst();
       case 'fn': {
         expect('(');
         const args = [];
-        if (peek() && peek().type === ')') { next(); return { t: 'fn', name: t.v, args }; }
+        if (peek() && peek().type === ')') { next(); return { t: 'fn', name: tk.v, args }; }
         for (;;) {
           if (peek() && (peek().type === ',' || peek().type === ')')) args.push({ t: 'missing' });
           else args.push(expr(0));
           const sep = next();
-          if (!sep) throw new FormulaError('괄호가 닫히지 않았습니다');
+          if (!sep) throw new FormulaError(t('Missing closing parenthesis'));
           if (sep.type === ')') break;
-          if (sep.type !== ',' && sep.type !== ';') throw new FormulaError('인수 구분자가 필요합니다');
+          if (sep.type !== ',' && sep.type !== ';') throw new FormulaError(t('Expected an argument separator'));
         }
-        return { t: 'fn', name: t.v, args };
+        return { t: 'fn', name: tk.v, args };
       }
       case 'op':
-        if (t.v === '-' || t.v === '+') {
+        if (tk.v === '-' || tk.v === '+') {
           const e = unaryOperand();
-          return t.v === '-' ? { t: 'neg', e } : e;
+          return tk.v === '-' ? { t: 'neg', e } : e;
         }
         break;
       default: break;
     }
-    throw new FormulaError('잘못된 수식입니다');
+    throw new FormulaError(t('Invalid formula'));
   }
 
   function arrayConst() {
     const rows = [[]];
     for (;;) {
-      const t = next();
-      if (!t) throw new FormulaError('배열이 닫히지 않았습니다');
-      if (t.type === '}') break;
-      if (t.type === ',') continue;
-      if (t.type === ';') { rows.push([]); continue; }
+      const tk = next();
+      if (!tk) throw new FormulaError(t('Unterminated array'));
+      if (tk.type === '}') break;
+      if (tk.type === ',') continue;
+      if (tk.type === ';') { rows.push([]); continue; }
       let v;
-      if (t.type === 'op' && t.v === '-') { const n = next(); v = -n.v; }
-      else if (t.type === 'num' || t.type === 'str' || t.type === 'bool') v = t.v;
-      else if (t.type === 'err') v = { err: t.v };
-      else throw new FormulaError('배열 상수 오류');
+      if (tk.type === 'op' && tk.v === '-') { const n = next(); v = -n.v; }
+      else if (tk.type === 'num' || tk.type === 'str' || tk.type === 'bool') v = tk.v;
+      else if (tk.type === 'err') v = { err: tk.v };
+      else throw new FormulaError(t('Invalid array constant'));
       rows[rows.length - 1].push(v);
     }
     return { t: 'array', rows };
@@ -204,9 +205,9 @@ export function parse(src) {
     return left;
   }
 
-  if (!toks.length) throw new FormulaError('빈 수식');
+  if (!toks.length) throw new FormulaError(t('Empty formula'));
   const ast = expr(0);
-  if (p < toks.length) throw new FormulaError('수식 끝에 불필요한 항목이 있습니다');
+  if (p < toks.length) throw new FormulaError(t('Unexpected text at the end of the formula'));
   return ast;
 }
 

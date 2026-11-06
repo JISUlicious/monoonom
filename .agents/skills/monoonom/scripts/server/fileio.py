@@ -1,11 +1,11 @@
 """File byte I/O — the single place where workbook files touch the disk.
 
-DRM 환경 대응
-------------
-브라우저는 파일 바이트를 절대 읽지 않습니다. 브라우저는 경로만 전달하고, 실제 읽기/쓰기는
-항상 이 모듈의 파이썬 함수(`read_bytes`, `write_bytes`)를 통해 수행됩니다.
-DRM 에이전트가 허용된 프로세스(python)에 대해서만 투명 복호화를 해주는 환경이라면
-그대로 동작하며, 별도의 DRM SDK 호출이 필요하면 환경변수로 훅을 교체할 수 있습니다.
+DRM environments
+----------------
+The browser never reads file bytes. It only sends paths; every read and write goes through this
+module's Python functions (`read_bytes`, `write_bytes`). Where a DRM agent decrypts transparently
+for allowed processes (python), this just works; where a DRM SDK call is needed, environment
+variables swap in hooks:
 
     MONOONOM_READ_HOOK=mypkg.drm:read_file     # (path) -> bytes
     MONOONOM_WRITE_HOOK=mypkg.drm:write_file   # (path, data: bytes) -> None

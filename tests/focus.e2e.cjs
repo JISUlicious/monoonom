@@ -29,7 +29,7 @@ const shownIs = (p, name) => until(p, (n) => window.monoonom.doc?.wb.name === n,
   xl('serve', '--port', '8783');
   const url = xl('url', '--bare').trim();
   const browser = await browser_();
-  async function browser_() { return chromium.launch(); }
+  async function browser_() { return require('./korean.cjs')(await chromium.launch()); }
   const errors = [];
   try {
     const ctx = await browser.newContext();

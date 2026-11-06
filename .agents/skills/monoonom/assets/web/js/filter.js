@@ -7,11 +7,12 @@ const TOTAL_LABEL = /^\s*(합\s*계|총\s*계|소\s*계|계|누\s*계|평\s*균|
 const AGG_FN = /\b(SUM|SUBTOTAL|AVERAGE|COUNT|COUNTA|MAX|MIN|AGGREGATE)\s*\(/i;
 import { cmp } from './engine.js';
 import { pivotsIn } from './model.js';
+import { t } from './i18n.js';
 
 const OPS = [
-  ['equal', '같음'], ['notEqual', '같지 않음'], ['greaterThan', '보다 큼'], ['greaterThanOrEqual', '크거나 같음'],
-  ['lessThan', '보다 작음'], ['lessThanOrEqual', '작거나 같음'], ['contains', '포함'], ['notContains', '포함하지 않음'],
-  ['beginsWith', '시작 문자'], ['endsWith', '끝 문자'],
+  ['equal', t('Equals')], ['notEqual', t('Does not equal')], ['greaterThan', t('Is greater than')], ['greaterThanOrEqual', t('Is greater than or equal to')],
+  ['lessThan', t('Is less than')], ['lessThanOrEqual', t('Is less than or equal to')], ['contains', t('Contains')], ['notContains', t('Does not contain')],
+  ['beginsWith', t('Begins with')], ['endsWith', t('Ends with')],
 ];
 
 /** Convert UI op to the stored Excel customFilter (contains => "*x*" etc.). */
@@ -85,7 +86,7 @@ export class Filters {
     return g;
   }
 
-  /** a row under the data that summarises it (합계/Total label, or SUM/AVERAGE… over the rows above) */
+  /** a row under the data that summarises it (a total label such as Total, or SUM/AVERAGE… over the rows above) */
   isTotalRow(sh, r, g) {
     const first = sh.get(r, g.c1)?.v;
     if (typeof first === 'string' && TOTAL_LABEL.test(first)) return true;
@@ -113,7 +114,7 @@ export class Filters {
 
   toggle() {
     const app = this.app, wb = app.doc.wb, sh = wb.sheet;
-    wb.begin('필터');
+    wb.begin(t('Filter'));
     wb.touchMeta(sh);
     if (sh.autoFilter) {
       sh.autoFilter = null;
@@ -131,7 +132,7 @@ export class Filters {
   clearAll() {
     const wb = this.app.doc.wb, sh = wb.sheet;
     if (!sh.autoFilter) return;
-    wb.begin('필터 지우기'); wb.touchMeta(sh);
+    wb.begin(t('Clear Filter')); wb.touchMeta(sh);
     sh.autoFilter.cols = {}; sh.filterHidden.clear();
     wb.commit(); this.app.render();
   }
@@ -139,7 +140,7 @@ export class Filters {
   reapply() {
     const wb = this.app.doc.wb, sh = wb.sheet;
     if (!sh.autoFilter) return;
-    wb.begin('필터 다시 적용'); wb.touchMeta(sh); this.apply(sh, { extend: true }); wb.commit(); this.app.render();
+    wb.begin(t('Reapply Filter')); wb.touchMeta(sh); this.apply(sh, { extend: true }); wb.commit(); this.app.render();
   }
 
   /** recompute filterHidden from criteria (extends the range down over contiguous data) */
@@ -172,7 +173,7 @@ export class Filters {
 
   setColumn(c, entry) {
     const wb = this.app.doc.wb, sh = wb.sheet, af = sh.autoFilter;
-    wb.begin('필터'); wb.touchMeta(sh);
+    wb.begin(t('Filter')); wb.touchMeta(sh);
     const k = String(c - af.range.c1);
     if (entry) af.cols[k] = entry; else delete af.cols[k];
     this.apply(sh);
@@ -185,7 +186,7 @@ export class Filters {
   sort(sh, range, keys, hasHeader = false) {
     const wb = this.app.doc.wb;
     const pv = pivotsIn(sh, range);
-    if (pv.length) throw new Error(`피벗 테이블 '${pv[0].name}'(${pv[0].ref})이 있는 범위는 정렬할 수 없습니다.`);
+    if (pv.length) throw new Error(t("Cannot sort a range that contains pivot table '{name}' ({ref}).", { name: pv[0].name, ref: pv[0].ref }));
     const r1 = range.r1 + (hasHeader ? 1 : 0), r2 = Math.min(range.r2, sh.maxRow);
     if (r2 <= r1) return;
     const rows = [];
@@ -208,7 +209,7 @@ export class Filters {
     const targets = rows.map((x) => x.r).sort((a, b) => a - b);
     const snapshot = new Map();
     for (const { r } of rows) for (let c = range.c1; c <= range.c2; c++) snapshot.set(key(r, c), sh.cells.get(key(r, c)));
-    wb.begin('정렬');
+    wb.begin(t('Sort'));
     wb.markStructural();
     rows.forEach((row, i) => {
       const dst = targets[i];
@@ -276,22 +277,22 @@ export class Filters {
     const m = document.createElement('div');
     m.className = 'filter-menu';
     m.innerHTML = `
-      <button class="fm-item" data-act="asc">↑ 텍스트 오름차순 정렬</button>
-      <button class="fm-item" data-act="desc">↓ 텍스트 내림차순 정렬</button>
+      <button class="fm-item" data-act="asc">↑ ${t('Sort Text A to Z')}</button>
+      <button class="fm-item" data-act="desc">↓ ${t('Sort Text Z to A')}</button>
       <hr>
-      <button class="fm-item" data-act="clear" ${af.cols[k] ? '' : 'disabled'}>⨯ 이 열의 필터 해제</button>
-      <details class="fm-custom" ${custom.length ? 'open' : ''}><summary>조건 필터…</summary>
-        <div class="fm-row"><select data-cf="op0">${OPS.map(([v, l]) => `<option value="${v}"${custom[0]?.op === v ? ' selected' : ''}>${l}</option>`).join('')}</select><input data-cf="v0" value="${escapeAttr(custom[0]?.val ?? '')}" placeholder="값"></div>
-        <div class="fm-row"><label><input type="radio" name="andor" value="and" ${cur.and !== false ? 'checked' : ''}> 그리고</label><label><input type="radio" name="andor" value="or" ${cur.and === false ? 'checked' : ''}> 또는</label></div>
-        <div class="fm-row"><select data-cf="op1"><option value="">(없음)</option>${OPS.map(([v, l]) => `<option value="${v}"${custom[1]?.op === v ? ' selected' : ''}>${l}</option>`).join('')}</select><input data-cf="v1" value="${escapeAttr(custom[1]?.val ?? '')}" placeholder="값"></div>
+      <button class="fm-item" data-act="clear" ${af.cols[k] ? '' : 'disabled'}>⨯ ${t('Clear Filter From This Column')}</button>
+      <details class="fm-custom" ${custom.length ? 'open' : ''}><summary>${t('Custom Filter…')}</summary>
+        <div class="fm-row"><select data-cf="op0">${OPS.map(([v, l]) => `<option value="${v}"${custom[0]?.op === v ? ' selected' : ''}>${l}</option>`).join('')}</select><input data-cf="v0" value="${escapeAttr(custom[0]?.val ?? '')}" placeholder="${t('Value')}"></div>
+        <div class="fm-row"><label><input type="radio" name="andor" value="and" ${cur.and !== false ? 'checked' : ''}> ${t('And')}</label><label><input type="radio" name="andor" value="or" ${cur.and === false ? 'checked' : ''}> ${t('Or')}</label></div>
+        <div class="fm-row"><select data-cf="op1"><option value="">${t('(None)')}</option>${OPS.map(([v, l]) => `<option value="${v}"${custom[1]?.op === v ? ' selected' : ''}>${l}</option>`).join('')}</select><input data-cf="v1" value="${escapeAttr(custom[1]?.val ?? '')}" placeholder="${t('Value')}"></div>
       </details>
-      <input class="fm-search" placeholder="검색">
+      <input class="fm-search" placeholder="${t('Search')}">
       <div class="fm-list">
-        <label class="fm-all"><input type="checkbox" data-all> (모두 선택)</label>
+        <label class="fm-all"><input type="checkbox" data-all> ${t('(Select All)')}</label>
         ${vals.map((v) => `<label><input type="checkbox" data-v="${escapeAttr(v)}" ${checked.has(v.toLowerCase()) ? 'checked' : ''}> ${escapeHtml(v)}</label>`).join('')}
-        ${hasBlank ? `<label><input type="checkbox" data-blank ${blankOn ? 'checked' : ''}> (필드 값 없음)</label>` : ''}
+        ${hasBlank ? `<label><input type="checkbox" data-blank ${blankOn ? 'checked' : ''}> ${t('(Blanks)')}</label>` : ''}
       </div>
-      <div class="fm-btns"><button class="btn primary" data-act="ok">확인</button><button class="btn" data-act="cancel">취소</button></div>`;
+      <div class="fm-btns"><button class="btn primary" data-act="ok">${t('OK')}</button><button class="btn" data-act="cancel">${t('Cancel')}</button></div>`;
     document.body.append(m);
     const vw = window.innerWidth, vh = window.innerHeight;
     m.style.left = Math.min(x, vw - m.offsetWidth - 8) + 'px';

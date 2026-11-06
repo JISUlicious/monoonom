@@ -102,7 +102,7 @@ try:
     xl(ws, "serve", "--port", "8813")
     out = xl(ws, "open", "keep.xlsx").stdout
     check("open warns about functions it cannot calculate",
-          "계산할 수 없는 함수" in out and all(n in out for n in ("LAMBDA", "TEXTSPLIT", "MYFN (VBA)", "NEWFUNC")), out.strip())
+          "cannot be computed" in out and all(n in out for n in ("LAMBDA", "TEXTSPLIT", "MYFN (VBA)", "NEWFUNC")), out.strip())
     check("supported XLOOKUP is not reported", "XLOOKUP" not in out)
     d = json.loads(xl(ws, "describe", "--json").stdout)
     u = {x["cell"]: x for x in d["sheets"][0]["unsupported"]}

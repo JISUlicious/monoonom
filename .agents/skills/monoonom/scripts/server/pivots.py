@@ -31,8 +31,8 @@ def overlapping(sh, g):
 
 
 def blocked_message(p):
-    return (f"피벗 테이블 '{p['name']}'({p['ref']}) 영역은 바꿀 수 없습니다. 피벗 결과는 원본 데이터"
-            f"({p.get('source') or '?'})에서 만들어지므로, 원본을 고치세요(저장하면 Excel이 열 때 새로 고칩니다).")
+    return (f"The area of pivot table '{p['name']}' ({p['ref']}) cannot be changed. Its results come from the source data "
+            f"({p.get('source') or '?'}), so change the source (after saving, Excel refreshes the pivot when it opens the file).")
 
 
 def shift_problem(sh, axis, at_, count):
@@ -41,11 +41,11 @@ def shift_problem(sh, axis, at_, count):
     of its rows/columns, would cut through it."""
     for p, (r1, c1, r2, c2) in ranges(sh):
         lo, hi = (r1, r2) if axis == "row" else (c1, c2)
-        what = "행" if axis == "row" else "열"
+        what = "rows" if axis == "row" else "columns"
         if count > 0 and lo < at_ <= hi:
-            return f"피벗 테이블 '{p['name']}'({p['ref']}) 가운데에는 {what}을 삽입할 수 없습니다. 피벗 위나 아래(왼쪽·오른쪽)에 삽입하세요."
+            return f"Cannot insert {what} inside pivot table '{p['name']}' ({p['ref']}). Insert them above, below, left or right of it."
         if count < 0 and at_ <= hi and lo <= at_ - count - 1:
-            return f"피벗 테이블 '{p['name']}'({p['ref']})의 {what}은 삭제할 수 없습니다."
+            return f"Cannot delete {what} of pivot table '{p['name']}' ({p['ref']})."
     return None
 
 
@@ -113,7 +113,7 @@ def _lines(items, fields, axis_items, labels):
         return out, None
     real = [f for f in fields if f != "Σ"]
     if len(real) > 1:
-        return None, "배치 정보(rowItems/colItems)가 없는 파일의 여러 필드 피벗"
+        return None, "a multi-field pivot from a file without layout records (rowItems/colItems)"
     out = []
     for n, lab in enumerate(labels):
         if not real:
@@ -137,7 +137,7 @@ def refresh(doc, sh, p, value_at):
     sheet_name, ref = A.split_sheet(src) if "!" in src else (None, None)
     ssh = next((s for s in doc.sheets if sheet_name and s["name"].lower() == sheet_name.lower()), None)
     if ssh is None or not ref:
-        return [], [f"'{p['name']}': 원본({src or '없음'})을 찾을 수 없어 새로 고치지 못했습니다."]
+        return [], [f"'{p['name']}': source ({src or 'none'}) not found; not refreshed."]
     r1, c1, r2, c2 = A.parse_range(ref)
     header = [value_at(ssh, r1, c) for c in range(c1, c2 + 1)]
     fields = lay.get("fields") or []
@@ -156,7 +156,7 @@ def refresh(doc, sh, p, value_at):
     o1, oc1, o2, oc2 = A.parse_range(p["ref"])
     dr, dc = o1 + (lay.get("firstDataRow") or 0), oc1 + (lay.get("firstDataCol") or 0)
     if dr > o2 or dc > oc2:
-        return [], [f"'{p['name']}': 데이터 영역이 없습니다."]
+        return [], [f"'{p['name']}': no data area."]
     items = lay.get("items") or {}
     row_labels = [value_at(sh, r, dc - 1) if dc > oc1 else None for r in range(dr, o2 + 1)]
     col_labels = [value_at(sh, dr - 1, c) if dr > o1 else None for c in range(dc, oc2 + 1)]
@@ -164,10 +164,10 @@ def refresh(doc, sh, p, value_at):
     cols, why_c = _lines(items, lay.get("colFields") or [], lay.get("colItems"), col_labels)
     values = p.get("values") or []
     if rows is None or cols is None or (lay.get("rowItems") is None and len(values) > 1):
-        why = why_r or why_c or "배치 정보가 없는 파일의 값 필드 여러 개"
-        return [], [f"'{p['name']}': 여기서 새로 고칠 수 없습니다({why}). 저장하면 Excel이 열 때 새로 고칩니다."]
+        why = why_r or why_c or "several value fields in a file without layout records"
+        return [], [f"'{p['name']}': cannot be refreshed here ({why}). After saving, Excel refreshes it when it opens the file."]
     if len(rows) != o2 - dr + 1 or len(cols) != oc2 - dc + 1:
-        notes.append(f"'{p['name']}': 파일의 배치({len(rows)}행 × {len(cols)}열)와 영역 크기가 달라 겹치는 부분만 계산했습니다.")
+        notes.append(f"'{p['name']}': the file's layout ({len(rows)} rows × {len(cols)} columns) differs from the area size; only the overlap was computed.")
     out = []
     for i, (rk, rf, rd) in enumerate(rows[: o2 - dr + 1]):
         for j, (ck, cf, cd) in enumerate(cols[: oc2 - dc + 1]):
@@ -190,49 +190,69 @@ def refresh(doc, sh, p, value_at):
     new_items = {f: sorted({str(rec.get(f)) for rec in records if rec.get(f) not in (None, "") and not any(_same(rec.get(f), v) for v in items.get(f, []))}) for f in axis_fields}
     new_items = {f: v for f, v in new_items.items() if v}
     if new_items:
-        notes.append(f"'{p['name']}': 원본에 새 항목이 있습니다({'; '.join(f'{f}: ' + ', '.join(v[:5]) for f, v in new_items.items())}). "
-                     "이 항목의 행·열은 Excel에서 새로 고쳐야 생깁니다(저장하면 열 때 새로 고침). 총합계에는 포함했습니다.")
+        notes.append(f"'{p['name']}': the source has new items ({'; '.join(f'{f}: ' + ', '.join(v[:5]) for f, v in new_items.items())}). "
+                     "Their rows and columns appear when Excel refreshes the pivot (on opening, after saving). They are included in the grand total.")
     return out, notes
 
 
 # ------------------------------------------------------------------ step 3: create
-FN_KO = {"sum": "합계", "count": "개수", "average": "평균", "max": "최대", "min": "최소", "product": "곱",
-         "countNums": "숫자 개수", "stdDev": "표준 편차", "stdDevp": "표준 편차(전체)", "var": "분산", "varp": "분산(전체)"}
-FN_NAMES = {k.lower(): k for k in FN_KO}
-GRAND, ALL = "총합계", "(모두)"
+# The words Excel writes into a pivot table come from Excel's UI language. A new pivot uses one set
+# ("en" by default; "ko" = Korean Excel's wording, used when the Korean preview creates the pivot).
+LABELS = {
+    "en": {"fn": {"sum": "Sum", "count": "Count", "average": "Average", "max": "Max", "min": "Min", "product": "Product",
+                  "countNums": "Count Numbers", "stdDev": "StdDev", "stdDevp": "StdDevp", "var": "Var", "varp": "Varp"},
+           "value": "{fn} of {field}", "subtotal": "{item} Total", "grand": "Grand Total", "all": "(All)", "values": "Values",
+           "sheet": "Pivot", "table": "PivotTable{n}"},
+    "ko": {"fn": {"sum": "합계", "count": "개수", "average": "평균", "max": "최대", "min": "최소", "product": "곱",
+                  "countNums": "숫자 개수", "stdDev": "표준 편차", "stdDevp": "표준 편차(전체)", "var": "분산", "varp": "분산(전체)"},
+           "value": "{fn} : {field}", "subtotal": "{item} 요약", "grand": "총합계", "all": "(모두)", "values": "값",
+           "sheet": "피벗", "table": "피벗 테이블{n}"},
+}
+FUNCS = list(LABELS["en"]["fn"])
+FN_NAMES = {k.lower(): k for k in FUNCS}
+
+
+def labels(lang):
+    return LABELS.get(lang or "en") or LABELS["en"]
+
+
+def is_total_label(x):
+    """A row label of a subtotal or grand total line, in any label language."""
+    return isinstance(x, str) and any(x == L["grand"] or x.endswith(L["subtotal"].replace("{item}", "")) for L in LABELS.values())
 
 
 def _sort_key(v):
     return (0, float(v), "") if _num(v) else (1, 0.0, str(v))
 
 
-def build(source_rows, header, rows, cols, values, filters):
+def build(source_rows, header, rows, cols, values, filters, lang="en"):
     """Lay out a new pivot table in tabular form (Excel: Show in Tabular Form, subtotals at the bottom
     of each outer group, grand totals). source_rows: list of dicts by header name. Returns
     {"grid": [[value, ...], ...] (the whole output, filters on top), "table_top": rows above the
     table, "layout": {...like xlsx_io._pivot_layout}, "items": {field: sorted items}, "values": [...]}.
-    Raises ValueError with a message for unsupported or invalid specs."""
+    Raises ValueError with a message for unsupported or invalid specs. lang picks the labels (LABELS)."""
+    L = labels(lang)
     names = list(header)
     for f in rows + cols + filters + [v["field"] for v in values]:
         if f not in names:
-            raise ValueError(f"원본에 '{f}' 열이 없습니다. 머리글: {', '.join(map(str, names))}")
+            raise ValueError(f"The source has no column '{f}'. Headers: {', '.join(map(str, names))}")
     if not rows:
-        raise ValueError("행 필드(--rows)가 하나 이상 필요합니다.")
+        raise ValueError("At least one row field (--rows) is needed.")
     if not values:
-        raise ValueError("값 필드(--values)가 하나 이상 필요합니다.")
+        raise ValueError("At least one value field (--values) is needed.")
     if len(cols) > 1:
-        raise ValueError("열 필드는 하나까지 만들 수 있습니다.")
+        raise ValueError("At most one column field is supported.")
     if cols and len(values) > 1:
-        raise ValueError("열 필드가 있을 때 값 필드는 하나까지 만들 수 있습니다.")
+        raise ValueError("With a column field, at most one value field is supported.")
     used = rows + cols + filters
     if len(set(used)) != len(used):
-        raise ValueError("한 필드를 행·열·필터에 두 번 쓸 수 없습니다.")
+        raise ValueError("A field can be used only once across rows, columns and filters.")
     for v in values:
         fn = FN_NAMES.get((v.get("fn") or "sum").lower())
         if fn is None:
-            raise ValueError(f"집계 함수 '{v.get('fn')}'는 지원하지 않습니다: {', '.join(FN_KO)}")
+            raise ValueError(f"Unsupported summary function '{v.get('fn')}'. Supported: {', '.join(FUNCS)}")
         v["fn"] = fn
-        v.setdefault("name", f"{FN_KO[fn]} : {v['field']}")
+        v.setdefault("name", L["value"].format(fn=L["fn"][fn], field=v["field"]))
     items = {f: sorted({r.get(f) for r in source_rows if r.get(f) not in (None, "")}, key=_sort_key) for f in rows + cols + filters}
 
     def agg(v, flt):
@@ -264,17 +284,17 @@ def build(source_rows, header, rows, cols, values, filters):
         r = min(r, len(tup) - 1)
         if kind == "data":
             shown = common(prev_data, tup)
-            labels = [None] * shown + tup[shown:]
+            line_labels = [None] * shown + tup[shown:]
             prev_data = tup
         else:
-            labels = [None] * len(rows)
-            labels[len(tup) - 1] = f"{tup[-1]} 요약"
-        row_lines.append((labels, flt, {"t": "data" if kind == "data" else "default", "r": r, "i": 0, "x": tup[r:]}))
+            line_labels = [None] * len(rows)
+            line_labels[len(tup) - 1] = L["subtotal"].format(item=tup[-1])
+        row_lines.append((line_labels, flt, {"t": "data" if kind == "data" else "default", "r": r, "i": 0, "x": tup[r:]}))
         prev = tup
-    row_lines.append(([GRAND] + [None] * (len(rows) - 1), {}, {"t": "grand", "r": 0, "i": 0, "x": [None]}))
+    row_lines.append(([L["grand"]] + [None] * (len(rows) - 1), {}, {"t": "grand", "r": 0, "i": 0, "x": [None]}))
 
     if cols:
-        col_lines = [({cols[0]: x}, {"t": "data", "r": 0, "i": 0, "x": [x]}, x) for x in items[cols[0]]] + [({}, {"t": "grand", "r": 0, "i": 0, "x": [None]}, GRAND)]
+        col_lines = [({cols[0]: x}, {"t": "data", "r": 0, "i": 0, "x": [x]}, x) for x in items[cols[0]]] + [({}, {"t": "grand", "r": 0, "i": 0, "x": [None]}, L["grand"])]
     elif len(values) > 1:
         col_lines = [({}, {"t": "data", "r": 0, "i": k, "x": [None], "d": k}, v["name"]) for k, v in enumerate(values)]
     else:
@@ -282,20 +302,20 @@ def build(source_rows, header, rows, cols, values, filters):
 
     grid = []
     for f in filters:
-        grid.append([f, ALL] + [None] * max(0, len(rows) + len(col_lines) - 2))
+        grid.append([f, L["all"]] + [None] * max(0, len(rows) + len(col_lines) - 2))
     if filters:
         grid.append([None] * (len(rows) + len(col_lines)))
     top = len(grid)
     width = len(rows) + len(col_lines)
-    sigma = not cols and len(values) > 1  # several data fields across the columns: a "값" header row (Excel, LibreOffice)
+    sigma = not cols and len(values) > 1  # several data fields across the columns: a "Values" header row (Excel, LibreOffice)
     if cols:
         grid.append([values[0]["name"]] + [None] * (len(rows) - 1) + [cols[0]] + [None] * (len(col_lines) - 1))
     elif sigma:
-        grid.append([None] * len(rows) + ["값"] + [None] * (len(col_lines) - 1))
+        grid.append([None] * len(rows) + [L["values"]] + [None] * (len(col_lines) - 1))
     grid.append(list(rows) + [lab for _, _, lab in col_lines])
     first_data_row = len(grid) - top
-    for labels, rflt, _ in row_lines:
-        line = list(labels)
+    for row_labels, rflt, _ in row_lines:
+        line = list(row_labels)
         for k, (cflt, it, _) in enumerate(col_lines):
             v = values[it.get("d", 0)]
             line.append(agg(v, {**rflt, **cflt}))

@@ -146,8 +146,8 @@ def read_xls(data: bytes) -> dict:
             "cells": cells, "merges": merges, "freeze": freeze, "autoFilter": None,
             "charts": [], "showGrid": bool(sh.show_grid_lines),
         })
-    warns = ["xls(Excel 97-2003) 파일은 읽기만 합니다. 수식은 계산된 값으로 표시되고(xlrd 제한), "
-             "저장하면 같은 이름의 .xlsx 파일로 저장됩니다. 원본 .xls는 바뀌지 않습니다."]
+    warns = ["xls (Excel 97-2003) files are read-only. Formulas show their computed values (an xlrd limit), "
+             "and saving writes a .xlsx with the same name. The original .xls is not changed."]
     names = {}
     for nm in book.name_obj_list:
         try:

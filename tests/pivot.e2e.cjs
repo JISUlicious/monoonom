@@ -21,7 +21,7 @@ const py = (code) => execFileSync('python3', ['-c', code], { encoding: 'utf8' })
 (async () => {
   xl('serve', '--port', '8863');
   const opened = xl('open', 'pivot.xlsx');
-  check('open: the pivot is reported (kept, not editable)', /피벗 테이블\(피벗1\)은 보존되고 영역은 편집할 수 없습니다/.test(opened), opened);
+  check('open: the pivot is reported (kept, not editable)', /Pivot tables on sheet '피벗' \(피벗1\) are kept and their areas cannot be edited/.test(opened), opened);
   const d = JSON.parse(xl('describe', '--json'));
   const sh = d.sheets.find((s) => s.name === '피벗');
   check('describe: pivot with range, source and fields', sh.pivots.length === 1 && sh.pivots[0].range === 'A5:D10' && sh.pivots[0].source === '데이터!A1:D13'
@@ -29,14 +29,14 @@ const py = (code) => execFileSync('python3', ['-c', code], { encoding: 'utf8' })
   check('describe: the pivot output is not listed as a table', !sh.tables.some((t) => /^A5/.test(t.range)), JSON.stringify(sh.tables));
   // agent side
   let e = xlErr('write', '피벗!B7', '1');
-  check('agent: writing into the pivot is refused (exit 4, says to edit the source)', e && e.code === 4 && /피벗 테이블 '피벗1'\(A5:D10\) 영역은 바꿀 수 없습니다/.test(e.out), JSON.stringify(e));
-  check('agent: formatting the pivot is allowed', /서식/.test(xl('format', '피벗!A5:D5', 'b=true')));
+  check('agent: writing into the pivot is refused (exit 4, says to edit the source)', e && e.code === 4 && /area of pivot table '피벗1' \(A5:D10\) cannot be changed/.test(e.out), JSON.stringify(e));
+  check('agent: formatting the pivot is allowed', /format/.test(xl('format', '피벗!A5:D5', 'b=true')));
   e = xlErr('rows', 'insert', '7', '--sheet', '피벗');
-  check('agent: inserting rows inside the pivot is refused', e && e.code === 4 && /가운데에는 행을 삽입할 수 없습니다/.test(e.out), JSON.stringify(e));
+  check('agent: inserting rows inside the pivot is refused', e && e.code === 4 && /Cannot insert rows inside pivot table/.test(e.out), JSON.stringify(e));
   e = xlErr('sort', '피벗!A1:D12', '--by', 'A');
-  check('agent: sorting a range with the pivot is refused', e && /정렬할 수 없습니다/.test(e.out), JSON.stringify(e));
+  check('agent: sorting a range with the pivot is refused', e && /Cannot sort a range/.test(e.out), JSON.stringify(e));
 
-  const browser = await chromium.launch();
+  const browser = require('./korean.cjs')(await chromium.launch());
   const errors = [];
   try {
     const p = await browser.newPage({ viewport: { width: 1300, height: 760 } });

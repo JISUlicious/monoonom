@@ -152,7 +152,7 @@ def unsupported_functions(formula: str) -> tuple:
         if u.startswith("_XLUDF."):
             u = name[7:].upper() + " (VBA)"
         elif u.startswith("_XLL."):
-            u = name[5:].upper() + " (추가 기능)"
+            u = name[5:].upper() + " (add-in)"
         elif u in known:
             continue
         if u not in out:

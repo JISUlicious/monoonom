@@ -42,7 +42,7 @@ async function loadWithStaleList(browser, url, during) {
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   for (const n of ['a', 'b', 'c', 'd']) fs.copyFileSync(path.join(ROOT, 'samples', 'sample.xlsx'), path.join(OUT, `start-${n}.xlsx`));
-  const browser = await chromium.launch();
+  const browser = require('./korean.cjs')(await chromium.launch());
   closeAll();
 
   // 1) server has no documents: start() creates Book1; the agent opens a file meanwhile

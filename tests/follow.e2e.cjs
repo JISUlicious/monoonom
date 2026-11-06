@@ -18,7 +18,7 @@ const xl = (...a) => execFileSync('python3', [XL, ...a, '--root', ws], { encodin
 (async () => {
   xl('serve', '--port', '8792'); xl('open', 'a.xlsx');
   const url = xl('url', '--bare').trim();
-  const browser = await chromium.launch();
+  const browser = require('./korean.cjs')(await chromium.launch());
   const errors = [];
   try {
     const ctx = await browser.newContext();

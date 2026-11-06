@@ -20,7 +20,7 @@ def _read_text(args, path):
         with open(p, encoding="utf-8") as fh:
             return fh.read()
     except OSError as e:
-        raise CliError(f"파일을 읽을 수 없습니다: {path} ({e.strerror})", EXIT_USAGE)
+        raise CliError(f"Cannot read the file: {path} ({e.strerror})", EXIT_USAGE)
 
 
 def out_json(obj):
@@ -34,12 +34,12 @@ def pick_doc(st, want):
         for d in docs:
             if d["docId"] == want or d["name"] == want or (w and d.get("path") and os.path.normcase(d["path"]) == w):
                 return d
-        raise CliError(f"열린 문서 중 '{want}'이(가) 없습니다. `xl.py docs`로 확인하거나 `xl.py open PATH`로 여세요.", EXIT_USAGE)
+        raise CliError(f"No open document matches '{want}'. Check with `xl.py docs` or open it with `xl.py open PATH`.", EXIT_USAGE)
     if len(docs) == 1:
         return docs[0]
     if not docs:
-        raise CliError("열린 문서가 없습니다. `xl.py open PATH`로 여세요.", EXIT_USAGE)
-    raise CliError("문서가 여러 개 열려 있습니다. --doc ID|이름|경로 로 지정하세요:\n" +
+        raise CliError("No document is open. Open one with `xl.py open PATH`.", EXIT_USAGE)
+    raise CliError("Several documents are open. Choose one with --doc ID|name|path:\n" +
                    "\n".join(f"  {d['docId']}  {d['name']}" for d in docs), EXIT_USAGE)
 
 
@@ -55,11 +55,11 @@ def edit(args, edits, label=None):
         return out_json(res)
     batches = [b for b in res.get("batches", [res]) if b.get("batchId")]
     if not batches:
-        print(f"v{res['version']}  변경 없음  " + "; ".join(res.get("summary", [])))
+        print(f"v{res['version']}  no change  " + "; ".join(res.get("summary", [])))
         return 0
     for b in batches:
         print(f"v{b['version']}  batch={b['batchId']}  " + "; ".join(b.get("summary", [])))
-    print("(되돌리기: " + ", ".join(f"xl.py undo {b['batchId']}" for b in reversed(batches)) + ")")
+    print("(undo: " + ", ".join(f"xl.py undo {b['batchId']}" for b in reversed(batches)) + ")")
     return 0
 
 
@@ -88,7 +88,7 @@ def cmd_ls(args):
         return out_json(res)
     print(res["path"])
     for e in res["entries"]:
-        print(f"  {'[폴더] ' if e['dir'] else ''}{e['name']}" + ("" if e["dir"] else f"  ({e['size']:,} B)"))
+        print(f"  {'[dir] ' if e['dir'] else ''}{e['name']}" + ("" if e["dir"] else f"  ({e['size']:,} B)"))
     return 0
 
 
@@ -102,17 +102,17 @@ def cmd_open(args):
     res = request(st, "POST", "/api/docs", {"path": in_root(args, args.path), "actor": "agent"})
     if args.json:
         return out_json(res)
-    print(f"열림: {res['docId']}  {res['name']}  시트: {', '.join(res['sheets'])}  (미리보기에 탭으로 표시됨)")
-    print("  미리보기 주소(토큰 포함)는 `xl.py url`로 확인해 그대로 전달하세요.")
+    print(f"Opened: {res['docId']}  {res['name']}  sheets: {', '.join(res['sheets'])}  (shown as a tab in the preview)")
+    print("  Get the preview URL (with its token) from `xl.py url` and pass it on unchanged.")
     for w in res.get("warnings", []):
-        print(f"  주의: {w}")
+        print(f"  warning: {w}")
     return 0
 
 
 def cmd_new(args):
     st = connect(workspace_root(args.root))
-    res = request(st, "POST", "/api/docs", {"new": True, "name": args.name, "actor": "agent"})
-    print(f"새 문서: {res['docId']}  {res['name']}")
+    res = request(st, "POST", "/api/docs", {"new": True, "name": args.name, "lang": args.lang, "actor": "agent"})
+    print(f"New document: {res['docId']}  {res['name']}")
     return 0
 
 
@@ -122,9 +122,9 @@ def cmd_docs(args):
     if args.json:
         return out_json(docs)
     if not docs:
-        print("열린 문서가 없습니다.")
+        print("No document is open.")
     for d in docs:
-        print(f"{d['docId']}  {d['name']}  v{d['version']}{'  *수정됨*' if d['dirty'] else ''}  창 {d['clients']}개  {d.get('path') or '(저장 안 됨)'}")
+        print(f"{d['docId']}  {d['name']}  v{d['version']}{'  *modified*' if d['dirty'] else ''}  windows {d['clients']}  {d.get('path') or '(not saved)'}")
     return 0
 
 
@@ -133,35 +133,35 @@ def cmd_describe(args):
     res = request(st, "GET", f"/api/docs/{d['docId']}/describe")
     if args.json:
         return out_json(res)
-    print(f"{res['name']}  ({res['path'] or '저장 안 됨'})  v{res['version']}{'  *수정됨*' if res['dirty'] else ''}"
-          f"  계산: {res['calc']['status']}{' (' + res['calc']['source'] + ')' if res['calc'].get('source') else ''}")
+    print(f"{res['name']}  ({res['path'] or 'not saved'})  v{res['version']}{'  *modified*' if res['dirty'] else ''}"
+          f"  calc: {res['calc']['status']}{' (' + res['calc']['source'] + ')' if res['calc'].get('source') else ''}")
     if res["calc"].get("note"):
-        print(f"  주의: {res['calc']['note']}")
+        print(f"  warning: {res['calc']['note']}")
     for sh in res["sheets"]:
-        print(f"\n[{sh['name']}]{' (활성)' if sh['active'] else ''}{' (숨김)' if sh['state'] != 'visible' else ''}"
-              f"  사용 범위 {sh['used'] or '없음'}  셀 {sh['cells']}  수식 {sh['formulas']}"
-              f"{'  틀 고정 ' + sh['freeze'] if sh['freeze'] else ''}{'  필터 ' + sh['autoFilter'] if sh['autoFilter'] else ''}"
-              f"{'  병합 ' + str(sh['merges']) if sh['merges'] else ''}")
+        print(f"\n[{sh['name']}]{' (active)' if sh['active'] else ''}{' (hidden)' if sh['state'] != 'visible' else ''}"
+              f"  used {sh['used'] or 'none'}  cells {sh['cells']}  formulas {sh['formulas']}"
+              f"{'  freeze ' + sh['freeze'] if sh['freeze'] else ''}{'  filter ' + sh['autoFilter'] if sh['autoFilter'] else ''}"
+              f"{'  merges ' + str(sh['merges']) if sh['merges'] else ''}")
         if sh.get("unsupported"):
             u = sh["unsupported"]
             names = sorted({n for x in u for n in x["functions"]})
             kept = sum(1 for x in u if x["kept"])
-            print(f"  주의: 계산할 수 없는 함수 {', '.join(names)} — {len(u)}개 셀 "
+            print(f"  warning: functions this app cannot compute: {', '.join(names)} — {len(u)} cells "
                   f"({', '.join(x['cell'] for x in u[:8])}{' …' if len(u) > 8 else ''}). "
-                  f"값은 파일의 마지막 결과, {kept}개는 원래 수식 그대로 저장됨. 고치면 결과는 Excel에서만 계산됩니다.")
+                  f"values are the file's last results; {kept} keep their original formula when saved. Edited ones are computed only by Excel.")
         for t in sh.get("tables", [])[:5]:
-            print(f"  표 {t['range']}: 머리글 행 {t['headerRow']}" + (f", 합계 행 {t['totalRows']}" if t.get("totalRows") else "")
+            print(f"  table {t['range']}: header row {t['headerRow']}" + (f", total rows {t['totalRows']}" if t.get("totalRows") else "")
                   + "  [" + " | ".join(fmt_cell(v) for v in t["header"][:12]) + "]")
         if sh.get("header") is not None:
-            print(f"  머리글(행 {sh['headerRow']}): " + " | ".join(fmt_cell(v) for v in sh["header"]))
-            print("  열 유형: " + ", ".join(f"{k}={v}" for k, v in sh["columnTypes"].items()))
+            print(f"  header (row {sh['headerRow']}): " + " | ".join(fmt_cell(v) for v in sh["header"]))
+            print("  column types: " + ", ".join(f"{k}={v}" for k, v in sh["columnTypes"].items()))
         for p in sh.get("pivots", []):
-            print(f"  피벗 테이블 '{p['name']}' {p['range']} (편집 불가): 원본 {p['source']}  행 {', '.join(p['rows']) or '-'}"
-                  f"  열 {', '.join(p['cols']) or '-'}  값 {', '.join(p['values']) or '-'}" + (f"  필터 {', '.join(p['filters'])}" if p["filters"] else ""))
+            print(f"  pivot table '{p['name']}' {p['range']} (read-only): source {p['source']}  rows {', '.join(p['rows']) or '-'}"
+                  f"  columns {', '.join(p['cols']) or '-'}  values {', '.join(p['values']) or '-'}" + (f"  filters {', '.join(p['filters'])}" if p["filters"] else ""))
         for ch in sh["charts"]:
-            print(f"  차트 {ch['id']}: {ch['type']} '{ch['title'] or ''}' @{ch['at']}  데이터 {', '.join(x or '' for x in ch['data'])}")
+            print(f"  chart {ch['id']}: {ch['type']} '{ch['title'] or ''}' @{ch['at']}  data {', '.join(x or '' for x in ch['data'])}")
     if res["definedNames"]:
-        print("\n이름 정의: " + ", ".join(f"{k}={v}" for k, v in res["definedNames"].items()))
+        print("\nDefined names: " + ", ".join(f"{k}={v}" for k, v in res["definedNames"].items()))
     return 0
 
 
@@ -174,11 +174,11 @@ def cmd_read(args):
         return out_json(res)
     calc = res["calc"]
     print(f"{res['sheet']}!{res['ref'] or args.range}  ({args.what}"
-          f"{', 계산 ' + calc['status'] if calc['status'] not in ('none', 'skipped') else ''})")
+          f"{', calc ' + calc['status'] if calc['status'] not in ('none', 'skipped') else ''})")
     if calc.get("note"):
-        print(f"주의: {calc['note']}")
+        print(f"warning: {calc['note']}")
     if not res["ref"]:
-        print("(빈 범위)")
+        print("(empty range)")
         return 0
     from server.a1 import col_name, parse_range
     r1, c1, _, _ = parse_range(res["ref"].split(":")[0])
@@ -187,7 +187,7 @@ def cmd_read(args):
     for i, row in enumerate(res["rows"]):
         print(f"{r1 + i + 1}\t" + "\t".join(fmt_cell(v) for v in row))
     if res.get("truncated"):
-        print(f"... 잘림. 나머지: {res['truncated']}")
+        print(f"... truncated. Rest: {res['truncated']}")
     return 0
 
 
@@ -198,7 +198,7 @@ def _values_from(args):
         text = sys.stdin.read() if args.tsv == "-" else _read_text(args, args.tsv)
         return [line.split("\t") for line in text.rstrip("\n").split("\n")]
     if not args.values:
-        raise CliError("값을 주세요: 위치 인자, --data '[[...]]', 또는 --tsv FILE|-", EXIT_USAGE)
+        raise CliError("Give values: positional arguments, --data '[[...]]' or --tsv FILE|-", EXIT_USAGE)
     vals = [literal(v) for v in args.values]
     return [[v] for v in vals] if args.down else [vals]
 
@@ -220,7 +220,7 @@ def _kv(items):
     for it in items or []:
         k, _, v = it.partition("=")
         if not _:
-            raise CliError(f"서식은 key=value 형식이어야 합니다: {it}", EXIT_USAGE)
+            raise CliError(f"Formats are key=value: {it}", EXIT_USAGE)
         lv = v.lower()
         out[k] = True if lv == "true" else False if lv == "false" else (float(v) if _is_num(v) and k in ("fs", "ind", "rot") else v)
     return out
@@ -280,7 +280,7 @@ def cmd_filter(args):
         for cond in args.where or []:
             m = __import__("re").match(r"\s*(>=|<=|<>|!=|==|=|>|<|contains|notContains|beginsWith|endsWith)\s*(.*)$", cond)
             if not m:
-                raise CliError(f"조건 형식: '>150', 'contains 서울' 등: {cond}", EXIT_USAGE)
+                raise CliError(f"Condition format: '>150', 'contains Seoul', …: {cond}", EXIT_USAGE)
             custom.append({"op": m.group(1), "val": m.group(2).strip()})
         if custom:
             e["custom"], e["and"] = custom, not args.any
@@ -293,7 +293,7 @@ def cmd_sheet(args):
         return edit(args, [{"op": "addSheet", "name": args.names[0] if args.names else None}])
     if args.action == "rename":
         if len(args.names) != 2:
-            raise CliError("사용법: sheet rename 기존이름 새이름", EXIT_USAGE)
+            raise CliError("Usage: sheet rename OLD NEW", EXIT_USAGE)
         return edit(args, [{"op": "renameSheet", "sheet": args.names[0], "name": args.names[1]}])
     if args.action == "rm":
         return edit(args, [{"op": "deleteSheet", "sheet": args.names[0]}])
@@ -320,32 +320,32 @@ def cmd_pivot(args):
         for sh in res["sheets"]:
             for p in sh.get("pivots", []):
                 found = True
-                print(f"{sh['name']}  '{p['name']}'  {p['range']}  원본 {p['source']}  행 {', '.join(p['rows']) or '-'}  "
-                      f"열 {', '.join(p['cols']) or '-'}  값 {', '.join(p['values']) or '-'}" + (f"  필터 {', '.join(p['filters'])}" if p["filters"] else ""))
+                print(f"{sh['name']}  '{p['name']}'  {p['range']}  source {p['source']}  rows {', '.join(p['rows']) or '-'}  "
+                      f"columns {', '.join(p['cols']) or '-'}  values {', '.join(p['values']) or '-'}" + (f"  filters {', '.join(p['filters'])}" if p["filters"] else ""))
         if not found:
-            print("피벗 테이블이 없습니다.")
+            print("No pivot tables.")
         return 0
     if args.action == "add":
         split = lambda s: [x.strip() for x in (s or "").split(",") if x.strip()]  # noqa: E731
         body = {"source": args.name, "rows": split(args.rows), "cols": split(args.cols), "filters": split(args.filters),
                 "values": [dict(zip(("field", "fn"), (v.split(":", 1) + ["sum"])[:2])) for v in split(args.values)],
-                "at": args.at, "name": args.title}
+                "at": args.at, "name": args.title, "lang": args.lang}
         res = request(st, "POST", f"/api/docs/{d['docId']}/pivots", body)
         if args.json:
             return out_json(res)
-        print(f"v{res['version']}  batch={res['batchId']}  피벗 테이블 '{res['name']}' → {res['sheet']}!{res['range']} (원본 {res['source']})")
-        print("  저장하면 Excel이 파일을 열 때 원본에서 다시 만듭니다(새로 고침).")
-        print(f"(되돌리기: xl.py undo {res['batchId']})")
+        print(f"v{res['version']}  batch={res['batchId']}  pivot table '{res['name']}' → {res['sheet']}!{res['range']} (source {res['source']})")
+        print("  After saving, Excel rebuilds it from the source when it opens the file (refresh).")
+        print(f"(undo: xl.py undo {res['batchId']})")
         return 0
     res = request(st, "POST", f"/api/docs/{d['docId']}/pivots/refresh", {"name": args.name, "sheet": args.sheet})
     if args.json:
         return out_json(res)
     for p in res["pivots"]:
-        print(f"{p['sheet']}  '{p['name']}'  {p['range']}: 값 {p['changed']}개 바뀜")
+        print(f"{p['sheet']}  '{p['name']}'  {p['range']}: {p['changed']} values changed")
     for n in res.get("notes", []):
-        print("  주의: " + n)
+        print("  note: " + n)
     if res.get("batchId"):
-        print(f"v{res['version']}  batch={res['batchId']}  (되돌리기: xl.py undo {res['batchId']})")
+        print(f"v{res['version']}  batch={res['batchId']}  (undo: xl.py undo {res['batchId']})")
     return 0
 
 
@@ -375,7 +375,7 @@ def cmd_chart(args):
             for i, s in enumerate(ch.get("series", [])):
                 name = s.get("nameRef") or (f"'{s['name']}'" if s.get("name") else "-")
                 kind = f" ({s['type']})" if s.get("type") else ""
-                print(f"    계열 {i + 1}{kind}: 이름 {name}  X {s.get('x') or '-'}  Y {s.get('y') or '-'}")
+                print(f"    series {i + 1}{kind}: name {name}  X {s.get('x') or '-'}  Y {s.get('y') or '-'}")
     return 0
 
 
@@ -430,11 +430,11 @@ def cmd_find(args):
     if args.json:
         return out_json(res)
     if not res["matches"]:
-        print("찾는 항목이 없습니다.")
+        print("Nothing found.")
     for mt in res["matches"]:
         print(f"{mt['sheet']}!{mt['cell']}\t{fmt_cell(mt['value'])}")
     if res["truncated"]:
-        print(f"... {args.max}개에서 멈춤 (--max로 늘리기)")
+        print(f"... stopped at {args.max} (raise with --max)")
     return 0
 
 
@@ -466,7 +466,7 @@ def cmd_decimals(args):
 def cmd_goto(args):
     st, d = ctx(args)
     res = request(st, "POST", f"/api/docs/{d['docId']}/goto", {"range": args.range, "sheet": args.sheet})
-    print(f"미리보기를 {res['sheet']}!{res['range']}로 이동" + ("" if res["clients"] else " (열린 미리보기 창 없음)"))
+    print(f"Moved the preview to {res['sheet']}!{res['range']}" + ("" if res["clients"] else " (no preview window open)"))
     return 0
 
 
@@ -480,7 +480,7 @@ def cmd_view(args):
     if args.follow:
         body["follow"] = args.follow == "on"
     res = request(st, "POST", f"/api/docs/{d['docId']}/view", body)
-    print("미리보기 표시 설정 적용" + ("" if res["clients"] else " (열린 미리보기 창 없음)"))
+    print("Preview view settings applied" + ("" if res["clients"] else " (no preview window open)"))
     return 0
 
 
@@ -497,13 +497,13 @@ def cmd_changes(args):
     if args.json:
         return out_json(res)
     if not res["changes"]:
-        print(f"v{args.since} 이후 변경 없음 (현재 v{res['version']})")
+        print(f"No changes since v{args.since} (now v{res['version']})")
     for c in res["changes"]:
-        who = {"user": "사용자", "agent": "에이전트", "system": "시스템"}.get(c["actor"], c["actor"])
+        who = {"user": "user", "agent": "agent", "system": "system"}.get(c["actor"], c["actor"])
         print(f"v{c['v']} {c['time']} {who}: {c['label'] or ''}  [{c['batchId']}]")
         for x in c["cells"] + c["meta"]:
             print(f"    {x}")
-    print(f"현재 v{res['version']}{'  *수정됨*' if res['dirty'] else ''}")
+    print(f"now v{res['version']}{'  *modified*' if res['dirty'] else ''}")
     return 0
 
 
@@ -517,7 +517,7 @@ def cmd_fonts(args):
         return out_json({"fonts": fonts, "files": res["files"]})
     for f in fonts:
         print(f["name"] + (f"  ({', '.join(n for n in f['names'] if n != f['name'])})" if len(f["names"]) > 1 else ""))
-    print(f"— 글꼴 {len(fonts)}개" + (f" ('{args.search}' 포함)" if q else "") + f", 파일 {res['files']}개에서 읽음")
+    print(f"— {len(fonts)} fonts" + (f" containing '{args.search}'" if q else "") + f", read from {res['files']} files")
     return 0
 
 
@@ -527,16 +527,16 @@ def cmd_selection(args):
     if args.json:
         return out_json(res)
     if not res:
-        print("미리보기에서 선택 중인 영역이 없습니다(창이 열려 있지 않음).")
+        print("No selection in the preview (no window open).")
     for p in res:
-        print(f"{p['sheet']}!{p['range']}  (활성 셀 {p['active']}, {p['secondsAgo']}초 전)")
+        print(f"{p['sheet']}!{p['range']}  (active cell {p['active']}, {p['secondsAgo']} s ago)")
     return 0
 
 
 def cmd_undo(args):
     st, d = ctx(args)
     res = request(st, "POST", f"/api/docs/{d['docId']}/undo", {"batchId": args.batch, "force": args.force})
-    print(f"되돌림 → v{res['version']}")
+    print(f"Undone → v{res['version']}")
     return 0
 
 
@@ -548,16 +548,16 @@ def cmd_save(args):
     if args.format:
         body["format"] = args.format
     res = request(st, "POST", f"/api/docs/{d['docId']}/save", body)
-    print(f"저장됨: {res['path']}" + (f"  (백업: {res['backup']})" if res.get("backup") else ""))
+    print(f"Saved: {res['path']}" + (f"  (backup: {res['backup']})" if res.get("backup") else ""))
     for w in res.get("warnings", []):
-        print(f"  주의: {w}")
+        print(f"  warning: {w}")
     return 0
 
 
 def cmd_close(args):
     st, d = ctx(args)
     request(st, "DELETE", f"/api/docs/{d['docId']}", {"force": args.force})
-    print(f"닫음: {d['name']}")
+    print(f"Closed: {d['name']}")
     return 0
 
 
@@ -567,95 +567,97 @@ def register(sub):
     def add(name, fn, help_, doc=True, json_=True):
         p = sub.add_parser(name, help=help_)
         if doc:
-            p.add_argument("--doc", help="docId, 파일 이름 또는 경로 (문서가 하나면 생략)")
+            p.add_argument("--doc", help="docId, file name or path (omit when one document is open)")
         if json_:
-            p.add_argument("--json", action="store_true", help="결과를 JSON으로")
+            p.add_argument("--json", action="store_true", help="print the result as JSON")
         p.set_defaults(fn=fn)
         return p
 
-    p = add("ls", cmd_ls, "작업 경로의 Excel 파일 목록", doc=False); p.add_argument("path", nargs="?")
-    p = add("open", cmd_open, "파일 열기(미리보기에 탭으로 표시)", doc=False); p.add_argument("path")
-    p = add("new", cmd_new, "새 통합 문서", doc=False, json_=False); p.add_argument("--name")
-    add("docs", cmd_docs, "열린 문서 목록", doc=False)
-    add("describe", cmd_describe, "시트·사용 범위·머리글·열 유형·차트 요약")
-    p = add("read", cmd_read, "범위 읽기 (예: 'Sheet1!A1:D20')"); p.add_argument("range")
-    p.add_argument("--what", choices=["values", "text", "raw", "formulas", "all"], default="values", help="values: 날짜는 YYYY-MM-DD, text: 화면에 보이는 그대로(표시 형식 적용), raw: 일련번호, formulas, all"); p.add_argument("--max", type=int, default=200)
-    p = add("write", cmd_write, "값/수식 쓰기 (=로 시작하면 수식)"); p.add_argument("range"); p.add_argument("values", nargs="*")
-    p.add_argument("--data", dest="json_values", metavar="JSON", help="2차원 배열 JSON, 예: '[[1,2],[3,4]]'"); p.add_argument("--tsv", metavar="FILE|-")
-    p.add_argument("--down", action="store_true", help="위치 인자 값을 세로로"); p.add_argument("--raw", action="store_true", help="문자열을 해석하지 않음")
-    p = add("fill", cmd_fill, "범위를 한 값/수식으로 채우기(상대 참조 이동)"); p.add_argument("range"); p.add_argument("value"); p.add_argument("--raw", action="store_true")
-    p = add("clear", cmd_clear, "지우기"); p.add_argument("range"); p.add_argument("--what", choices=["contents", "formats", "comments", "all"], default="contents")
-    p = add("format", cmd_format, "서식 (예: b=true bg=#FFF2CC nf=#,##0)"); p.add_argument("range"); p.add_argument("set", nargs="*")
+    p = add("ls", cmd_ls, "list Excel files in the workspace", doc=False); p.add_argument("path", nargs="?")
+    p = add("open", cmd_open, "open a file (shown as a tab in the preview)", doc=False); p.add_argument("path")
+    p = add("new", cmd_new, "new workbook", doc=False, json_=False); p.add_argument("--name")
+    p.add_argument("--lang", choices=["en", "ko"], default="en", help="Excel UI language for the default name and body font (en: Book1, Calibri; ko: Korean Excel's)")
+    add("docs", cmd_docs, "list open documents", doc=False)
+    add("describe", cmd_describe, "summary: sheets, used ranges, headers, column types, charts")
+    p = add("read", cmd_read, "read a range (e.g. 'Sheet1!A1:D20')"); p.add_argument("range")
+    p.add_argument("--what", choices=["values", "text", "raw", "formulas", "all"], default="values", help="values: dates as YYYY-MM-DD, text: as displayed (number format applied), raw: serial numbers, formulas, all"); p.add_argument("--max", type=int, default=200)
+    p = add("write", cmd_write, "write values / formulas (a leading = makes a formula)"); p.add_argument("range"); p.add_argument("values", nargs="*")
+    p.add_argument("--data", dest="json_values", metavar="JSON", help="2-D JSON array, e.g. '[[1,2],[3,4]]'"); p.add_argument("--tsv", metavar="FILE|-")
+    p.add_argument("--down", action="store_true", help="write positional values downwards"); p.add_argument("--raw", action="store_true", help="do not parse strings")
+    p = add("fill", cmd_fill, "fill a range with one value / formula (relative references shift)"); p.add_argument("range"); p.add_argument("value"); p.add_argument("--raw", action="store_true")
+    p = add("clear", cmd_clear, "clear"); p.add_argument("range"); p.add_argument("--what", choices=["contents", "formats", "comments", "all"], default="contents")
+    p = add("format", cmd_format, "format (e.g. b=true bg=#FFF2CC nf=#,##0)"); p.add_argument("range"); p.add_argument("set", nargs="*")
     p.add_argument("--unset", action="append"); p.add_argument("--border", help="all|outline|inside|top|bottom|left|right|none[:style[:#color]]")
     for name in ("merge", "unmerge"):
-        p = add(name, cmd_merge, "셀 병합 (--across: 행마다)" if name == "merge" else "병합 해제"); p.add_argument("range")
+        p = add(name, cmd_merge, "merge cells (--across: per row)" if name == "merge" else "unmerge"); p.add_argument("range")
         if name == "merge":
             p.add_argument("--across", action="store_true"); p.add_argument("--no-center", action="store_true")
-    p = add("width", cmd_width, "열 너비(문자 수)"); p.add_argument("cols"); p.add_argument("chars", type=float)
-    p = add("height", cmd_height, "행 높이(포인트)"); p.add_argument("rows"); p.add_argument("points", type=float)
+    p = add("width", cmd_width, "column width (characters)"); p.add_argument("cols"); p.add_argument("chars", type=float)
+    p = add("height", cmd_height, "row height (points)"); p.add_argument("rows"); p.add_argument("points", type=float)
     for name in ("hide", "unhide"):
-        p = add(name, cmd_hide, "행/열 숨기기" if name == "hide" else "숨기기 취소"); p.add_argument("range", help="예: B:C 또는 3:5")
-    p = add("freeze", cmd_freeze, "틀 고정 (예: B2, none)"); p.add_argument("cell"); p.add_argument("--sheet")
-    p = add("filter", cmd_filter, "자동 필터: RANGE(켜기) | off | clear | reapply | col C --where '>150' | col C --values 'a|b'")
-    p.add_argument("range", help="범위, off, clear, reapply, 또는 col"); p.add_argument("column", nargs="?", help="col일 때 열 문자")
-    p.add_argument("--values", help="보일 값 목록(| 구분, 화면 표시 텍스트 기준)"); p.add_argument("--blank", action="store_true", help="빈 셀도 보이기")
-    p.add_argument("--where", action="append", help="조건: '>150', '<=10', 'contains 서울', 'beginsWith A' (여러 번)"); p.add_argument("--any", action="store_true", help="조건을 OR로")
+        p = add(name, cmd_hide, "hide rows / columns" if name == "hide" else "unhide"); p.add_argument("range", help="e.g. B:C or 3:5")
+    p = add("freeze", cmd_freeze, "freeze panes (e.g. B2, none)"); p.add_argument("cell"); p.add_argument("--sheet")
+    p = add("filter", cmd_filter, "autofilter: RANGE (on) | off | clear | reapply | col C --where '>150' | col C --values 'a|b'")
+    p.add_argument("range", help="range, off, clear, reapply or col"); p.add_argument("column", nargs="?", help="column letter with col")
+    p.add_argument("--values", help="values to show (| separated, as displayed)"); p.add_argument("--blank", action="store_true", help="also show blanks")
+    p.add_argument("--where", action="append", help="condition: '>150', '<=10', 'contains Seoul', 'beginsWith A' (repeatable)"); p.add_argument("--any", action="store_true", help="OR the conditions")
     p.add_argument("--sheet")
-    p = add("sheet", cmd_sheet, "시트 add NAME | rename OLD NEW | rm NAME | move NAME POS | copy NAME [NEW] | hide|unhide NAME | color NAME #RRGGBB|none | gridlines NAME on|off")
+    p = add("sheet", cmd_sheet, "sheets: add NAME | rename OLD NEW | rm NAME | move NAME POS | copy NAME [NEW] | hide|unhide NAME | color NAME #RRGGBB|none | gridlines NAME on|off")
     p.add_argument("action", choices=["add", "rename", "rm", "move", "copy", "hide", "unhide", "color", "gridlines"]); p.add_argument("names", nargs="*")
-    p = add("pivot", cmd_pivot, "피벗 테이블 ls | refresh [NAME] | add SOURCE --rows F --values F:sum [--cols F] [--filters F] [--at 'S!A3']")
-    p.add_argument("action", choices=["ls", "refresh", "add"]); p.add_argument("name", nargs="?", help="refresh: 피벗 이름, add: 원본 범위")
-    p.add_argument("--sheet"); p.add_argument("--rows", help="add: 행 필드(쉼표로 여러 개)"); p.add_argument("--cols", help="add: 열 필드(하나)")
-    p.add_argument("--values", help="add: 값 필드:함수(sum, count, average, max, min, product, countNums, stdDev, stdDevp, var, varp), 쉼표로 여러 개")
-    p.add_argument("--filters", help="add: 보고서 필터 필드"); p.add_argument("--at", help="add: 왼쪽 위 셀, 예: '피벗!A3' (없는 시트는 새로 만듦)")
-    p.add_argument("--title", help="add: 피벗 이름")
-    p = add("chart", cmd_chart, "차트 add DATA | set ID --title … | rm ID | ls"); p.add_argument("action", choices=["add", "set", "rm", "ls"]); p.add_argument("target", nargs="?")
+    p = add("pivot", cmd_pivot, "pivot tables: ls | refresh [NAME] | add SOURCE --rows F --values F:sum [--cols F] [--filters F] [--at 'S!A3']")
+    p.add_argument("action", choices=["ls", "refresh", "add"]); p.add_argument("name", nargs="?", help="refresh: pivot name, add: source range")
+    p.add_argument("--sheet"); p.add_argument("--rows", help="add: row fields (comma separated)"); p.add_argument("--cols", help="add: column field (one)")
+    p.add_argument("--values", help="add: value field:function (sum, count, average, max, min, product, countNums, stdDev, stdDevp, var, varp), comma separated")
+    p.add_argument("--filters", help="add: report filter fields"); p.add_argument("--at", help="add: top-left cell, e.g. 'Pivot!A3' (a missing sheet is created)")
+    p.add_argument("--title", help="add: pivot name")
+    p.add_argument("--lang", choices=["en", "ko"], default="en", help="add: label language (Grand Total, Sum of …), as Excel in that UI language writes them")
+    p = add("chart", cmd_chart, "charts: add DATA | set ID --title … | rm ID | ls"); p.add_argument("action", choices=["add", "set", "rm", "ls"]); p.add_argument("target", nargs="?")
     p.add_argument("--type", default="bar", help="bar, barH, barStacked, line, area, pie, doughnut, scatter, radar")
-    p.add_argument("--to-type", dest="type_set", help="set: 차트 종류 변경"); p.add_argument("--data", help="set: 데이터 범위 변경")
+    p.add_argument("--to-type", dest="type_set", help="set: change the chart type"); p.add_argument("--data", help="set: change the data range")
     p.add_argument("--x-title"); p.add_argument("--y-title")
-    p.add_argument("--vary-colors", choices=["on", "off"], help="한 계열 차트를 항목마다 다른 색으로(범례에 항목 표시)")
-    p.add_argument("--switch", action="store_true", help="set: 행/열 전환(계열과 항목(X)을 맞바꿈)")
-    p.add_argument("--title"); p.add_argument("--at", help="왼쪽 위 셀"); p.add_argument("--sheet"); p.add_argument("--legend")
+    p.add_argument("--vary-colors", choices=["on", "off"], help="one-series chart: a color per category (legend lists the categories)")
+    p.add_argument("--switch", action="store_true", help="set: switch row/column (swap series and categories)")
+    p.add_argument("--title"); p.add_argument("--at", help="top-left cell"); p.add_argument("--sheet"); p.add_argument("--legend")
     p.add_argument("--width", type=int); p.add_argument("--height", type=int)
     for name in ("rows", "cols"):
-        p = add(name, cmd_rows_cols, "행 삽입/삭제 (예: rows insert 5 --count 2, rows delete 5:7)" if name == "rows" else "열 삽입/삭제 (예: cols insert C, cols delete C:D)")
+        p = add(name, cmd_rows_cols, "insert / delete rows (e.g. rows insert 5 --count 2, rows delete 5:7)" if name == "rows" else "insert / delete columns (e.g. cols insert C, cols delete C:D)")
         p.add_argument("action", choices=["insert", "delete"]); p.add_argument("at", help="5 / 5:7" if name == "rows" else "C / C:D")
         p.add_argument("--count", type=int); p.add_argument("--sheet")
-    p = add("sort", cmd_sort, "범위 정렬 (예: sort A1:F50 --by C:desc --by A)"); p.add_argument("range")
-    p.add_argument("--by", action="append", help="열[:asc|desc], 여러 번 가능"); p.add_argument("--header", dest="header", action="store_true", default=None)
+    p = add("sort", cmd_sort, "sort a range (e.g. sort A1:F50 --by C:desc --by A)"); p.add_argument("range")
+    p.add_argument("--by", action="append", help="column[:asc|desc], repeatable"); p.add_argument("--header", dest="header", action="store_true", default=None)
     p.add_argument("--no-header", dest="header", action="store_false")
-    p = add("series", cmd_series, "연속 데이터 채우기(채우기 핸들): series A2:A3 A2:A20"); p.add_argument("source"); p.add_argument("target"); p.add_argument("--sheet")
-    p = add("copy", cmd_copy, "복사·붙여넣기: copy A1:C5 E1 [--what values|formats|formulas] [--transpose]"); p.add_argument("src"); p.add_argument("dst")
+    p = add("series", cmd_series, "fill a series (fill handle): series A2:A3 A2:A20"); p.add_argument("source"); p.add_argument("target"); p.add_argument("--sheet")
+    p = add("copy", cmd_copy, "copy and paste: copy A1:C5 E1 [--what values|formats|formulas] [--transpose]"); p.add_argument("src"); p.add_argument("dst")
     p.add_argument("--what", choices=["all", "values", "formats", "formulas"], default="all"); p.add_argument("--transpose", action="store_true"); p.add_argument("--sheet")
-    p = add("move", cmd_copy, "잘라내기·붙여넣기(이동): move A1:C5 E1"); p.add_argument("src"); p.add_argument("dst"); p.add_argument("--sheet")
-    p = add("cells", cmd_cells, "셀 삽입/삭제(밀기): cells insert B2:C3 --shift down"); p.add_argument("action", choices=["insert", "delete"]); p.add_argument("range")
+    p = add("move", cmd_copy, "cut and paste (move): move A1:C5 E1"); p.add_argument("src"); p.add_argument("dst"); p.add_argument("--sheet")
+    p = add("cells", cmd_cells, "insert / delete cells (shift): cells insert B2:C3 --shift down"); p.add_argument("action", choices=["insert", "delete"]); p.add_argument("range")
     p.add_argument("--shift", choices=["right", "down", "left", "up"]); p.add_argument("--sheet")
-    p = add("dedupe", cmd_dedupe, "중복된 항목 제거"); p.add_argument("range"); p.add_argument("--columns", help="기준 열, 예: A,C"); p.add_argument("--sheet")
+    p = add("dedupe", cmd_dedupe, "remove duplicates"); p.add_argument("range"); p.add_argument("--columns", help="key columns, e.g. A,C"); p.add_argument("--sheet")
     p.add_argument("--header", dest="header", action="store_true", default=None); p.add_argument("--no-header", dest="header", action="store_false")
     for name in ("find", "replace"):
-        p = add(name, cmd_find if name == "find" else cmd_replace, "찾기 (* ? 와일드카드)" if name == "find" else "바꾸기")
+        p = add(name, cmd_find if name == "find" else cmd_replace, "find (* ? wildcards)" if name == "find" else "replace")
         p.add_argument("text")
         if name == "replace":
-            p.add_argument("replacement"); p.add_argument("--all", action="store_true", help="모든 시트")
+            p.add_argument("replacement"); p.add_argument("--all", action="store_true", help="all sheets")
         else:
             p.add_argument("--max", type=int, default=200)
         p.add_argument("--in", dest="where", choices=["values", "formulas"], default="values"); p.add_argument("--match-case", action="store_true")
-        p.add_argument("--whole", action="store_true", help="셀 전체 일치"); p.add_argument("--sheet")
-    p = add("comment", cmd_comment, "메모: comment B2 '내용' (내용 없으면 삭제)"); p.add_argument("cell"); p.add_argument("text", nargs="?")
-    p = add("link", cmd_link, "하이퍼링크: link B2 https://… [--text 표시]"); p.add_argument("cell"); p.add_argument("url", nargs="?"); p.add_argument("--text")
-    p = add("autofit", cmd_autofit, "열 너비/행 높이 자동 맞춤: autofit A:D | autofit 1:10"); p.add_argument("range"); p.add_argument("--sheet")
-    p = add("format-copy", cmd_copy_format, "서식 복사(서식 복사 도구): format-copy A1:B1 D1:H1"); p.add_argument("src"); p.add_argument("dst"); p.add_argument("--sheet")
-    p = add("decimals", cmd_decimals, "소수 자릿수 늘림/줄임: decimals B2:B9 +1"); p.add_argument("range"); p.add_argument("delta", type=int)
-    p = add("goto", cmd_goto, "사용자 미리보기를 시트/범위로 이동"); p.add_argument("range"); p.add_argument("--sheet")
-    p = add("view", cmd_view, "미리보기 표시: --zoom 150, --formulas/--no-formulas", json_=False); p.add_argument("--zoom", type=int)
+        p.add_argument("--whole", action="store_true", help="match the whole cell"); p.add_argument("--sheet")
+    p = add("comment", cmd_comment, "note: comment B2 'text' (no text deletes it)"); p.add_argument("cell"); p.add_argument("text", nargs="?")
+    p = add("link", cmd_link, "hyperlink: link B2 https://… [--text label]"); p.add_argument("cell"); p.add_argument("url", nargs="?"); p.add_argument("--text")
+    p = add("autofit", cmd_autofit, "autofit column widths / row heights: autofit A:D | autofit 1:10"); p.add_argument("range"); p.add_argument("--sheet")
+    p = add("format-copy", cmd_copy_format, "copy formats (format painter): format-copy A1:B1 D1:H1"); p.add_argument("src"); p.add_argument("dst"); p.add_argument("--sheet")
+    p = add("decimals", cmd_decimals, "increase / decrease decimals: decimals B2:B9 +1"); p.add_argument("range"); p.add_argument("delta", type=int)
+    p = add("goto", cmd_goto, "move the user's preview to a sheet / range"); p.add_argument("range"); p.add_argument("--sheet")
+    p = add("view", cmd_view, "preview display: --zoom 150, --formulas/--no-formulas", json_=False); p.add_argument("--zoom", type=int)
     p.add_argument("--formulas", dest="formulas", action="store_true", default=None); p.add_argument("--no-formulas", dest="formulas", action="store_false")
-    p.add_argument("--follow", choices=["on", "off"], help="미리보기가 에이전트 작업 위치를 따라갈지")
-    p = add("apply", cmd_apply, "편집 목록(JSON 파일/-)을 한 번에 적용"); p.add_argument("file"); p.add_argument("--label")
-    p = add("changes", cmd_changes, "변경 이력(사용자/에이전트)"); p.add_argument("--since", type=int, default=0); p.add_argument("--actor", choices=["user", "agent"])
-    add("selection", cmd_selection, "사용자가 미리보기에서 선택 중인 범위")
-    p = add("fonts", cmd_fonts, "이 컴퓨터에 설치된 글꼴 (format ff= 에 쓰는 이름)", doc=False); p.add_argument("--search", help="이름에 포함된 글자")
-    p = add("undo", cmd_undo, "에이전트 batch 되돌리기", json_=False); p.add_argument("batch"); p.add_argument("--force", action="store_true")
-    p = add("save", cmd_save, "저장 (Python이 파일 기록, 덮어쓰기 전 백업)", json_=False); p.add_argument("--as", dest="as_path")
+    p.add_argument("--follow", choices=["on", "off"], help="whether the preview follows where the agent works")
+    p = add("apply", cmd_apply, "apply a list of edits (JSON file / -) in one batch"); p.add_argument("file"); p.add_argument("--label")
+    p = add("changes", cmd_changes, "change history (user / agent)"); p.add_argument("--since", type=int, default=0); p.add_argument("--actor", choices=["user", "agent"])
+    add("selection", cmd_selection, "the range the user has selected in the preview")
+    p = add("fonts", cmd_fonts, "fonts installed on this computer (names for format ff=)", doc=False); p.add_argument("--search", help="text in the name")
+    p = add("undo", cmd_undo, "undo an agent batch", json_=False); p.add_argument("batch"); p.add_argument("--force", action="store_true")
+    p = add("save", cmd_save, "save (Python writes the file; backup before overwriting)", json_=False); p.add_argument("--as", dest="as_path")
     p.add_argument("--format", choices=["xlsx", "xlsm"]); p.add_argument("--overwrite", action="store_true")
-    p.add_argument("--force", action="store_true", help="디스크에서 바뀐 파일도 덮어쓰기"); p.add_argument("--no-backup", action="store_true")
-    p = add("close", cmd_close, "문서 닫기", json_=False); p.add_argument("--force", action="store_true")
+    p.add_argument("--force", action="store_true", help="overwrite even if the file changed on disk"); p.add_argument("--no-backup", action="store_true")
+    p = add("close", cmd_close, "close the document", json_=False); p.add_argument("--force", action="store_true")

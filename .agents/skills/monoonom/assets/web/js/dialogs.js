@@ -5,8 +5,9 @@ import { CHART_TYPES, ChartLayer } from './charts.js';
 import { parseSheetRef, parseRange, rangeA1, colName, key, a1 } from './address.js';
 import { quoteSheetName } from './formula.js';
 import { combo } from './combo.js';
-import { FN_HELP } from './fnhelp.js';
+import { FN_HELP, fnHelp } from './fnhelp.js';
 import { FUNCTION_NAMES } from './engine.js';
+import { t, LANG } from './i18n.js';
 
 export const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -23,11 +24,11 @@ let openModal = null;
 export function modalOpen() { return !!openModal; }
 
 /** Generic modal. body: HTML string; returns {el, close, done(promise)} */
-export function modal({ title, body, buttons = [['확인', 'ok', true], ['취소', 'cancel']], width = 420, onOk, onOpen, className = '' }) {
+export function modal({ title, body, buttons = [[t('OK'), 'ok', true], [t('Cancel'), 'cancel']], width = 420, onOk, onOpen, className = '' }) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `<div class="modal ${className}" role="dialog" aria-modal="true" style="width:${width}px">
-    <div class="modal-title"><span>${esc(title)}</span><button class="x" data-act="cancel" aria-label="닫기">×</button></div>
+    <div class="modal-title"><span>${esc(title)}</span><button class="x" data-act="cancel" aria-label="${t('Close')}">×</button></div>
     <div class="modal-body">${body}</div>
     <div class="modal-btns">${buttons.map(([l, a, p]) => `<button class="btn${p ? ' primary' : ''}" data-act="${a}">${l}</button>`).join('')}</div></div>`;
   document.body.append(overlay);
@@ -64,13 +65,13 @@ export function modal({ title, body, buttons = [['확인', 'ok', true], ['취소
   return { el, close, done };
 }
 
-export function alertBox(msg, title = '알림') { return modal({ title, body: `<p class="msg">${esc(msg).replace(/\n/g, '<br>')}</p>`, buttons: [['확인', 'ok', true]] }).done; }
-export function confirmBox(msg, { title = '확인', yes = '예', no = '아니요', cancel = false } = {}) {
+export function alertBox(msg, title = t('Notice')) { return modal({ title, body: `<p class="msg">${esc(msg).replace(/\n/g, '<br>')}</p>`, buttons: [[t('OK'), 'ok', true]] }).done; }
+export function confirmBox(msg, { title = t('Confirm'), yes = t('Yes'), no = t('No'), cancel = false } = {}) {
   const buttons = [[yes, 'ok', true], [no, 'no']];
-  if (cancel) buttons.push(['취소', 'cancel']);
+  if (cancel) buttons.push([t('Cancel'), 'cancel']);
   return modal({ title, body: `<p class="msg">${esc(msg).replace(/\n/g, '<br>')}</p>`, buttons }).done.then((v) => (v === true ? 'yes' : v === 'no' ? 'no' : null));
 }
-export function promptBox(msg, value = '', title = '입력') {
+export function promptBox(msg, value = '', title = t('Input')) {
   return modal({ title, body: `<label class="fld">${esc(msg)}<input class="inp" id="pb" value="${esc(value)}" autofocus></label>`,
     onOk: (el) => el.querySelector('#pb').value, onOpen: (el) => setTimeout(() => el.querySelector('#pb').select(), 0) }).done;
 }
@@ -91,19 +92,19 @@ export async function fileDialog({ mode = 'open', name = '', format = 'xlsx', st
   const sep = info.sep || '/';
   const saving = mode === 'save';
   const body = `
-    <div class="fd-path"><button class="btn sm" data-fd="up" title="상위 폴더">↑</button>
+    <div class="fd-path"><button class="btn sm" data-fd="up" title="${t('Up one level')}">↑</button>
       ${info.drives?.length ? `<select class="inp sm" data-fd="drive">${info.drives.map((d) => `<option>${esc(d)}</option>`).join('')}</select>` : ''}
-      <input class="inp" data-fd="dir" value="${esc(dir)}" spellcheck="false"><button class="btn sm" data-fd="go">이동</button></div>
-    <div class="fd-main"><div class="fd-side"><div class="fd-side-title">최근 파일</div>${recentFiles().map((p) => `<div class="fd-recent" data-path="${esc(p)}" title="${esc(p)}">${esc(p.split(/[\\/]/).pop())}</div>`).join('') || '<div class="muted">없음</div>'}</div>
+      <input class="inp" data-fd="dir" value="${esc(dir)}" spellcheck="false"><button class="btn sm" data-fd="go">${t('Go')}</button></div>
+    <div class="fd-main"><div class="fd-side"><div class="fd-side-title">${t('Recent files')}</div>${recentFiles().map((p) => `<div class="fd-recent" data-path="${esc(p)}" title="${esc(p)}">${esc(p.split(/[\\/]/).pop())}</div>`).join('') || `<div class="muted">${t('None')}</div>`}</div>
       <div class="fd-list" tabindex="0"></div></div>
-    ${saving ? `<div class="fd-save"><label>파일 이름 <input class="inp" data-fd="name" value="${esc(name)}"></label>
-      <label>형식 <select class="inp" data-fd="fmt"><option value="xlsx">Excel 통합 문서 (*.xlsx)</option><option value="xlsm">Excel 매크로 사용 통합 문서 (*.xlsm)</option></select></label></div>`
-      : `<div class="fd-save"><label>파일 경로 <input class="inp" data-fd="name" placeholder="파일을 선택하거나 전체 경로를 입력"></label></div>`}
-    <p class="muted small">파일 읽기/쓰기는 로컬 Python 서버가 수행합니다 (브라우저는 파일 내용에 직접 접근하지 않음).</p>`;
+    ${saving ? `<div class="fd-save"><label>${t('File name')} <input class="inp" data-fd="name" value="${esc(name)}"></label>
+      <label>${t('Save as type')} <select class="inp" data-fd="fmt"><option value="xlsx">${t('Excel Workbook (*.xlsx)')}</option><option value="xlsm">${t('Excel Macro-Enabled Workbook (*.xlsm)')}</option></select></label></div>`
+      : `<div class="fd-save"><label>${t('File path')} <input class="inp" data-fd="name" placeholder="${t('Select a file or type a full path')}"></label></div>`}
+    <p class="muted small">${t('Files are read and written by the local Python server (the browser never reads file contents directly).')}</p>`;
   let current = dir;
   const dlg = modal({
-    title: saving ? '다른 이름으로 저장' : '열기', body, width: 720, className: 'file-dialog',
-    buttons: [[saving ? '저장' : '열기', 'ok', true], ['취소', 'cancel']],
+    title: saving ? t('Save As') : t('Open'), body, width: 720, className: 'file-dialog',
+    buttons: [[saving ? t('Save') : t('Open'), 'ok', true], [t('Cancel'), 'cancel']],
     onOk: (el) => {
       let n = el.querySelector('[data-fd=name]').value.trim();
       if (!n) { const s = el.querySelector('.fd-item.sel'); if (s && !s.dataset.dir) n = s.dataset.path; }
@@ -125,7 +126,7 @@ export async function fileDialog({ mode = 'open', name = '', format = 'xlsx', st
   if (saving) el.querySelector('[data-fd=fmt]').value = format === 'xlsm' ? 'xlsm' : 'xlsx';
   const list = el.querySelector('.fd-list');
   const load = async (path) => {
-    list.innerHTML = '<div class="muted pad">불러오는 중…</div>';
+    list.innerHTML = `<div class="muted pad">${t('Loading…')}</div>`;
     try {
       const res = await api.fs(path);
       current = res.path;
@@ -133,7 +134,7 @@ export async function fileDialog({ mode = 'open', name = '', format = 'xlsx', st
       el.dataset.parent = res.parent || '';
       list.innerHTML = res.entries.map((e) => `<div class="fd-item" data-path="${esc(e.path)}" ${e.dir ? 'data-dir="1"' : ''}>
         <span class="ic">${e.dir ? '📁' : /\.xls$/i.test(e.name) ? '📗' : '📊'}</span><span class="nm">${esc(e.name)}</span>
-        <span class="sz">${e.dir ? '' : fmtSize(e.size)}</span><span class="dt">${new Date(e.mtime * 1000).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}</span></div>`).join('') || '<div class="muted pad">Excel 파일이 없습니다.</div>';
+        <span class="sz">${e.dir ? '' : fmtSize(e.size)}</span><span class="dt">${new Date(e.mtime * 1000).toLocaleString(LANG === 'ko' ? 'ko-KR' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })}</span></div>`).join('') || `<div class="muted pad">${t('No Excel files.')}</div>`;
     } catch (err) { list.innerHTML = `<div class="err pad">${esc(err.message)}</div>`; }
   };
   list.addEventListener('click', (e) => {
@@ -163,14 +164,14 @@ export async function fileDialog({ mode = 'open', name = '', format = 'xlsx', st
 function fmtSize(n) { return n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`; }
 
 // ------------------------------------------------------------------ color palette popup
-export function colorPopup(anchor, { allowNone = true, noneLabel = '채우기 없음', onPick }) {
+export function colorPopup(anchor, { allowNone = true, noneLabel = t('No Fill'), onPick }) {
   document.querySelector('.color-popup')?.remove();
   const p = document.createElement('div');
   p.className = 'color-popup';
   p.innerHTML = `${allowNone ? `<button class="cp-none" data-c="">${noneLabel}</button>` : ''}
-    <div class="cp-label">테마 색</div><div class="cp-grid">${THEME_COLORS.map((row) => row.map((c) => `<button style="background:${c}" data-c="${c}" title="${c}"></button>`).join('')).join('')}</div>
-    <div class="cp-label">표준 색</div><div class="cp-grid">${STANDARD_COLORS.map((c) => `<button style="background:${c}" data-c="${c}" title="${c}"></button>`).join('')}</div>
-    <label class="cp-more">다른 색… <input type="color"></label>`;
+    <div class="cp-label">${t('Theme Colors')}</div><div class="cp-grid">${THEME_COLORS.map((row) => row.map((c) => `<button style="background:${c}" data-c="${c}" title="${c}"></button>`).join('')).join('')}</div>
+    <div class="cp-label">${t('Standard Colors')}</div><div class="cp-grid">${STANDARD_COLORS.map((c) => `<button style="background:${c}" data-c="${c}" title="${c}"></button>`).join('')}</div>
+    <label class="cp-more">${t('More Colors…')} <input type="color"></label>`;
   document.body.append(p);
   const r = anchor.getBoundingClientRect();
   p.style.left = Math.min(r.left, window.innerWidth - p.offsetWidth - 6) + 'px';
@@ -190,48 +191,48 @@ export function formatCellsDialog(app, tab = 'num') {
   const sample = app.doc.wb.value(sh, v.active.r, v.active.c) ?? 1234.5678;
   const borderStyles = ['thin', 'medium', 'thick', 'dashed', 'dotted', 'double', 'hair'];
   const body = `
-  <div class="tabs"><button data-tab="num">표시 형식</button><button data-tab="align">맞춤</button><button data-tab="font">글꼴</button><button data-tab="border">테두리</button><button data-tab="fill">채우기</button></div>
+  <div class="tabs"><button data-tab="num">${t('Number format')}</button><button data-tab="align">${t('Alignment')}</button><button data-tab="font">${t('Font')}</button><button data-tab="border">${t('Border')}</button><button data-tab="fill">${t('Fill')}</button></div>
   <section data-pane="num">
-    <div class="row2"><select class="inp" size="12" data-k="preset">${FORMAT_PRESETS.map((p) => `<option value="${esc(p.code)}">${p.label}</option>`).join('')}<option value="__custom">사용자 지정</option></select>
-    <div class="col"><label class="fld">형식 코드<input class="inp" data-k="nf" value="${esc(st.nf || 'General')}"></label>
-    <div class="fld">보기: <span class="preview" data-k="nfprev"></span></div>
-    <p class="muted small">예: #,##0.00 / 0% / yyyy-mm-dd / "₩"#,##0;[빨강]-"₩"#,##0 / [h]:mm</p></div></div>
+    <div class="row2"><select class="inp" size="12" data-k="preset">${FORMAT_PRESETS.map((p) => `<option value="${esc(p.code)}">${esc(t(p.label))}</option>`).join('')}<option value="__custom">${t('Custom')}</option></select>
+    <div class="col"><label class="fld">${t('Format code')}<input class="inp" data-k="nf" value="${esc(st.nf || 'General')}"></label>
+    <div class="fld">${t('Preview:')} <span class="preview" data-k="nfprev"></span></div>
+    <p class="muted small">${esc(t('Examples: #,##0.00 / 0% / yyyy-mm-dd / "$"#,##0.00;[Red]-"$"#,##0.00 / [h]:mm'))}</p></div></div>
   </section>
   <section data-pane="align">
     <div class="grid2">
-      <label class="fld">가로<select class="inp" data-k="ha"><option value="">일반</option><option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option><option value="fill">채우기</option><option value="justify">양쪽 맞춤</option><option value="centerContinuous">선택 영역의 가운데로</option></select></label>
-      <label class="fld">세로<select class="inp" data-k="va"><option value="top">위쪽</option><option value="center">가운데</option><option value="">아래쪽</option><option value="justify">양쪽 맞춤</option></select></label>
-      <label class="fld">들여쓰기<input class="inp" type="number" min="0" max="15" data-k="ind" value="${st.ind || 0}"></label>
-      <label class="chk"><input type="checkbox" data-k="wrap" ${st.wrap ? 'checked' : ''}> 텍스트 줄 바꿈</label>
-      <label class="chk"><input type="checkbox" data-k="merge"> 셀 병합</label>
+      <label class="fld">${t('Horizontal')}<select class="inp" data-k="ha"><option value="">${t('General')}</option><option value="left">${t('Left')}</option><option value="center">${t('Centered')}</option><option value="right">${t('Right')}</option><option value="fill">${t('Fill')}</option><option value="justify">${t('Justify')}</option><option value="centerContinuous">${t('Center Across Selection')}</option></select></label>
+      <label class="fld">${t('Vertical')}<select class="inp" data-k="va"><option value="top">${t('Top')}</option><option value="center">${t('Middle')}</option><option value="">${t('Bottom')}</option><option value="justify">${t('Justify')}</option></select></label>
+      <label class="fld">${t('Indent')}<input class="inp" type="number" min="0" max="15" data-k="ind" value="${st.ind || 0}"></label>
+      <label class="chk"><input type="checkbox" data-k="wrap" ${st.wrap ? 'checked' : ''}> ${t('Wrap text')}</label>
+      <label class="chk"><input type="checkbox" data-k="merge"> ${t('Merge cells')}</label>
     </div>
   </section>
   <section data-pane="font">
     <div class="grid2">
-      <label class="fld">글꼴<input class="inp" data-k="ff" value="${esc(st.ff || app.doc.wb.defaultFont.name)}"></label>
-      <label class="fld">크기<input class="inp" type="number" min="1" max="409" step="0.5" data-k="fs" value="${st.fs || app.doc.wb.defaultFont.size}"></label>
-      <label class="chk"><input type="checkbox" data-k="b" ${st.b ? 'checked' : ''}> 굵게</label>
-      <label class="chk"><input type="checkbox" data-k="i" ${st.i ? 'checked' : ''}> 기울임꼴</label>
-      <label class="fld">밑줄<select class="inp" data-k="u"><option value="">없음</option><option value="1">실선</option><option value="double">이중 실선</option></select></label>
-      <label class="chk"><input type="checkbox" data-k="st" ${st.st ? 'checked' : ''}> 취소선</label>
-      <label class="fld">색<input class="inp" type="color" data-k="fc" value="${st.fc || '#000000'}"></label>
+      <label class="fld">${t('Font')}<input class="inp" data-k="ff" value="${esc(st.ff || app.doc.wb.defaultFont.name)}"></label>
+      <label class="fld">${t('Size')}<input class="inp" type="number" min="1" max="409" step="0.5" data-k="fs" value="${st.fs || app.doc.wb.defaultFont.size}"></label>
+      <label class="chk"><input type="checkbox" data-k="b" ${st.b ? 'checked' : ''}> ${t('Bold')}</label>
+      <label class="chk"><input type="checkbox" data-k="i" ${st.i ? 'checked' : ''}> ${t('Italic')}</label>
+      <label class="fld">${t('Underline')}<select class="inp" data-k="u"><option value="">${t('None')}</option><option value="1">${t('Single')}</option><option value="double">${t('Double')}</option></select></label>
+      <label class="chk"><input type="checkbox" data-k="st" ${st.st ? 'checked' : ''}> ${t('Strikethrough')}</label>
+      <label class="fld">${t('Color')}<input class="inp" type="color" data-k="fc" value="${st.fc || '#000000'}"></label>
     </div>
-    <div class="font-preview" data-k="fprev">가나다 AaBbCc 123</div>
+    <div class="font-preview" data-k="fprev">${t('AaBbCc 123')}</div>
   </section>
   <section data-pane="border">
-    <div class="grid2"><label class="fld">선 스타일<select class="inp" data-k="bs">${borderStyles.map((s) => `<option>${s}</option>`).join('')}</select></label>
-    <label class="fld">색<input class="inp" type="color" data-k="bc" value="#000000"></label></div>
-    <div class="border-btns"><button class="btn" data-b="none">없음</button><button class="btn" data-b="outline">윤곽선</button><button class="btn" data-b="inside">안쪽</button><button class="btn" data-b="all">모든 테두리</button>
-    <button class="btn" data-b="top">위</button><button class="btn" data-b="bottom">아래</button><button class="btn" data-b="left">왼쪽</button><button class="btn" data-b="right">오른쪽</button></div>
-    <p class="muted small">선택한 테두리 동작: <b data-k="bact">변경 없음</b></p>
+    <div class="grid2"><label class="fld">${t('Line style')}<select class="inp" data-k="bs">${borderStyles.map((s) => `<option>${s}</option>`).join('')}</select></label>
+    <label class="fld">${t('Color')}<input class="inp" type="color" data-k="bc" value="#000000"></label></div>
+    <div class="border-btns"><button class="btn" data-b="none">${t('None')}</button><button class="btn" data-b="outline">${t('Outline')}</button><button class="btn" data-b="inside">${t('Inside')}</button><button class="btn" data-b="all">${t('All Borders')}</button>
+    <button class="btn" data-b="top">${t('Top edge')}</button><button class="btn" data-b="bottom">${t('Bottom edge')}</button><button class="btn" data-b="left">${t('Left edge')}</button><button class="btn" data-b="right">${t('Right edge')}</button></div>
+    <p class="muted small">${t('Selected border action:')} <b data-k="bact">${t('No change')}</b></p>
   </section>
   <section data-pane="fill">
     <div class="cp-grid big">${THEME_COLORS.flat().concat(STANDARD_COLORS).map((c) => `<button style="background:${c}" data-fill="${c}"></button>`).join('')}</div>
-    <div class="row2"><button class="btn" data-fill="">채우기 없음</button><label>다른 색 <input type="color" data-k="bgc" value="${st.bg || '#ffffff'}"></label> <span class="swatch" data-k="bgprev" style="background:${st.bg || '#fff'}"></span></div>
+    <div class="row2"><button class="btn" data-fill="">${t('No Fill')}</button><label>${t('More Colors')} <input type="color" data-k="bgc" value="${st.bg || '#ffffff'}"></label> <span class="swatch" data-k="bgprev" style="background:${st.bg || '#fff'}"></span></div>
   </section>`;
   let fillChoice = undefined, borderAct = null;
   const dlg = modal({
-    title: '셀 서식', body, width: 560, className: 'fmt-dialog',
+    title: t('Format Cells'), body, width: 560, className: 'fmt-dialog',
     onOpen: (el) => {
       const ffIn = el.querySelector('[data-k=ff]');
       combo(ffIn, { items: () => app.fontItems(), onPick: () => ffIn.dispatchEvent(new Event('input', { bubbles: true })), width: 240 });
@@ -274,13 +275,13 @@ export function findDialog(app, replace = false) {
   document.querySelector('.find-panel')?.remove();
   const p = document.createElement('div');
   p.className = 'find-panel';
-  p.innerHTML = `<div class="fp-head"><b>${replace ? '찾기 및 바꾸기' : '찾기'}</b><button class="x" data-a="close">×</button></div>
-    <label class="fld">찾을 내용<input class="inp" data-k="q" autofocus></label>
-    ${replace ? '<label class="fld">바꿀 내용<input class="inp" data-k="r"></label>' : ''}
-    <div class="fp-opts"><label><input type="checkbox" data-k="case"> 대/소문자 구분</label><label><input type="checkbox" data-k="whole"> 전체 셀 내용 일치</label>
-    <label>범위 <select data-k="scope"><option value="sheet">시트</option><option value="wb">통합 문서</option></select></label>
-    <label>찾는 위치 <select data-k="look"><option value="values">값</option><option value="formulas">수식</option></select></label></div>
-    <div class="fp-btns"><button class="btn" data-a="all">모두 찾기</button><button class="btn primary" data-a="next">다음 찾기</button>${replace ? '<button class="btn" data-a="rep">바꾸기</button><button class="btn" data-a="repall">모두 바꾸기</button>' : ''}</div>
+  p.innerHTML = `<div class="fp-head"><b>${replace ? t('Find and Replace') : t('Find')}</b><button class="x" data-a="close">×</button></div>
+    <label class="fld">${t('Find what')}<input class="inp" data-k="q" autofocus></label>
+    ${replace ? `<label class="fld">${t('Replace with')}<input class="inp" data-k="r"></label>` : ''}
+    <div class="fp-opts"><label><input type="checkbox" data-k="case"> ${t('Match case')}</label><label><input type="checkbox" data-k="whole"> ${t('Match entire cell contents')}</label>
+    <label>${t('Within')} <select data-k="scope"><option value="sheet">${t('Sheet')}</option><option value="wb">${t('Workbook')}</option></select></label>
+    <label>${t('Look in')} <select data-k="look"><option value="values">${t('Values')}</option><option value="formulas">${t('Formulas')}</option></select></label></div>
+    <div class="fp-btns"><button class="btn" data-a="all">${t('Find All')}</button><button class="btn primary" data-a="next">${t('Find Next')}</button>${replace ? `<button class="btn" data-a="rep">${t('Replace')}</button><button class="btn" data-a="repall">${t('Replace All')}</button>` : ''}</div>
     <div class="fp-results"></div>`;
   document.body.append(p);
   const q = (k) => p.querySelector(`[data-k="${k}"]`);
@@ -317,8 +318,8 @@ export function findDialog(app, replace = false) {
     if (!a) return;
     const list = all();
     const box = p.querySelector('.fp-results');
-    if (a === 'all') { box.innerHTML = `<div class="muted small">${list.length}개 셀을 찾았습니다.</div>` + list.slice(0, 500).map((m, i) => `<div class="fp-res" data-i="${i}">${esc(m.sh.name)}!${colName(m.c)}${m.r + 1} — ${esc(m.t.slice(0, 60))}</div>`).join(''); return; }
-    if (!list.length) { box.innerHTML = '<div class="muted small">찾는 항목이 없습니다.</div>'; return; }
+    if (a === 'all') { box.innerHTML = `<div class="muted small">${t('{n} cell(s) found.', { n: list.length })}</div>` + list.slice(0, 500).map((m, i) => `<div class="fp-res" data-i="${i}">${esc(m.sh.name)}!${colName(m.c)}${m.r + 1} — ${esc(m.t.slice(0, 60))}</div>`).join(''); return; }
+    if (!list.length) { box.innerHTML = `<div class="muted small">${t('No matches found.')}</div>`; return; }
     if (a === 'next') {
       const v = app.view(), wb = app.doc.wb;
       const curPos = wb.sheets.indexOf(wb.sheet) * 1e12 + key(v.active.r, v.active.c);
@@ -331,7 +332,7 @@ export function findDialog(app, replace = false) {
       const re = matcher(); const rep = q('r').value; const wb = app.doc.wb;
       const targets = a === 'repall' ? list : list.filter((m) => m.sh === wb.sheet && m.r === app.view().active.r && m.c === app.view().active.c);
       if (!targets.length && a === 'rep') { p.querySelector('[data-a=next]').click(); return; }
-      wb.begin('바꾸기');
+      wb.begin(t('Replace'));
       let n = 0;
       for (const m of targets) {
         const cell = m.sh.get(m.r, m.c);
@@ -340,7 +341,7 @@ export function findDialog(app, replace = false) {
         else if (!cell.f) { app.setCellInput(m.sh, m.r, m.c, String(m.t).replace(re, rep), { inTxn: true }); n++; }
       }
       wb.commit();
-      box.innerHTML = `<div class="muted small">${n}개 항목을 바꿨습니다.</div>`;
+      box.innerHTML = `<div class="muted small">${t('Replaced {n} item(s).', { n })}</div>`;
       if (a === 'rep') p.querySelector('[data-a=next]').click();
     }
   });
@@ -365,19 +366,19 @@ export function chartDialog(app, model = null, presetType = null) {
   }
   const curType = model ? (model.type === 'bar' && model.barDir === 'bar' ? 'barH' : model.type === 'bar' && model.grouping === 'stacked' ? 'barStacked' : model.type) : presetType || 'bar';
   const body = `
-    <div class="chart-types">${CHART_TYPES.map(([k, l]) => `<button class="ct${k === curType ? ' on' : ''}" data-t="${k}">${chartIcon(k)}<span>${l}</span></button>`).join('')}</div>
+    <div class="chart-types">${CHART_TYPES.map(([k, l]) => `<button class="ct${k === curType ? ' on' : ''}" data-t="${k}">${chartIcon(k)}<span>${t(l)}</span></button>`).join('')}</div>
     <div class="grid2">
-      <label class="fld">데이터 범위<input class="inp" data-k="range" value="${esc(range)}" placeholder="예: A1:D7"></label>
-      <label class="fld">계열 방향<select class="inp" data-k="dir"><option value="auto">자동</option><option value="cols">열</option><option value="rows">행</option></select></label>
-      <label class="fld">차트 제목<input class="inp" data-k="title" value="${esc(model?.title || '')}"></label>
-      <label class="fld">범례<select class="inp" data-k="legend"><option value="r">오른쪽</option><option value="b">아래쪽</option><option value="t">위쪽</option><option value="l">왼쪽</option><option value="">없음</option></select></label>
-      <label class="fld">가로(항목) 축 제목<input class="inp" data-k="xt" value="${esc(model?.xTitle || '')}"></label>
-      <label class="fld">세로(값) 축 제목<input class="inp" data-k="yt" value="${esc(model?.yTitle || '')}"></label>
+      <label class="fld">${t('Data range')}<input class="inp" data-k="range" value="${esc(range)}" placeholder="${t('e.g. A1:D7')}"></label>
+      <label class="fld">${t('Series in')}<select class="inp" data-k="dir"><option value="auto">${t('Auto')}</option><option value="cols">${t('Columns')}</option><option value="rows">${t('Rows')}</option></select></label>
+      <label class="fld">${t('Chart title')}<input class="inp" data-k="title" value="${esc(model?.title || '')}"></label>
+      <label class="fld">${t('Legend')}<select class="inp" data-k="legend"><option value="r">${t('Right')}</option><option value="b">${t('Bottom')}</option><option value="t">${t('Top')}</option><option value="l">${t('Left')}</option><option value="">${t('None')}</option></select></label>
+      <label class="fld">${t('Horizontal (category) axis title')}<input class="inp" data-k="xt" value="${esc(model?.xTitle || '')}"></label>
+      <label class="fld">${t('Vertical (value) axis title')}<input class="inp" data-k="yt" value="${esc(model?.yTitle || '')}"></label>
     </div>
-    ${model && !isNew ? '<p class="muted small">데이터 범위를 바꾸지 않으면 원본 계열 정의(수식 참조)를 그대로 유지합니다.</p>' : ''}`;
+    ${model && !isNew ? `<p class="muted small">${t('If you leave the data range unchanged, the original series definitions (formula references) are kept.')}</p>` : ''}`;
   let type = curType;
   return modal({
-    title: isNew ? '차트 삽입' : '차트 편집', body, width: 600, className: 'chart-dialog',
+    title: isNew ? t('Insert Chart') : t('Edit Chart'), body, width: 600, className: 'chart-dialog',
     onOpen: (el) => {
       el.querySelector('[data-k=legend]').value = model ? (model.legend || '') : 'r';
       el.querySelector('.chart-types').addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (!b) return; type = b.dataset.t; el.querySelectorAll('.ct').forEach((x) => x.classList.toggle('on', x === b)); });
@@ -390,9 +391,9 @@ export function chartDialog(app, model = null, presetType = null) {
       const rangeText = q('range').trim();
       if (isNew || rangeText !== range) {
         const p = parseSheetRef(rangeText);
-        if (!p) { app.toast('데이터 범위가 올바르지 않습니다.', 'error'); return false; }
+        if (!p) { app.toast(t('The data range is not valid.'), 'error'); return false; }
         const dsh = p.sheet ? wb.sheetByName(p.sheet) : sh;
-        if (!dsh) { app.toast('시트를 찾을 수 없습니다.', 'error'); return false; }
+        if (!dsh) { app.toast(t('Sheet not found.'), 'error'); return false; }
         const dir = q('dir');
         m = ChartLayer.fromRange(wb, dsh, p.range, baseType, dir === 'auto' ? null : dir === 'rows');
         if (!isNew) { m.id = model.id; m.anchor = model.anchor; }
@@ -430,11 +431,11 @@ export function sortDialog(app) {
   let range = v.sel.r1 === v.sel.r2 && v.sel.c1 === v.sel.c2 ? app.filters.tableAt(sh, v.sel.r1, v.sel.c1) : { ...v.sel, r2: Math.min(v.sel.r2, sh.maxRow), c2: Math.min(v.sel.c2, sh.maxCol) };
   if (sh.autoFilter && v.active.r >= sh.autoFilter.range.r1 && v.active.r <= sh.autoFilter.range.r2) range = app.filters.tableBody(sh, sh.autoFilter.range);
   const header = app.filters.guessHeader(sh, range);
-  const colOpts = (hdr) => { const o = []; for (let c = range.c1; c <= range.c2; c++) { const t = hdr ? formatValue(app.doc.wb.value(sh, range.r1, c), null).text : ''; o.push(`<option value="${c}">${esc(t || '열 ' + colName(c))}</option>`); } return o.join(''); };
-  const levelRow = (i) => `<div class="sort-level"><span>${i === 0 ? '정렬 기준' : '다음 기준'}</span><select class="inp" data-col="${i}">${i ? '<option value="">(없음)</option>' : ''}${colOpts(header)}</select><select class="inp" data-ord="${i}"><option value="asc">오름차순</option><option value="desc">내림차순</option></select></div>`;
+  const colOpts = (hdr) => { const o = []; for (let c = range.c1; c <= range.c2; c++) { const h = hdr ? formatValue(app.doc.wb.value(sh, range.r1, c), null).text : ''; o.push(`<option value="${c}">${esc(h || t('Column {name}', { name: colName(c) }))}</option>`); } return o.join(''); };
+  const levelRow = (i) => `<div class="sort-level"><span>${i === 0 ? t('Sort by') : t('Then by')}</span><select class="inp" data-col="${i}">${i ? `<option value="">${t('(none)')}</option>` : ''}${colOpts(header)}</select><select class="inp" data-ord="${i}"><option value="asc">${t('Ascending')}</option><option value="desc">${t('Descending')}</option></select></div>`;
   return modal({
-    title: '정렬', width: 480,
-    body: `<p class="muted small">범위: ${rangeA1(range)}</p><label class="chk"><input type="checkbox" data-k="hdr" ${header ? 'checked' : ''}> 내 데이터에 머리글 표시</label>${[0, 1, 2].map(levelRow).join('')}`,
+    title: t('Sort'), width: 480,
+    body: `<p class="muted small">${t('Range: {range}', { range: rangeA1(range) })}</p><label class="chk"><input type="checkbox" data-k="hdr" ${header ? 'checked' : ''}> ${t('My data has headers')}</label>${[0, 1, 2].map(levelRow).join('')}`,
     onOk: (el) => {
       const keys = [];
       for (let i = 0; i < 3; i++) { const c = el.querySelector(`[data-col="${i}"]`).value; if (c !== '') keys.push({ c: +c, asc: el.querySelector(`[data-ord="${i}"]`).value === 'asc' }); }
@@ -446,29 +447,29 @@ export function sortDialog(app) {
 // ------------------------------------------------------------------ paste special
 export function pasteSpecialDialog(app) {
   return modal({
-    title: '선택하여 붙여넣기', width: 360,
-    body: `<div class="radio-col"><label><input type="radio" name="ps" value="all" checked> 모두</label><label><input type="radio" name="ps" value="formulas"> 수식</label><label><input type="radio" name="ps" value="values"> 값</label><label><input type="radio" name="ps" value="formats"> 서식</label></div><label class="chk"><input type="checkbox" data-k="tr"> 행/열 바꿈</label>`,
+    title: t('Paste Special'), width: 360,
+    body: `<div class="radio-col"><label><input type="radio" name="ps" value="all" checked> ${t('All')}</label><label><input type="radio" name="ps" value="formulas"> ${t('Formulas')}</label><label><input type="radio" name="ps" value="values"> ${t('Values')}</label><label><input type="radio" name="ps" value="formats"> ${t('Formats')}</label></div><label class="chk"><input type="checkbox" data-k="tr"> ${t('Transpose')}</label>`,
     onOk: (el) => { app.clipboard.pasteCommand(el.querySelector('input[name=ps]:checked').value, el.querySelector('[data-k=tr]').checked); },
   }).done;
 }
 
 // ------------------------------------------------------------------ insert function
 export function insertFunctionDialog(app) {
-  const cats = ['전체', ...new Set(Object.values(FN_HELP).map((h) => h[0]))];
-  const body = `<label class="fld">함수 검색<input class="inp" data-k="q" placeholder="예: 합계, VLOOKUP" autofocus></label>
-    <label class="fld">범주<select class="inp" data-k="cat">${cats.map((c) => `<option>${c}</option>`).join('')}</select></label>
+  const cats = ['', ...new Set(Object.keys(FN_HELP).map((n) => fnHelp(n)[0]))]; // '' = all categories
+  const body = `<label class="fld">${t('Search for a function')}<input class="inp" data-k="q" placeholder="${t('e.g. SUM, VLOOKUP')}" autofocus></label>
+    <label class="fld">${t('Category')}<select class="inp" data-k="cat">${cats.map((c) => `<option value="${esc(c)}">${esc(c ? t(c) : t('All functions'))}</option>`).join('')}</select></label>
     <select class="inp fn-list" size="10" data-k="list"></select><div class="fn-desc" data-k="desc"></div>`;
   return modal({
-    title: '함수 삽입', body, width: 480,
+    title: t('Insert Function'), body, width: 480,
     onOpen: (el) => {
       const q = (k) => el.querySelector(`[data-k="${k}"]`);
       const fill = () => {
         const s = q('q').value.toUpperCase(), cat = q('cat').value;
-        const names = FUNCTION_NAMES.filter((n) => (cat === '전체' || FN_HELP[n]?.[0] === cat) && (!s || n.includes(s) || (FN_HELP[n]?.[2] || '').includes(q('q').value)));
+        const names = FUNCTION_NAMES.filter((n) => (cat === '' || fnHelp(n)?.[0] === cat) && (!s || n.includes(s) || (fnHelp(n)?.[2] || '').includes(q('q').value)));
         q('list').innerHTML = names.map((n) => `<option>${n}</option>`).join('');
         q('list').selectedIndex = 0; desc();
       };
-      const desc = () => { const n = q('list').value; const h = FN_HELP[n]; q('desc').innerHTML = n ? `<b>${esc(h?.[1] || n + '(...)')}</b><br>${esc(h?.[2] || '')}` : ''; };
+      const desc = () => { const n = q('list').value; const h = fnHelp(n); q('desc').innerHTML = n ? `<b>${esc(h?.[1] || n + '(...)')}</b><br>${esc(h?.[2] || '')}` : ''; };
       q('q').addEventListener('input', fill); q('cat').addEventListener('change', fill); q('list').addEventListener('change', desc);
       q('list').addEventListener('dblclick', () => el.querySelector('[data-act=ok]').click());
       fill();
@@ -478,8 +479,8 @@ export function insertFunctionDialog(app) {
 }
 
 // ------------------------------------------------------------------ pivot table dialog
-const PIVOT_FNS = [['sum', '합계'], ['count', '개수'], ['average', '평균'], ['max', '최대'], ['min', '최소'], ['product', '곱'], ['countNums', '숫자 개수'],
-  ['stdDev', '표준 편차'], ['stdDevp', '표준 편차(전체)'], ['var', '분산'], ['varp', '분산(전체)']];
+const PIVOT_FNS = [['sum', 'Sum'], ['count', 'Count'], ['average', 'Average'], ['max', 'Max'], ['min', 'Min'], ['product', 'Product'], ['countNums', 'Count Numbers'],
+  ['stdDev', 'StdDev'], ['stdDevp', 'StdDevp'], ['var', 'Var'], ['varp', 'Varp']];
 
 /** Insert → PivotTable: source range, a role per field (rows / columns / values / filter), where to put it.
  * The server builds it (POST /pivots, same as `xl.py pivot add`), so the agent and the preview make the
@@ -492,13 +493,13 @@ export function pivotDialog(app) {
   const source0 = `${quoteSheetName(sh.name)}!${rangeA1(g)}`;
   const n = wb.sheets.length + 1;
   const body = `
-    <label class="fld">원본 범위<input class="inp" data-k="source" value="${esc(source0)}"></label>
+    <label class="fld">${t('Source range')}<input class="inp" data-k="source" value="${esc(source0)}"></label>
     <div class="pv-fields" data-k="fields"></div>
     <div class="grid2">
-      <label class="chk"><input type="radio" name="pv-dest" value="new" checked> 새 시트 <input class="inp" data-k="sheet" value="피벗${n}" style="width:110px"></label>
-      <label class="chk"><input type="radio" name="pv-dest" value="here"> 기존 위치 <input class="inp" data-k="at" value="${esc(sh.name)}!${a1(v.active.r, v.active.c)}" style="width:140px"></label>
+      <label class="chk"><input type="radio" name="pv-dest" value="new" checked> ${t('New worksheet')} <input class="inp" data-k="sheet" value="${esc(t('Pivot{n}', { n }))}" style="width:110px"></label>
+      <label class="chk"><input type="radio" name="pv-dest" value="here"> ${t('Existing location')} <input class="inp" data-k="at" value="${esc(sh.name)}!${a1(v.active.r, v.active.c)}" style="width:140px"></label>
     </div>
-    <p class="muted small">각 필드를 행·열·값·필터 중 하나에 놓으세요. 저장하면 Excel이 파일을 열 때 원본에서 피벗을 다시 만듭니다.</p>
+    <p class="muted small">${t('Put each field in Rows, Columns, Values or Filters. When you save, Excel rebuilds the pivot from the source when it opens the file.')}</p>
     <p class="err small" data-k="err" style="color:#c00000"></p>`;
   const headers = (src) => {
     const p = parseSheetRef(src);
@@ -512,10 +513,10 @@ export function pivotDialog(app) {
     return out;
   };
   const fieldRows = (names) => names.map((f, i) => `<div class="pv-row" data-f="${esc(f)}"><span class="pv-name">${esc(f)}</span>
-      <select class="inp" data-role><option value="">—</option><option value="rows"${i === 0 ? ' selected' : ''}>행</option><option value="cols">열</option><option value="values"${i === names.length - 1 ? ' selected' : ''}>값</option><option value="filters">필터</option></select>
-      <select class="inp" data-fn>${PIVOT_FNS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></div>`).join('');
+      <select class="inp" data-role><option value="">—</option><option value="rows"${i === 0 ? ' selected' : ''}>${t('Rows')}</option><option value="cols">${t('Columns')}</option><option value="values"${i === names.length - 1 ? ' selected' : ''}>${t('Values')}</option><option value="filters">${t('Filters')}</option></select>
+      <select class="inp" data-fn>${PIVOT_FNS.map(([k, l]) => `<option value="${k}">${t(l)}</option>`).join('')}</select></div>`).join('');
   return modal({
-    title: '피벗 테이블 만들기', body, width: 520, className: 'pivot-dialog',
+    title: t('Create PivotTable'), body, width: 520, className: 'pivot-dialog',
     onOpen: (el) => {
       const box = el.querySelector('[data-k=fields]');
       const fill = () => { box.innerHTML = fieldRows(headers(el.querySelector('[data-k=source]').value)); };
@@ -532,10 +533,10 @@ export function pivotDialog(app) {
         else spec[role].push(f);
       }
       const dest = el.querySelector('input[name=pv-dest]:checked').value;
-      spec.at = dest === 'new' ? `${q('sheet').value.trim() || `피벗${n}`}!A3` : q('at').value.trim();
+      spec.at = dest === 'new' ? `${q('sheet').value.trim() || t('Pivot{n}', { n })}!A3` : q('at').value.trim();
       try {
         const res = await app.createPivot(spec);
-        app.toast(`피벗 테이블 '${res.name}'을(를) ${res.sheet}!${res.range}에 만들었습니다. 저장하면 Excel이 열 때 새로 고칩니다.`, 'info');
+        app.toast(t("Created pivot table '{name}' at {sheet}!{range}. Excel refreshes it when it opens the saved file.", { name: res.name, sheet: res.sheet, range: res.range }), 'info');
         return true;
       } catch (e) { q('err').textContent = e.message; return false; }
     },

@@ -2,6 +2,7 @@
 import { key, colName, MAX_COLS, MAX_ROWS, normRange, inRange, parseRange } from './address.js';
 import { formatValue, COLOR_NAMES } from './numfmt.js';
 import { geom } from './geometry.js';
+import { t } from './i18n.js';
 
 const HDR_H = 22;
 const GRID_COLOR = '#e0e3e7';
@@ -457,7 +458,7 @@ export class Grid {
       ctx.strokeStyle = '#7030A0'; ctx.lineWidth = 1.5 / m.z; ctx.setLineDash([5 / m.z, 3 / m.z]);
       ctx.strokeRect(x + 1 / m.z, y + 1 / m.z, w - 2 / m.z, hh - 2 / m.z);
       ctx.setLineDash([]);
-      const label = `피벗 ${p.name} · 편집 불가`;
+      const label = t('Pivot {name} · read-only', { name: p.name });
       ctx.font = `${11 / m.z}px system-ui, sans-serif`;
       const tw = ctx.measureText(label).width + 8 / m.z, th = 15 / m.z;
       const ly = y >= th ? y - th : y;
@@ -484,9 +485,9 @@ export class Grid {
       ctx.strokeRect(fx + 1 / m.z, fy + 1 / m.z, fw - 2 / m.z, fh - 2 / m.z);
       if (f !== marks[marks.length - 1]) continue; // label only the latest one: labels would cover cells
       ctx.font = `${10 / m.z}px system-ui, sans-serif`;
-      const lw = ctx.measureText('에이전트').width + 6 / m.z, lh = 13 / m.z;
+      const lw = ctx.measureText(t('Agent')).width + 6 / m.z, lh = 13 / m.z;
       ctx.fillStyle = `rgba(124,58,237,${a})`; ctx.fillRect(fx, fy - lh, lw, lh);
-      ctx.fillStyle = `rgba(255,255,255,${a})`; ctx.fillText('에이전트', fx + 3 / m.z, fy - 3 / m.z);
+      ctx.fillStyle = `rgba(255,255,255,${a})`; ctx.fillText(t('Agent'), fx + 3 / m.z, fy - 3 / m.z);
     }
     // cells changed by another client (agent / other window) flash briefly
     for (const f of this.flashes || []) {
@@ -792,7 +793,7 @@ export class Grid {
       const sh = this.sheet;
       for (const t of targets) (axis === 'col' ? sh.colW : sh.rowH).set(t, size);
       sh._geomVersion++;
-      tip?.(axis === 'col' ? `너비: ${((size - 5) / 7).toFixed(2)} (${size} 픽셀)` : `높이: ${(size * 0.75).toFixed(2)} (${size} 픽셀)`, ev.clientX + 12, ev.clientY + 12);
+      tip?.(axis === 'col' ? t('Width: {w} ({px} pixels)', { w: ((size - 5) / 7).toFixed(2), px: size }) : t('Height: {h} ({px} pixels)', { h: (size * 0.75).toFixed(2), px: size }), ev.clientX + 12, ev.clientY + 12);
       this.render();
     };
     const sh0 = this.sheet;

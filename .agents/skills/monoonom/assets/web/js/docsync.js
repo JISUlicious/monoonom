@@ -5,6 +5,7 @@
 import { api } from './api.js';
 import { keyRow, keyCol, rangeA1, a1 } from './address.js';
 import { sheetMetaJSON, sheetJSON, cellJSON, newId } from './model.js';
+import { t } from './i18n.js';
 
 export class DocSync {
   constructor(app, doc, version) {
@@ -77,8 +78,8 @@ export class DocSync {
       });
     } catch (e) {
       this.track(batchId, batch, -1);
-      if (e.status === 409) await this.resync(`${e.message} 마지막 작업("${entry.label}")은 반영되지 않았습니다.`);
-      else this.app.toast(`서버에 변경을 보내지 못했습니다: ${e.message}`, 'error', 8000);
+      if (e.status === 409) await this.resync(t('{message} The last action ("{label}") was not applied.', { message: e.message, label: entry.label }));
+      else this.app.toast(t('Could not send changes to the server: {message}', { message: e.message }), 'error', 8000);
     }
   }
 
@@ -214,7 +215,7 @@ export class EventStream {
     });
     on('ops', (d) => this.syncs.get(d.docId)?.onOps(d));
     on('saved', (d) => this.syncs.get(d.docId)?.onSaved(d));
-    on('resync', (d) => this.syncs.get(d.docId)?.resync('서버 기록이 앞서 있어 다시 불러왔습니다.'));
+    on('resync', (d) => this.syncs.get(d.docId)?.resync(t('The server has newer changes, so the workbook was reloaded.')));
     on('presence', (d) => this.app.onPresence?.(d));
     on('goto', (d) => this.app.onGoto?.(d));
     on('view', (d) => this.app.onView?.(d));
@@ -229,7 +230,7 @@ export class EventStream {
 
   post(sync) {
     api.subscribe({ client: this.app.clientId, docId: sync.id, since: sync.version }).catch((e) => {
-      if (e.status === 404 && /스트림/.test(e.message)) setTimeout(() => this.ready && this.post(sync), 500);
+      if (e.status === 404 && /stream/i.test(e.message)) setTimeout(() => this.ready && this.post(sync), 500);
     });
   }
 

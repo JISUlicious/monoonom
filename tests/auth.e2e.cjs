@@ -41,7 +41,7 @@ const toasts = (f) => f.evaluate(() => [...document.querySelectorAll('#toasts .t
   xl(wsA, 'serve', '--port', '8771'); xl(wsA, 'open', 'alpha.xlsx');
   xl(wsB, 'serve', '--port', '8772'); xl(wsB, 'open', 'beta.xlsx');
   const host = await hostPage(8779);
-  const browser = await chromium.launch();
+  const browser = require('./korean.cjs')(await chromium.launch());
   const errors = [];
   try {
     const urlA = state(wsA).url;

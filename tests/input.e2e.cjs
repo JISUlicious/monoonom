@@ -37,7 +37,7 @@ const edText = (frame) => frame.evaluate(() => window.monoonom.editor.ta.value);
   const url = xl('url', '--bare').trim();
   const host = http.createServer((q, r) => { r.writeHead(200, { 'Content-Type': 'text/html' }); r.end(`<input id="chat" autofocus><br><iframe src="${url}" style="width:1100px;height:600px"></iframe>`); });
   await new Promise((r) => host.listen(8789, '127.0.0.1', r));
-  const browser = await chromium.launch();
+  const browser = require('./korean.cjs')(await chromium.launch());
   const errors = [];
   try {
     // 1) click a cell, then type: goes into the cell (top-level tab and an iframe preview)

@@ -13,6 +13,7 @@ import { api, hasToken, tokenFragment } from './api.js';
 import { geom } from './geometry.js';
 import * as D from './dialogs.js';
 import { combo } from './combo.js';
+import { t, LANG, FORMATS, translateDom, serverText } from './i18n.js';
 
 const LISTS = [
   ['일', '월', '화', '수', '목', '금', '토'],
@@ -88,7 +89,7 @@ class App {
     doc.sync.connect();
     doc.sync.scheduleCalc();
     if (activate) this.activateDoc(this.docs.length - 1);
-    if (wb.warnings?.length) this.toast(wb.warnings.join('\n'), 'warn', 8000);
+    if (wb.warnings?.length) this.toast(wb.warnings.map(serverText).join('\n'), 'warn', 8000);
     return doc;
   }
 
@@ -134,7 +135,7 @@ class App {
 
   onDocClosedRemotely(doc) {
     if (!this.docs.includes(doc)) return;
-    this.toast(`'${doc.wb.name}' 문서가 닫혔습니다.`);
+    this.toast(t("'{name}' was closed.", { name: doc.wb.name }));
     this.detachDoc(doc);
   }
 
@@ -182,7 +183,7 @@ class App {
   async closeDoc(i) {
     const doc = this.docs[i];
     if (doc.wb.dirty) {
-      const ans = await D.confirmBox(`'${doc.wb.name}'의 변경 내용을 저장하시겠습니까?`, { yes: '저장', no: '저장 안 함', cancel: true });
+      const ans = await D.confirmBox(t("Do you want to save the changes to '{name}'?", { name: doc.wb.name }), { yes: t('Save'), no: t("Don't Save"), cancel: true });
       if (ans === null) return;
       if (ans === 'yes') { this.di = i; if (!(await this.save())) return; }
     }
@@ -192,12 +193,12 @@ class App {
 
   nextBlankName() {
     let n = 1;
-    while (this.docs.some((d) => d.wb.name === `통합 문서${n}.xlsx`)) n++;
-    return `통합 문서${n}.xlsx`;
+    while (this.docs.some((d) => d.wb.name === t('Book{n}.xlsx', { n }))) n++;
+    return t('Book{n}.xlsx', { n });
   }
 
   onWbChange(doc, ev) {
-    if (ev.type === 'blocked') { this.toast(ev.message, 'warn'); this.render(); return; }
+    if (ev.type === 'blocked') { this.toast(serverText(ev.message), 'warn'); this.render(); return; }
     if (ev.type !== 'change') return;
     if (ev.entry) doc.sync.send(ev.entry);
     doc.sync.scheduleCalc();
@@ -219,10 +220,11 @@ class App {
     const now = performance.now();
     this.grid.flashes = (this.grid.flashes || []).filter((f) => f.until > now).concat(boxes.map((b) => ({ ...b, until: now + 1600 })));
     if (boxes.length) setTimeout(() => this.grid.render(), 1700);
-    const who = ev.actor === 'agent' ? '에이전트' : ev.actor === 'system' ? '' : '다른 창';
+    const who = ev.actor === 'agent' ? 'agent' : ev.actor === 'system' ? '' : 'window';
     if (who && (boxes.length || ev.label)) {
       const where = boxes.slice(0, 3).map((b) => `${b.sheet.name}!${rangeA1(b)}`).join(', ');
-      this.setStatus(`${who}: ${ev.label || '변경'}${where ? ` (${where})` : ''}`);
+      const vars = { label: ev.label || t('Change'), where: where ? ` (${where})` : '' };
+      this.setStatus(who === 'agent' ? t('Agent: {label}{where}', vars) : t('Other window: {label}{where}', vars));
     }
     this.render();
   }
@@ -274,7 +276,7 @@ class App {
     this.follow = !!on;
     try { localStorage.setItem('wx_follow', on ? 'on' : 'off'); } catch { /* ignore */ }
     this.$('#follow-agent').checked = this.follow;
-    this.setStatus(on ? '에이전트 따라가기: 켬 — 에이전트가 작업하는 곳으로 화면이 이동합니다.' : '에이전트 따라가기: 끔 — 에이전트가 바꾼 셀은 강조만 합니다.');
+    this.setStatus(on ? t('Follow agent: on — the view moves to where the agent works.') : t("Follow agent: off — the agent's changes are only highlighted."));
     if (on && this.doc) { // jump to the latest work, if there is any
       const marks = this.docs.flatMap((d) => (d.agentMarks || []).map((m) => ({ d, m }))).filter((x) => x.m.until > performance.now());
       const last = marks[marks.length - 1];
@@ -296,15 +298,15 @@ class App {
   renderTabs() {
     const bar = this.$('#doc-tabs');
     bar.innerHTML = this.docs.map((d, i) => `<div class="doc-tab${i === this.di ? ' on' : ''}" data-i="${i}" title="${D.esc(d.wb.path || d.wb.name)}">
-      <span class="dt-ic">${d.wb.format === 'xls' ? '📗' : '📊'}</span><span class="dt-name">${D.esc(d.wb.name)}</span>${d.unseen && i !== this.di ? '<span class="dt-new" title="화면에 없는 동안 바뀌었습니다">●</span>' : ''}${d.wb.dirty ? '<span class="dt-dirty" title="저장되지 않은 변경 내용">●</span>' : ''}<button class="dt-x" data-close="${i}" title="닫기 (Ctrl+F4)">×</button></div>`).join('')
-      + '<button class="doc-new" data-cmd="new" title="새 통합 문서 (Ctrl+N)">＋</button>';
+      <span class="dt-ic">${d.wb.format === 'xls' ? '📗' : '📊'}</span><span class="dt-name" translate="no">${D.esc(d.wb.name)}</span>${d.unseen && i !== this.di ? `<span class="dt-new" title="${t('Changed while not on screen')}">●</span>` : ''}${d.wb.dirty ? `<span class="dt-dirty" title="${t('Unsaved changes')}">●</span>` : ''}<button class="dt-x" data-close="${i}" title="${t('Close (Ctrl+F4)')}">×</button></div>`).join('')
+      + `<button class="doc-new" data-cmd="new" title="${t('New workbook (Ctrl+N)')}">＋</button>`;
     if (this.doc) document.title = `${this.doc.wb.dirty ? '● ' : ''}${this.doc.wb.name} - MoNooNoM`;
   }
 
   renderSheetTabs() {
     const wb = this.doc.wb;
     const box = this.$('#sheet-tabs');
-    box.innerHTML = wb.sheets.map((s, i) => s.state !== 'visible' ? '' : `<div class="sheet-tab${i === wb.active ? ' on' : ''}" data-i="${i}" draggable="true" style="${s.tabColor ? `--tab:${s.tabColor}` : ''}">${D.esc(s.name)}${s.unseen && i !== wb.active ? '<span class="st-new" title="에이전트가 이 시트를 바꿨습니다">●</span>' : ''}</div>`).join('');
+    box.innerHTML = wb.sheets.map((s, i) => s.state !== 'visible' ? '' : `<div class="sheet-tab${i === wb.active ? ' on' : ''}" data-i="${i}" draggable="true" translate="no" style="${s.tabColor ? `--tab:${s.tabColor}` : ''}">${D.esc(s.name)}${s.unseen && i !== wb.active ? `<span class="st-new" title="${t('The agent changed this sheet')}">●</span>` : ''}</div>`).join('');
   }
 
   syncFormulaBar() {
@@ -339,10 +341,10 @@ class App {
     const nf = sh.get(this.view().active.r, this.view().active.c)?.s?.nf;
     const f = (x) => formatValue(parseFloat(x.toPrecision(15)), nf && !isDateFormat(nf) ? nf : 'General').text;
     const stats = this.$('#status-stats');
-    stats.innerHTML = count > 1 ? (ncount ? `<span>평균: ${f(sum / ncount)}</span><span>개수: ${count}</span><span>숫자 셀 수: ${ncount}</span><span>최소값: ${f(min)}</span><span>최대값: ${f(max)}</span><span>합계: ${f(sum)}</span>` : `<span>개수: ${count}</span>`) : '';
-    const circ = wb.engine.circular.size ? `<span class="warn">순환 참조: ${[...wb.engine.circular].slice(0, 3).join(', ')}</span>` : '';
-    const filt = sh.autoFilter && sh.filterHidden.size ? `<span>${(sh.autoFilter.range.r2 - sh.autoFilter.range.r1) - sh.filterHidden.size}/${sh.autoFilter.range.r2 - sh.autoFilter.range.r1}개 레코드 표시</span>` : '';
-    this.$('#status-msg').innerHTML = (this.statusText ? `<span>${D.esc(this.statusText)}</span>` : '<span>준비</span>') + circ + filt;
+    stats.innerHTML = count > 1 ? (ncount ? `<span>${t('Average: {v}', { v: f(sum / ncount) })}</span><span>${t('Count: {n}', { n: count })}</span><span>${t('Numerical Count: {n}', { n: ncount })}</span><span>${t('Min: {v}', { v: f(min) })}</span><span>${t('Max: {v}', { v: f(max) })}</span><span>${t('Sum: {v}', { v: f(sum) })}</span>` : `<span>${t('Count: {n}', { n: count })}</span>`) : '';
+    const circ = wb.engine.circular.size ? `<span class="warn">${t('Circular References: {cells}', { cells: [...wb.engine.circular].slice(0, 3).join(', ') })}</span>` : '';
+    const filt = sh.autoFilter && sh.filterHidden.size ? `<span>${t('{shown} of {total} records found', { shown: (sh.autoFilter.range.r2 - sh.autoFilter.range.r1) - sh.filterHidden.size, total: sh.autoFilter.range.r2 - sh.autoFilter.range.r1 })}</span>` : '';
+    this.$('#status-msg').innerHTML = (this.statusText ? `<span>${D.esc(this.statusText)}</span>` : `<span>${t('Ready')}</span>`) + circ + filt;
     this.$('#zoom-label').textContent = Math.round(this.view().zoom * 100) + '%';
     this.$('#zoom-range').value = Math.round(this.view().zoom * 100);
   }
@@ -364,11 +366,11 @@ class App {
     if (document.activeElement !== nf) {
       const code = st.nf || 'General';
       const opt = [...nf.options].find((o) => o.value === code);
-      if (opt) nf.value = code; else { nf.value = '__custom'; nf.querySelector('[value=__custom]').textContent = `사용자 지정 (${code})`; }
+      if (opt) nf.value = code; else { nf.value = '__custom'; nf.querySelector('[value=__custom]').textContent = t('Custom ({code})', { code }); }
     }
     this.$('#undo-btn').disabled = !this.doc.wb.undoStack.length;
     this.$('#redo-btn').disabled = !this.doc.wb.redoStack.length;
-    this.$('#undo-btn').title = this.doc.wb.undoStack.length ? `실행 취소: ${this.doc.wb.undoStack.at(-1).label} (Ctrl+Z)` : '실행 취소 (Ctrl+Z)';
+    this.$('#undo-btn').title = this.doc.wb.undoStack.length ? t('Undo {label} (Ctrl+Z)', { label: this.doc.wb.undoStack.at(-1).label }) : t('Undo (Ctrl+Z)');
   }
 
   // ------------------------------------------------------------------ selection
@@ -483,7 +485,7 @@ class App {
   // ------------------------------------------------------------------ cell editing
   setCellInput(sh, r, c, text, { fillSelection = false, inTxn = false } = {}) {
     const wb = this.doc.wb;
-    if (!inTxn) wb.begin('입력');
+    if (!inTxn) wb.begin(t('Typing'));
     const write = (rr, cc, srcText) => {
       const cur = sh.get(rr, cc);
       const base = { s: cur?.s, h: cur?.h, cm: cur?.cm };
@@ -491,7 +493,7 @@ class App {
         if (cur?.fo && cur.f === srcText) { wb.setCell(sh, rr, cc, { ...cur }); return; } // unchanged: keep the file's formula and result
         if (cur?.fo && !this._foWarned) {
           this._foWarned = true;
-          this.toast('이 앱이 계산할 수 없는 함수가 있던 셀을 고쳤습니다. 저장하면 새 수식이 저장되고, 결과는 Excel에서 열 때 계산됩니다.', 'warn', 8000);
+          this.toast(t('You edited a cell that had a function this app cannot calculate. Saving stores the new formula; its result is calculated when the file is opened in Excel.'), 'warn', 8000);
         }
         wb.setCell(sh, rr, cc, { ...base, f: srcText }); return;
       }
@@ -521,7 +523,7 @@ class App {
 
   // ------------------------------------------------------------------ style commands
   selection() { return this.view().sel; }
-  styleRange(fn, label = '서식') {
+  styleRange(fn, label = t('Format')) {
     const wb = this.doc.wb, sh = wb.sheet;
     wb.begin(label);
     wb.setStyle(sh, this.selection(), fn);
@@ -537,7 +539,7 @@ class App {
 
   applyStylePatch(patch, { merge = undefined, border = null } = {}) {
     const wb = this.doc.wb;
-    wb.begin('셀 서식');
+    wb.begin(t('Format Cells'));
     this.styleRange((s) => { const n = { ...s }; for (const [k, v] of Object.entries(patch)) { if (v === null || v === undefined) delete n[k]; else n[k] = v; } return n; });
     if (border) this.setBorders(border.kind, border.s, border.c);
     if (merge !== undefined) {
@@ -573,7 +575,7 @@ class App {
         default: break;
       }
       return n;
-    }, '테두리');
+    }, t('Borders'));
   }
 
   changeDecimals(delta) {
@@ -590,12 +592,12 @@ class App {
         return p.replace(/0\.(0*)/, (m, z) => (z.length > 1 ? '0.' + z.slice(1) : '0'));
       });
       return { ...s, nf: parts.join(';') };
-    }, '자릿수');
+    }, t('Decimal Places'));
   }
 
   merge(mode, inTxn = false) {
     const wb = this.doc.wb, sh = wb.sheet, sel = this.selection();
-    if (!inTxn) wb.begin('셀 병합');
+    if (!inTxn) wb.begin(t('Merge Cells'));
     wb.touchMeta(sh);
     const overlaps = (m) => m.r2 >= sel.r1 && m.r1 <= sel.r2 && m.c2 >= sel.c1 && m.c1 <= sel.c2;
     sh.merges = sh.merges.filter((m) => !overlaps(m));
@@ -624,7 +626,7 @@ class App {
       let n = 0;
       for (let r = sel.r1; r <= Math.min(sel.r2, sh.maxRow); r++) for (let c = sel.c1; c <= Math.min(sel.c2, sh.maxCol); c++) { const cell = sh.get(r, c); if (cell && (cell.v !== undefined || cell.f)) n++; }
       if (n > 1 && mode !== 'across') {
-        const ok = await D.confirmBox('셀을 병합하면 왼쪽 위의 값만 남고 나머지 값은 삭제됩니다.', { yes: '확인', no: '취소' });
+        const ok = await D.confirmBox(t('Merging cells only keeps the upper-left value and discards other values.'), { yes: t('OK'), no: t('Cancel') });
         if (ok !== 'yes') return;
       }
     }
@@ -638,19 +640,19 @@ class App {
     for (let r = sel.r1; r <= Math.min(sel.r2, sel.r1 + 500); r++) { const row = []; for (let c = sel.c1; c <= Math.min(sel.c2, sel.c1 + 200); c++) row.push(sh.get(r, c)?.s || null); block.push(row); }
     this.painter = { block, sticky };
     document.body.classList.add('painting');
-    this.setStatus('서식을 붙여넣을 셀을 선택하세요. (Esc: 취소)');
+    this.setStatus(t('Select the cells to paste the formatting to. (Esc: cancel)'));
   }
   applyPainter(p) {
     const { block } = p;
     const sel = this.selection();
-    this.styleRange((s, r, c) => block[(r - sel.r1) % block.length][(c - sel.c1) % block[0].length] || {}, '서식 복사');
+    this.styleRange((s, r, c) => block[(r - sel.r1) % block.length][(c - sel.c1) % block[0].length] || {}, t('Format Painter'));
   }
 
   // ------------------------------------------------------------------ clear / fill / sums
   clear(kind = 'contents') {
     const wb = this.doc.wb, sh = wb.sheet, sel = this.selection();
     const g = { ...sel, r2: Math.min(sel.r2, sh.maxRow), c2: Math.min(sel.c2, sh.maxCol) };
-    wb.begin(kind === 'all' ? '모두 지우기' : kind === 'formats' ? '서식 지우기' : '내용 지우기');
+    wb.begin(kind === 'all' ? t('Clear All') : kind === 'formats' ? t('Clear Formats') : t('Clear Contents'));
     const keys = [];
     if ((g.r2 - g.r1 + 1) * (g.c2 - g.c1 + 1) > sh.cells.size) { for (const k of sh.cells.keys()) if (inRange(g, keyRow(k), keyCol(k))) keys.push(k); }
     else for (let r = g.r1; r <= g.r2; r++) for (let c = g.c1; c <= g.c2; c++) if (sh.cells.has(key(r, c))) keys.push(key(r, c));
@@ -674,7 +676,7 @@ class App {
   fill(src, target) {
     const wb = this.doc.wb, sh = wb.sheet;
     const vertical = target.r1 !== src.r1 || target.r2 !== src.r2;
-    wb.begin('채우기');
+    wb.begin(t('Fill'));
     if (target.r1 >= src.r1 && target.r2 <= src.r2 && target.c1 >= src.c1 && target.c2 <= src.c2) {
       // shrinking the selection with the handle clears cells (Excel)
       for (let r = target.r1; r <= target.r2; r++) for (let c = target.c1; c <= target.c2; c++) { /* keep */ }
@@ -704,7 +706,7 @@ class App {
 
   fillDir(dir) {
     const wb = this.doc.wb, sh = wb.sheet, sel = this.selection();
-    wb.begin(dir === 'down' ? '아래로 채우기' : '오른쪽으로 채우기');
+    wb.begin(dir === 'down' ? t('Fill Down') : t('Fill Right'));
     if (dir === 'down') {
       const r0 = sel.r1 === sel.r2 ? sel.r1 - 1 : sel.r1;
       if (r0 < 0) { wb.commit(); return; }
@@ -745,7 +747,7 @@ class App {
       this.editor.ta.setSelectionRange(text.endsWith('()') ? pos : text.indexOf('(') + 1, pos);
       return;
     }
-    wb.begin('자동 합계');
+    wb.begin(t('AutoSum'));
     const rowTarget = Math.min(sel.r2, sh.maxRow) + 1;
     for (let c = sel.c1; c <= Math.min(sel.c2, sh.maxCol); c++) wb.setCell(sh, rowTarget, c, { ...(sh.get(rowTarget, c) || {}), f: `=${fn}(${a1(sel.r1, c)}:${a1(rowTarget - 1, c)})` });
     wb.commit();
@@ -764,7 +766,7 @@ class App {
     const sh = this.doc.wb.sheet;
     const serial = kind === 'date' ? dateToSerial(d.getFullYear(), d.getMonth() + 1, d.getDate()) : (d.getHours() * 3600 + d.getMinutes() * 60) / 86400;
     const wb = this.doc.wb;
-    wb.begin(kind === 'date' ? '날짜 입력' : '시간 입력');
+    wb.begin(kind === 'date' ? t('Insert Date') : t('Insert Time'));
     const cur = sh.get(v.active.r, v.active.c);
     wb.setCell(sh, v.active.r, v.active.c, { ...(cur || {}), f: undefined, v: serial, s: internStyle({ ...(cur?.s || {}), nf: kind === 'date' ? 'yyyy-mm-dd' : 'h:mm' }) });
     wb.commit();
@@ -791,8 +793,8 @@ class App {
     if (this.fullRows()) return del ? this.remove('row') : this.insert('row');
     if (this.fullCols()) return del ? this.remove('col') : this.insert('col');
     const res = await D.modal({
-      title: del ? '삭제' : '삽입', width: 300,
-      body: `<div class="radio-col">${del ? '<label><input type="radio" name="ins" value="left" checked> 셀을 왼쪽으로 밀기</label><label><input type="radio" name="ins" value="up"> 셀을 위로 밀기</label>' : '<label><input type="radio" name="ins" value="right" checked> 셀을 오른쪽으로 밀기</label><label><input type="radio" name="ins" value="down"> 셀을 아래로 밀기</label>'}<label><input type="radio" name="ins" value="row"> 행 전체</label><label><input type="radio" name="ins" value="col"> 열 전체</label></div>`,
+      title: del ? t('Delete') : t('Insert'), width: 300,
+      body: `<div class="radio-col">${del ? `<label><input type="radio" name="ins" value="left" checked> ${t('Shift cells left')}</label><label><input type="radio" name="ins" value="up"> ${t('Shift cells up')}</label>` : `<label><input type="radio" name="ins" value="right" checked> ${t('Shift cells right')}</label><label><input type="radio" name="ins" value="down"> ${t('Shift cells down')}</label>`}<label><input type="radio" name="ins" value="row"> ${t('Entire row')}</label><label><input type="radio" name="ins" value="col"> ${t('Entire column')}</label></div>`,
       onOk: (el) => el.querySelector('input[name=ins]:checked').value,
     }).done;
     if (!res) return;
@@ -803,7 +805,7 @@ class App {
   shiftCells(dir) {
     const wb = this.doc.wb, sh = wb.sheet, sel = this.selection();
     const h = sel.r2 - sel.r1 + 1, w = sel.c2 - sel.c1 + 1;
-    wb.begin('셀 이동');
+    wb.begin(t('Shift Cells'));
     wb.markStructural();
     const moves = [];
     for (const [k, cell] of sh.cells) {
@@ -824,7 +826,7 @@ class App {
 
   resize(axis, targets, size) {
     const wb = this.doc.wb, sh = wb.sheet;
-    wb.begin(axis === 'col' ? '열 너비' : '행 높이');
+    wb.begin(axis === 'col' ? t('Column Width') : t('Row Height'));
     wb.touchMeta(sh);
     for (const t of targets) {
       if (axis === 'col') { if (size <= 0) { sh.hiddenCols.add(t); } else { sh.hiddenCols.delete(t); sh.colW.set(t, size); } }
@@ -836,7 +838,7 @@ class App {
   async sizeDialog(axis) {
     const sh = this.doc.wb.sheet, sel = this.selection(), g = geom(sh);
     const cur = axis === 'col' ? ((g.cols.size(sel.c1) - 5) / 7).toFixed(2) : (g.rows.size(sel.r1) * 0.75).toFixed(2);
-    const v = await D.promptBox(axis === 'col' ? '열 너비 (문자 수):' : '행 높이 (포인트):', cur, axis === 'col' ? '열 너비' : '행 높이');
+    const v = await D.promptBox(axis === 'col' ? t('Column width (characters):') : t('Row height (points):'), cur, axis === 'col' ? t('Column Width') : t('Row Height'));
     if (v === null || isNaN(parseFloat(v))) return;
     const px = axis === 'col' ? Math.round(parseFloat(v) * 7 + 5) : Math.round(parseFloat(v) / 0.75);
     const targets = axis === 'col' ? range(sel.c1, Math.min(sel.c2, sel.c1 + 1000)) : range(sel.r1, Math.min(sel.r2, sel.r1 + 100000));
@@ -863,7 +865,7 @@ class App {
       return w ? Math.ceil(w + 10) : sh.defaultColW;
     });
     const wb = this.doc.wb;
-    wb.begin('열 너비 자동 맞춤'); wb.touchMeta(sh);
+    wb.begin(t('AutoFit Column Width')); wb.touchMeta(sh);
     cols.forEach((cc, i) => { sh.colW.set(cc, widths[i]); sh.hiddenCols.delete(cc); });
     wb.commit();
   }
@@ -887,7 +889,7 @@ class App {
       heights.set(r, Math.max(heights.get(r) || 0, Math.ceil(lines * f.size * 1.25 + 5)));
     }
     const own = !wb.txn;
-    if (own) wb.begin('행 높이 자동 맞춤');
+    if (own) wb.begin(t('AutoFit Row Height'));
     wb.touchMeta(sh);
     for (const r of rows) {
       const h = Math.max(sh.defaultRowH, heights.get(r) || sh.defaultRowH);
@@ -899,7 +901,7 @@ class App {
 
   hide(axis, hidden) {
     const wb = this.doc.wb, sh = wb.sheet, sel = this.selection();
-    wb.begin(hidden ? '숨기기' : '숨기기 취소'); wb.touchMeta(sh);
+    wb.begin(hidden ? t('Hide') : t('Unhide')); wb.touchMeta(sh);
     if (axis === 'row') for (let r = sel.r1; r <= Math.min(sel.r2, Math.max(sh.maxRow + 1, sel.r1 + 1000)); r++) hidden ? sh.hiddenRows.add(r) : sh.hiddenRows.delete(r);
     else for (let c = sel.c1; c <= Math.min(sel.c2, Math.max(sh.maxCol + 1, sel.c1 + 200)); c++) hidden ? sh.hiddenCols.add(c) : sh.hiddenCols.delete(c);
     if (!hidden && axis === 'row' && sel.r1 > 0) { for (let r = sel.r1 - 1; r >= 0 && sh.hiddenRows.has(r); r--) sh.hiddenRows.delete(r); }
@@ -909,7 +911,7 @@ class App {
 
   freeze(mode) {
     const wb = this.doc.wb, sh = wb.sheet, v = this.view();
-    wb.begin('틀 고정'); wb.touchMeta(sh);
+    wb.begin(t('Freeze Panes')); wb.touchMeta(sh);
     if (mode === 'none' || ((sh.freeze.r || sh.freeze.c) && mode === 'toggle')) sh.freeze = { r: 0, c: 0 };
     else if (mode === 'row') sh.freeze = { r: 1, c: 0 };
     else if (mode === 'col') sh.freeze = { r: 0, c: 1 };
@@ -934,37 +936,37 @@ class App {
   // ------------------------------------------------------------------ sheets
   async renameSheetPrompt(i) {
     const wb = this.doc.wb;
-    const name = await D.promptBox('시트 이름:', wb.sheets[i].name, '이름 바꾸기');
+    const name = await D.promptBox(t('Sheet name:'), wb.sheets[i].name, t('Rename'));
     if (name === null) return;
     try { wb.renameSheet(i, name); } catch (e) { this.toast(e.message, 'error'); }
   }
   async deleteSheet(i) {
     const wb = this.doc.wb;
-    if (wb.sheets.filter((s) => s.state === 'visible').length <= 1) return this.toast('통합 문서에는 하나 이상의 표시된 시트가 있어야 합니다.', 'error');
+    if (wb.sheets.filter((s) => s.state === 'visible').length <= 1) return this.toast(t('A workbook must contain at least one visible worksheet.'), 'error');
     const sh = wb.sheets[i];
-    if (sh.cells.size && (await D.confirmBox(`'${sh.name}' 시트를 삭제하시겠습니까? 이 작업은 실행 취소할 수 있습니다.`, { yes: '삭제', no: '취소' })) !== 'yes') return;
+    if (sh.cells.size && (await D.confirmBox(t("Delete the sheet '{name}'? You can undo this.", { name: sh.name }), { yes: t('Delete'), no: t('Cancel') })) !== 'yes') return;
     wb.deleteSheet(i);
   }
   async unhideSheet() {
     const wb = this.doc.wb;
     const hidden = wb.sheets.map((s, i) => [s, i]).filter(([s]) => s.state !== 'visible');
-    if (!hidden.length) return this.toast('숨겨진 시트가 없습니다.');
-    const res = await D.modal({ title: '시트 숨기기 취소', width: 320, body: `<select class="inp" size="6" id="uh">${hidden.map(([s, i]) => `<option value="${i}">${D.esc(s.name)}</option>`).join('')}</select>`, onOk: (el) => el.querySelector('#uh').value }).done;
+    if (!hidden.length) return this.toast(t('There are no hidden sheets.'));
+    const res = await D.modal({ title: t('Unhide Sheet'), width: 320, body: `<select class="inp" size="6" id="uh">${hidden.map(([s, i]) => `<option value="${i}">${D.esc(s.name)}</option>`).join('')}</select>`, onOk: (el) => el.querySelector('#uh').value }).done;
     if (res === null || res === '') return;
     const sh = wb.sheets[+res];
-    wb.begin('시트 숨기기 취소'); wb.touchMeta(sh); sh.state = 'visible'; wb.commit();
+    wb.begin(t('Unhide Sheet')); wb.touchMeta(sh); sh.state = 'visible'; wb.commit();
     this.activateSheet(+res);
   }
   hideSheet(i) {
     const wb = this.doc.wb;
-    if (wb.sheets.filter((s) => s.state === 'visible').length <= 1) return this.toast('표시된 시트가 하나뿐이면 숨길 수 없습니다.', 'error');
+    if (wb.sheets.filter((s) => s.state === 'visible').length <= 1) return this.toast(t('Cannot hide the only visible sheet.'), 'error');
     const sh = wb.sheets[i];
-    wb.begin('시트 숨기기'); wb.touchMeta(sh); sh.state = 'hidden'; wb.commit();
+    wb.begin(t('Hide Sheet')); wb.touchMeta(sh); sh.state = 'hidden'; wb.commit();
     if (wb.active === i) this.activateSheet(wb.sheets.findIndex((s) => s.state === 'visible'));
   }
   tabColor(i, anchor) {
     const wb = this.doc.wb, sh = wb.sheets[i];
-    D.colorPopup(anchor, { noneLabel: '색 없음', onPick: (c) => { wb.begin('탭 색'); wb.touchMeta(sh); sh.tabColor = c; wb.commit(); } });
+    D.colorPopup(anchor, { noneLabel: t('No Color'), onPick: (c) => { wb.begin(t('Tab Color')); wb.touchMeta(sh); sh.tabColor = c; wb.commit(); } });
   }
 
   // ------------------------------------------------------------------ files
@@ -972,7 +974,7 @@ class App {
     try {
       const res = await api.newDoc(this.nextBlankName(), this.clientId);
       await this.attachDoc(res.docId);
-    } catch (e) { this.toast(`새 통합 문서를 만들 수 없습니다: ${e.message}`, 'error'); }
+    } catch (e) { this.toast(t('Cannot create a new workbook: {error}', { error: e.message }), 'error'); }
   }
 
   async openFile(path = null) {
@@ -981,7 +983,7 @@ class App {
       if (!res) return;
       path = res.path;
     }
-    this.showBusy(`여는 중… ${path}`);
+    this.showBusy(t('Opening… {path}', { path }));
     try {
       const res = await api.openDoc(path, this.clientId);
       // replace an untouched blank workbook (Excel behaviour)
@@ -989,9 +991,9 @@ class App {
       const doc = await this.attachDoc(res.docId);
       if (blank && doc) { api.closeDoc(blank.wb.docId).catch(() => {}); this.detachDoc(blank); this.activateDoc(this.docs.indexOf(doc)); }
       D.addRecent(path);
-      if (doc) this.setStatus(`열기 완료 (${doc.wb.sheets.length}개 시트, 계산 ${doc.wb.lastCalcMs?.toFixed(0)}ms)`);
+      if (doc) this.setStatus(t('Opened ({sheets} sheets, calculated in {ms} ms)', { sheets: doc.wb.sheets.length, ms: doc.wb.lastCalcMs?.toFixed(0) }));
     } catch (e) {
-      this.toast(`파일을 열 수 없습니다: ${e.message}`, 'error', 8000);
+      this.toast(t('Cannot open the file: {error}', { error: e.message }), 'error', 8000);
     } finally { this.hideBusy(); }
   }
 
@@ -1015,7 +1017,7 @@ class App {
   /** Save through the server (Python writes the file). Wait for pending edits first. */
   async writeTo(path, format, overwrite) {
     const doc = this.doc, wb = doc.wb;
-    this.showBusy('저장 중…');
+    this.showBusy(t('Saving…'));
     try {
       for (let i = 0; i < 50 && doc.sync.pending.size; i++) await new Promise((r) => setTimeout(r, 100));
       await doc.sync.reportCalc(); // formulas' computed values are stored as cached results
@@ -1025,25 +1027,25 @@ class App {
         try { res = await api.saveDoc(wb.docId, opts); break; } catch (e) {
           if (e.status !== 409) throw e;
           this.hideBusy();
-          const changed = /디스크/.test(e.message);
+          const changed = /changed on disk/.test(e.raw || '');
           const target = e.data?.targetName || path.split(/[\\/]/).pop();
-          const msg = changed ? `${e.message}\n그래도 덮어쓰시겠습니까?`
-            : e.data?.converted ? `xls 파일은 ${e.data.format || 'xlsx'}로 저장됩니다. '${target}'이(가) 이미 있습니다. 바꾸시겠습니까?`
-              : `'${target}'이(가) 이미 있습니다. 바꾸시겠습니까?`;
-          const ans = await D.confirmBox(msg, { yes: '바꾸기', no: '아니요' });
+          const msg = changed ? t('{error}\nOverwrite it anyway?', { error: e.message })
+            : e.data?.converted ? t("An xls file is saved as {format}. '{target}' already exists. Do you want to replace it?", { format: e.data.format || 'xlsx', target })
+              : t("'{target}' already exists. Do you want to replace it?", { target });
+          const ans = await D.confirmBox(msg, { yes: t('Replace'), no: t('No') });
           if (ans !== 'yes') return false;
           if (changed) opts.force = true; else opts.overwrite = true;
-          this.showBusy('저장 중…');
+          this.showBusy(t('Saving…'));
         }
       }
       Object.assign(wb, { path: res.path, name: res.name, format: res.format, basePath: res.path, dirty: false });
       D.addRecent(res.path);
       this.renderTabs();
-      this.setStatus(`저장됨: ${res.path}${res.backup ? ' (이전 파일 백업됨)' : ''}`);
-      if (res.warnings?.length) this.toast(res.warnings.join('\n'), 'warn', 9000);
+      this.setStatus(res.backup ? t('Saved: {path} (previous file backed up)', { path: res.path }) : t('Saved: {path}', { path: res.path }));
+      if (res.warnings?.length) this.toast(res.warnings.map(serverText).join('\n'), 'warn', 9000);
       return true;
     } catch (e) {
-      this.toast(`저장하지 못했습니다: ${e.message}`, 'error', 9000);
+      this.toast(t('Could not save: {error}', { error: e.message }), 'error', 9000);
       return false;
     } finally { this.hideBusy(); }
   }
@@ -1052,15 +1054,15 @@ class App {
   newWindow(docIdx = this.di) {
     const doc = this.docs[docIdx];
     const w = window.open(`${location.pathname}?doc=${encodeURIComponent(doc.wb.docId)}${tokenFragment()}`, '_blank');
-    if (!w) this.toast(`팝업이 차단되었습니다. 다른 창/브라우저에서 ${location.origin}/?doc=${doc.wb.docId}${tokenFragment()} 를 여세요.`, 'warn', 15000);
+    if (!w) this.toast(t('The pop-up was blocked. Open {url} in another window or browser.', { url: `${location.origin}/?doc=${doc.wb.docId}${tokenFragment()}` }), 'warn', 15000);
   }
   async windowsMenu(anchor) {
     let docs = [];
     try { docs = (await api.docs()).docs; } catch { /* offline */ }
-    const items = [['새 창 (현재 통합 문서)', () => this.newWindow()], null,
+    const items = [[t('New Window (current workbook)'), () => this.newWindow()], null,
       ...docs.map((d) => {
         const i = this.docs.findIndex((x) => x.wb.docId === d.docId);
-        return [`${i === this.di ? '✓ ' : '　'}${d.name}${d.dirty ? ' ●' : ''} — 연결 ${d.clients}`, () => (i >= 0 ? this.activateDoc(i) : this.attachDoc(d.docId))];
+        return [`${i === this.di ? '✓ ' : '　'}${d.name}${d.dirty ? ' ●' : ''} — ${t('{n} connected', { n: d.clients })}`, () => (i >= 0 ? this.activateDoc(i) : this.attachDoc(d.docId))];
       })];
     const r = anchor.getBoundingClientRect();
     this.menu(r.left, r.bottom + 2, items);
@@ -1071,7 +1073,7 @@ class App {
   chartDialog(model, type) { return D.chartDialog(this, model, type); }
   saveChart(m, isNew) {
     const wb = this.doc.wb, sh = wb.sheet;
-    wb.begin(isNew ? '차트 삽입' : '차트 편집'); wb.touchMeta(sh);
+    wb.begin(isNew ? t('Insert Chart') : t('Edit Chart')); wb.touchMeta(sh);
     if (isNew) sh.charts.push(m);
     else { const i = sh.charts.findIndex((c) => c.id === m.id); if (i >= 0) sh.charts[i] = m; }
     wb.commit();
@@ -1081,7 +1083,7 @@ class App {
     const wb = this.doc.wb, sh = wb.sheet;
     let g = this.selection();
     if (g.r1 === g.r2 && g.c1 === g.c2) g = this.filters.tableAt(sh, g.r1, g.c1);
-    if (!sh.cells.size) return this.toast('차트를 만들 데이터를 먼저 선택하세요.', 'warn');
+    if (!sh.cells.size) return this.toast(t('Select the data for the chart first.'), 'warn');
     const preset = { barH: { type: 'bar', barDir: 'bar' }, barStacked: { type: 'bar', grouping: 'stacked' } }[type] || { type };
     const m = ChartLayer.fromRange(wb, sh, g, preset.type);
     Object.assign(m, preset);
@@ -1093,16 +1095,16 @@ class App {
   // ------------------------------------------------------------------ comments / links
   async editComment() {
     const sh = this.doc.wb.sheet, v = this.view(), cell = sh.get(v.active.r, v.active.c);
-    const res = await D.modal({ title: '메모', width: 360, body: `<textarea class="inp" id="cmt" rows="5" autofocus>${D.esc(cell?.cm || '')}</textarea>`, onOk: (el) => el.querySelector('#cmt').value, buttons: [['확인', 'ok', true], ['메모 삭제', 'del'], ['취소', 'cancel']] }).done;
+    const res = await D.modal({ title: t('Note'), width: 360, body: `<textarea class="inp" id="cmt" rows="5" autofocus>${D.esc(cell?.cm || '')}</textarea>`, onOk: (el) => el.querySelector('#cmt').value, buttons: [[t('OK'), 'ok', true], [t('Delete Note'), 'del'], [t('Cancel'), 'cancel']] }).done;
     if (res === null) return;
     this.doc.wb.patchCell(sh, v.active.r, v.active.c, { cm: res === 'del' ? null : res || null });
   }
   async editLink() {
     const sh = this.doc.wb.sheet, v = this.view(), cell = sh.get(v.active.r, v.active.c);
-    const url = await D.promptBox('주소 (https://…):', cell?.h || 'https://', '하이퍼링크');
+    const url = await D.promptBox(t('Address (https://…):'), cell?.h || 'https://', t('Hyperlink'));
     if (url === null) return;
     const wb = this.doc.wb;
-    wb.begin('하이퍼링크');
+    wb.begin(t('Hyperlink'));
     const st = cell?.s || {};
     wb.patchCell(sh, v.active.r, v.active.c, { h: url && url !== 'https://' ? url : null, v: cell?.v ?? (url || undefined), s: url ? internStyle({ ...st, fc: st.fc || '#0563C1', u: st.u || true }) : st });
     wb.commit();
@@ -1135,17 +1137,17 @@ class App {
     const rows = this.fullRows(), cols = this.fullCols();
     const a = this.view().active, pv = pivotAt(this.doc.wb.sheet, a.r, a.c);
     const items = [
-      ...(pv ? [[`피벗 새로 고침 (${pv.name})`, () => this.refreshPivots(pv.name)], null] : []),
-      ['잘라내기', () => this.clipboard.copyCommand(true), { key: 'Ctrl+X' }], ['복사', () => this.clipboard.copyCommand(false), { key: 'Ctrl+C' }],
-      ['붙여넣기', () => this.clipboard.pasteCommand(), { key: 'Ctrl+V' }], ['선택하여 붙여넣기…', () => D.pasteSpecialDialog(this), { key: 'Ctrl+Alt+V' }], null,
-      rows ? ['행 삽입', () => this.insert('row'), { key: 'Ctrl++' }] : cols ? ['열 삽입', () => this.insert('col'), { key: 'Ctrl++' }] : ['삽입…', () => this.insertDialog(false), { key: 'Ctrl++' }],
-      rows ? ['행 삭제', () => this.remove('row'), { key: 'Ctrl+-' }] : cols ? ['열 삭제', () => this.remove('col'), { key: 'Ctrl+-' }] : ['삭제…', () => this.insertDialog(true), { key: 'Ctrl+-' }],
-      ['내용 지우기', () => this.clear('contents'), { key: 'Delete' }], null,
-      ['필터', () => this.filters.toggle(), { key: 'Ctrl+Shift+L' }], ['오름차순 정렬', () => this.filters.sortSelection(true)], ['내림차순 정렬', () => this.filters.sortSelection(false)], null,
-      ['메모 삽입/편집', () => this.editComment(), { key: 'Shift+F2' }], ['셀 서식…', () => D.formatCellsDialog(this), { key: 'Ctrl+1' }], ['하이퍼링크…', () => this.editLink(), { key: 'Ctrl+K' }],
+      ...(pv ? [[t('Refresh Pivot ({name})', { name: pv.name }), () => this.refreshPivots(pv.name)], null] : []),
+      [t('Cut'), () => this.clipboard.copyCommand(true), { key: 'Ctrl+X' }], [t('Copy'), () => this.clipboard.copyCommand(false), { key: 'Ctrl+C' }],
+      [t('Paste'), () => this.clipboard.pasteCommand(), { key: 'Ctrl+V' }], [t('Paste Special…'), () => D.pasteSpecialDialog(this), { key: 'Ctrl+Alt+V' }], null,
+      rows ? [t('Insert Row'), () => this.insert('row'), { key: 'Ctrl++' }] : cols ? [t('Insert Column'), () => this.insert('col'), { key: 'Ctrl++' }] : [t('Insert…'), () => this.insertDialog(false), { key: 'Ctrl++' }],
+      rows ? [t('Delete Row'), () => this.remove('row'), { key: 'Ctrl+-' }] : cols ? [t('Delete Column'), () => this.remove('col'), { key: 'Ctrl+-' }] : [t('Delete…'), () => this.insertDialog(true), { key: 'Ctrl+-' }],
+      [t('Clear Contents'), () => this.clear('contents'), { key: 'Delete' }], null,
+      [t('Filter'), () => this.filters.toggle(), { key: 'Ctrl+Shift+L' }], [t('Sort Ascending'), () => this.filters.sortSelection(true)], [t('Sort Descending'), () => this.filters.sortSelection(false)], null,
+      [t('Insert/Edit Note'), () => this.editComment(), { key: 'Shift+F2' }], [t('Format Cells…'), () => D.formatCellsDialog(this), { key: 'Ctrl+1' }], [t('Hyperlink…'), () => this.editLink(), { key: 'Ctrl+K' }],
     ];
-    if (rows) items.push(null, ['행 높이…', () => this.sizeDialog('row')], ['숨기기', () => this.hide('row', true), { key: 'Ctrl+9' }], ['숨기기 취소', () => this.hide('row', false), { key: 'Ctrl+Shift+9' }]);
-    if (cols) items.push(null, ['열 너비…', () => this.sizeDialog('col')], ['숨기기', () => this.hide('col', true), { key: 'Ctrl+0' }], ['숨기기 취소', () => this.hide('col', false), { key: 'Ctrl+Shift+0' }]);
+    if (rows) items.push(null, [t('Row Height…'), () => this.sizeDialog('row')], [t('Hide'), () => this.hide('row', true), { key: 'Ctrl+9' }], [t('Unhide'), () => this.hide('row', false), { key: 'Ctrl+Shift+9' }]);
+    if (cols) items.push(null, [t('Column Width…'), () => this.sizeDialog('col')], [t('Hide'), () => this.hide('col', true), { key: 'Ctrl+0' }], [t('Unhide'), () => this.hide('col', false), { key: 'Ctrl+Shift+0' }]);
     this.menu(x, y, items);
   }
 
@@ -1165,14 +1167,14 @@ class App {
   }
   showBusy(t) { const b = this.$('#busy'); b.querySelector('span').textContent = t; b.hidden = false; }
   hideBusy() { this.$('#busy').hidden = true; }
-  onEditState(on) { document.body.classList.toggle('editing', on); this.setStatus(on ? (this.editor.mode === 'edit' ? '편집' : '입력') : ''); }
+  onEditState(on) { document.body.classList.toggle('editing', on); this.setStatus(on ? (this.editor.mode === 'edit' ? t('Edit') : t('Enter')) : ''); }
 
   // ------------------------------------------------------------------ commands
   get commands() {
     const C = {
       new: () => this.newDoc(), open: () => this.openFile(), save: () => this.save(), saveAs: () => this.saveAs(), close: () => this.closeDoc(this.di),
-      undo: () => { if (this.editor.active) this.editor.cancel(); const e = this.doc.wb.undo(); if (e) this.setStatus(`실행 취소: ${e.label}`); },
-      redo: () => { const e = this.doc.wb.redo(); if (e) this.setStatus(`다시 실행: ${e.label}`); },
+      undo: () => { if (this.editor.active) this.editor.cancel(); const e = this.doc.wb.undo(); if (e) this.setStatus(t('Undo: {label}', { label: e.label })); },
+      redo: () => { const e = this.doc.wb.redo(); if (e) this.setStatus(t('Redo: {label}', { label: e.label })); },
       cut: () => this.clipboard.copyCommand(true), copy: () => this.clipboard.copyCommand(false), paste: () => this.clipboard.pasteCommand(), pasteSpecial: () => D.pasteSpecialDialog(this),
       painter: () => this.startPainter(false),
       bold: () => this.toggleStyle('b'), italic: () => this.toggleStyle('i'), underline: () => this.toggleStyle('u'), strike: () => this.toggleStyle('st'),
@@ -1180,7 +1182,7 @@ class App {
       fontSize: (v) => {
         const n = Math.round(parseFloat(v) * 2) / 2; // Excel: 1-409 pt in steps of 0.5
         if (!(n >= 1 && n <= 409)) {
-          this.toast('글꼴 크기는 1에서 409 사이의 숫자로 입력하세요(0.5 단위).', 'warn');
+          this.toast(t('Enter a font size between 1 and 409 (in steps of 0.5).'), 'warn');
           const a = this.view().active, st = this.doc.wb.sheet.get(a.r, a.c)?.s;
           this.$('#font-size').value = st?.fs || this.doc.wb.defaultFont.size; // back to the cell's size
           return;
@@ -1197,7 +1199,7 @@ class App {
       outdent: () => this.styleRange((s) => ({ ...s, ind: Math.max(0, (s.ind || 0) - 1) || null })),
       mergeCenter: () => this.mergeCommand('center'), mergeAcross: () => this.mergeCommand('across'), merge: () => this.mergeCommand('merge'), unmerge: () => this.mergeCommand('unmerge'),
       numFormat: (v) => { if (v === '__more') return D.formatCellsDialog(this, 'num'); if (v !== '__custom') this.setStyleProp('nf', v === 'General' ? null : v); },
-      currency: () => this.setStyleProp('nf', '"₩"#,##0'), percent: () => this.setStyleProp('nf', '0%'), comma: () => this.setStyleProp('nf', '#,##0'),
+      currency: () => this.setStyleProp('nf', FORMATS.currency), percent: () => this.setStyleProp('nf', '0%'), comma: () => this.setStyleProp('nf', '#,##0'),
       decInc: () => this.changeDecimals(1), decDec: () => this.changeDecimals(-1),
       borders: (k) => this.setBorders(k), formatCells: () => D.formatCellsDialog(this),
       insertRow: () => this.insert('row'), insertCol: () => this.insert('col'), deleteRow: () => this.remove('row'), deleteCol: () => this.remove('col'),
@@ -1217,11 +1219,11 @@ class App {
       chart: (t) => (t ? this.quickChart(t) : this.chartDialog(null)), chartDialog: () => this.chartDialog(null),
       insertFunction: () => D.insertFunctionDialog(this), comment: () => this.editComment(), link: () => this.editLink(),
       freeze: () => this.freeze('cell'), freezeRow: () => this.freeze('row'), freezeCol: () => this.freeze('col'), unfreeze: () => this.freeze('none'),
-      gridlines: () => { const wb = this.doc.wb, sh = wb.sheet; wb.begin('눈금선'); wb.touchMeta(sh); sh.showGrid = sh.showGrid === false; wb.commit(); },
+      gridlines: () => { const wb = this.doc.wb, sh = wb.sheet; wb.begin(t('Gridlines')); wb.touchMeta(sh); sh.showGrid = sh.showGrid === false; wb.commit(); },
       showFormulas: () => { const v = this.view(); v.showFormulas = !v.showFormulas; this.grid.measureCache.clear(); this.render(); },
       zoomIn: () => this.setZoom(this.view().zoom + 0.1), zoomOut: () => this.setZoom(this.view().zoom - 0.1), zoom100: () => this.setZoom(1),
       zoomSel: () => { const s = this.selection(), g = geom(this.doc.wb.sheet), m = this.grid.metrics(); const w = g.cols.pos(Math.min(s.c2, s.c1 + 200) + 1) - g.cols.pos(s.c1), h = g.rows.pos(Math.min(s.r2, s.r1 + 1000) + 1) - g.rows.pos(s.r1); this.setZoom(Math.min((this.grid.scroller.clientWidth - m.HW) / w, (this.grid.scroller.clientHeight - m.HH) / h) * 0.95); this.grid.scrollTo(s.r1, s.c1); },
-      newWindow: () => this.newWindow(), recalc: () => { this.doc.wb.recalc(); this.render(); this.setStatus(`다시 계산 완료 (${this.doc.wb.lastCalcMs.toFixed(0)}ms)`); },
+      newWindow: () => this.newWindow(), recalc: () => { this.doc.wb.recalc(); this.render(); this.setStatus(t('Recalculated ({ms} ms)', { ms: this.doc.wb.lastCalcMs.toFixed(0) })); },
       unhideSheet: () => this.unhideSheet(),
       selectAll: () => this.selectAllSmart(),
       help: () => this.shortcutHelp(),
@@ -1263,13 +1265,13 @@ class App {
    * back on the event stream like any other client's edit). */
   async refreshPivots(name = null) {
     const doc = this.doc;
-    if (!doc.wb.sheets.some((s) => s.pivots?.length)) return this.toast('이 문서에는 피벗 테이블이 없습니다.', 'info');
+    if (!doc.wb.sheets.some((s) => s.pivots?.length)) return this.toast(t('This document has no pivot tables.'), 'info');
     for (let i = 0; i < 50 && doc.sync.pending.size; i++) await new Promise((r) => setTimeout(r, 100)); // our edits first
     try {
       const res = await api.pivotRefresh(doc.wb.docId, { name, actor: 'user', clientId: `${this.clientId}-pivot` });
       const n = res.pivots.reduce((a, p) => a + p.changed, 0);
-      this.toast(`피벗 새로 고침: ${res.pivots.map((p) => p.name).join(', ')} — 값 ${n}개 바뀜`, 'info');
-      for (const note of res.notes || []) this.toast(note, 'warn', 8000);
+      this.toast(t('Pivots refreshed: {names} — {n} values changed', { names: res.pivots.map((p) => p.name).join(', '), n }), 'info');
+      for (const note of res.notes || []) this.toast(serverText(note), 'warn', 8000);
     } catch (e) { this.toast(e.message, 'error'); }
   }
   removeDuplicates() {
@@ -1285,29 +1287,29 @@ class App {
     }
     const total = g.r2 - g.r1 + 1 - (header ? 1 : 0);
     const removed = total - keep.length;
-    if (!removed) return this.toast('중복된 값이 없습니다.');
-    wb.begin('중복된 항목 제거');
+    if (!removed) return this.toast(t('No duplicate values found.'));
+    wb.begin(t('Remove Duplicates'));
     wb.markStructural();
     const rows = keep.map((r) => range(g.c1, g.c2).map((c) => sh.get(r, c)));
     for (let r = g.r1 + (header ? 1 : 0); r <= g.r2; r++) for (let c = g.c1; c <= g.c2; c++) wb.setCell(sh, r, c, null);
     rows.forEach((row, i) => row.forEach((cell, j) => { const r = g.r1 + (header ? 1 : 0) + i; wb.setCell(sh, r, g.c1 + j, cell ? { ...cell, f: cell.f ? translateFormula(cell.f, r - keep[i], 0) : undefined } : null); }));
     wb.commit();
-    this.toast(`중복된 값 ${removed}개를 제거했습니다. 고유한 값 ${keep.length}개가 남아 있습니다.`);
+    this.toast(t('{removed} duplicate values found and removed; {kept} unique values remain.', { removed, kept: keep.length }));
   }
 
   shortcutHelp() {
     const rows = [
-      ['Ctrl+N / O / S', '새로 만들기 / 열기 / 저장'], ['F12', '다른 이름으로 저장'], ['Ctrl+Z / Ctrl+Y', '실행 취소 / 다시 실행'], ['Ctrl+C / X / V', '복사 / 잘라내기 / 붙여넣기'],
-      ['Ctrl+Alt+V', '선택하여 붙여넣기'], ['Ctrl+B / I / U / 5', '굵게 / 기울임 / 밑줄 / 취소선'], ['Ctrl+1', '셀 서식'], ['F2', '셀 편집 (편집/입력 모드 전환)'],
-      ['F4', '참조 유형 전환($A$1) / 마지막 작업 반복'], ['Alt+Enter', '셀 안에서 줄 바꿈'], ['Ctrl+Enter', '선택 영역 모두에 입력'], ['Ctrl+D / Ctrl+R', '아래로 / 오른쪽으로 채우기'],
-      ['Ctrl+; / Ctrl+Shift+;', '오늘 날짜 / 현재 시간'], ['Alt+=', '자동 합계'], ['Ctrl+Shift+L', '필터 켜기/끄기'], ['Alt+↓', '필터 메뉴 열기'], ['Ctrl+F / Ctrl+H', '찾기 / 바꾸기'],
-      ['Ctrl+화살표', '데이터 영역 끝으로 이동'], ['Ctrl+Shift+화살표', '데이터 영역 끝까지 선택'], ['Ctrl+Home / End', 'A1 / 마지막 셀'], ['Ctrl+A', '현재 영역 / 전체 선택'],
-      ['Ctrl+Space / Shift+Space', '열 전체 / 행 전체 선택'], ['Ctrl++ / Ctrl+-', '삽입 / 삭제'], ['Ctrl+9 / Ctrl+0', '행 / 열 숨기기 (Shift: 숨기기 취소)'],
-      ['Ctrl+PgUp / PgDn', '이전 / 다음 시트'], ['Shift+F11', '새 시트'], ['Alt+F1', '차트 삽입'], ['Shift+F2', '메모'], ['Ctrl+K', '하이퍼링크'], ['Ctrl+`', '수식 표시'],
-      ['Ctrl+Shift+1/2/3/4/5', '숫자/시간/날짜/통화/백분율 서식'], ['Ctrl+Shift+7 / Ctrl+Shift+-', '윤곽선 테두리 / 테두리 제거'], ['F9', '모두 다시 계산'], ['Ctrl+F4', '통합 문서 닫기'],
-      ['Ctrl+Tab', '다음 통합 문서'], ['Ctrl+휠', '확대/축소'],
+      ['Ctrl+N / O / S', t('New / Open / Save')], ['F12', t('Save As')], ['Ctrl+Z / Ctrl+Y', t('Undo / Redo')], ['Ctrl+C / X / V', t('Copy / Cut / Paste')],
+      ['Ctrl+Alt+V', t('Paste Special')], ['Ctrl+B / I / U / 5', t('Bold / Italic / Underline / Strikethrough')], ['Ctrl+1', t('Format Cells')], ['F2', t('Edit cell (switch Edit/Enter mode)')],
+      ['F4', t('Toggle reference type ($A$1) / Repeat last action')], ['Alt+Enter', t('New line in cell')], ['Ctrl+Enter', t('Fill the selection with the entry')], ['Ctrl+D / Ctrl+R', t('Fill Down / Fill Right')],
+      ['Ctrl+; / Ctrl+Shift+;', t("Today's date / Current time")], ['Alt+=', t('AutoSum')], ['Ctrl+Shift+L', t('Filter on/off')], ['Alt+↓', t('Open filter menu')], ['Ctrl+F / Ctrl+H', t('Find / Replace')],
+      [t('Ctrl+Arrow'), t('Move to edge of data region')], [t('Ctrl+Shift+Arrow'), t('Select to edge of data region')], ['Ctrl+Home / End', t('A1 / Last cell')], ['Ctrl+A', t('Current region / Select all')],
+      ['Ctrl+Space / Shift+Space', t('Select entire column / row')], ['Ctrl++ / Ctrl+-', t('Insert / Delete')], ['Ctrl+9 / Ctrl+0', t('Hide rows / columns (Shift: Unhide)')],
+      ['Ctrl+PgUp / PgDn', t('Previous / Next sheet')], ['Shift+F11', t('New sheet')], ['Alt+F1', t('Insert Chart')], ['Shift+F2', t('Note')], ['Ctrl+K', t('Hyperlink')], ['Ctrl+`', t('Show Formulas')],
+      ['Ctrl+Shift+1/2/3/4/5', t('Number / Time / Date / Currency / Percentage format')], ['Ctrl+Shift+7 / Ctrl+Shift+-', t('Outline border / Remove borders')], ['F9', t('Recalculate all')], ['Ctrl+F4', t('Close workbook')],
+      ['Ctrl+Tab', t('Next workbook')], [t('Ctrl+Wheel'), t('Zoom')],
     ];
-    D.modal({ title: '바로 가기 키', width: 560, buttons: [['닫기', 'ok', true]], body: `<table class="kbd-table">${rows.map(([k, d]) => `<tr><td><kbd>${k}</kbd></td><td>${d}</td></tr>`).join('')}</table><p class="muted small">일부 키(Ctrl+N, Ctrl+W, Ctrl+Tab, Ctrl+PgUp/PgDn 등)는 브라우저가 먼저 가로챌 수 있습니다. 에이전트 미리보기 창이나 앱 모드 창에서는 대부분 동작합니다.</p>` });
+    D.modal({ title: t('Keyboard shortcuts'), width: 560, buttons: [[t('Close'), 'ok', true]], body: `<table class="kbd-table">${rows.map(([k, d]) => `<tr><td><kbd>${k}</kbd></td><td>${d}</td></tr>`).join('')}</table><p class="muted small">${t('The browser may take some keys first (Ctrl+N, Ctrl+W, Ctrl+Tab, Ctrl+PgUp/PgDn, ...). Most work in the agent preview pane or an app-mode window.')}</p>` });
   }
 
   // ------------------------------------------------------------------ keyboard
@@ -1417,7 +1419,7 @@ class App {
         case '9': return go(() => this.hide('row', true));
         case '0': return go(() => this.hide('col', true));
         case ' ': return go(() => this.selectRange({ r1: 0, c1: v.sel.c1, r2: MAX_ROWS - 1, c2: v.sel.c2 }, v.active, { scroll: false }));
-        case 'p': return go(() => this.toast('인쇄는 브라우저 인쇄(Ctrl+P는 차단됨) 대신 Excel에서 수행하세요.'));
+        case 'p': return go(() => this.toast(t('Print from Excel instead of the browser (Ctrl+P is blocked).')));
         default: return; // let Ctrl+C/X/V fire native clipboard events
       }
     }
@@ -1455,7 +1457,7 @@ class App {
     });
     for (const id of ['#font-size']) this.$(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.dataset.sent = e.target.value; this.exec('fontSize', e.target.value); } });
     // color split buttons
-    this.$('#font-color-pick').addEventListener('click', (e) => D.colorPopup(e.currentTarget, { noneLabel: '자동', onPick: (c) => { this.$('#font-color-bar').style.background = c || '#000'; this.exec('fontColor', c); } }));
+    this.$('#font-color-pick').addEventListener('click', (e) => D.colorPopup(e.currentTarget, { noneLabel: t('Automatic'), onPick: (c) => { this.$('#font-color-bar').style.background = c || '#000'; this.exec('fontColor', c); } }));
     this.$('#fill-color-pick').addEventListener('click', (e) => D.colorPopup(e.currentTarget, { onPick: (c) => { this.$('#fill-color-bar').style.background = c || 'transparent'; this.exec('fillColor', c); } }));
     this.$('#font-color-btn').addEventListener('click', () => this.exec('fontColor', this.$('#font-color-bar').style.background ? rgbHex(this.$('#font-color-bar').style.background) : '#FF0000'));
     this.$('#fill-color-btn').addEventListener('click', () => this.exec('fillColor', rgbHex(this.$('#fill-color-bar').style.background) || '#FFFF00'));
@@ -1469,8 +1471,8 @@ class App {
       const wb = this.doc.wb;
       const target = wb.definedNames[txt] ? wb.definedNames[txt] : txt;
       const p = parseSheetRef(target);
-      if (!p) { this.toast('잘못된 참조입니다.', 'error'); return; }
-      if (p.sheet) { const i = wb.sheets.findIndex((s) => s.name.toLowerCase() === p.sheet.toLowerCase()); if (i < 0) return this.toast('시트가 없습니다.', 'error'); this.activateSheet(i); }
+      if (!p) { this.toast(t('Invalid reference.'), 'error'); return; }
+      if (p.sheet) { const i = wb.sheets.findIndex((s) => s.name.toLowerCase() === p.sheet.toLowerCase()); if (i < 0) return this.toast(t('No such sheet.'), 'error'); this.activateSheet(i); }
       this.selectRange(p.range, { r: p.range.r1, c: p.range.c1 });
       this.focusGrid();
     });
@@ -1485,21 +1487,21 @@ class App {
     });
     this.$('#doc-tabs').addEventListener('auxclick', (e) => { const t = e.target.closest('.doc-tab'); if (t && e.button === 1) this.closeDoc(+t.dataset.i); });
     this.$('#doc-tabs').addEventListener('contextmenu', (e) => {
-      const t = e.target.closest('.doc-tab'); if (!t) return; e.preventDefault();
-      const i = +t.dataset.i;
-      this.menu(e.clientX, e.clientY, [['새 창에서 열기 (동기화)', () => this.newWindow(i)], ['닫기', () => this.closeDoc(i)], ['다른 통합 문서 모두 닫기', async () => { for (let j = this.docs.length - 1; j >= 0; j--) if (this.docs[j] !== this.docs[i]) await this.closeDoc(j); }], null, ['경로 복사', () => navigator.clipboard?.writeText(this.docs[i].wb.path || '')]]);
+      const tab = e.target.closest('.doc-tab'); if (!tab) return; e.preventDefault();
+      const i = +tab.dataset.i;
+      this.menu(e.clientX, e.clientY, [[t('Open in New Window (synced)'), () => this.newWindow(i)], [t('Close'), () => this.closeDoc(i)], [t('Close Other Workbooks'), async () => { for (let j = this.docs.length - 1; j >= 0; j--) if (this.docs[j] !== this.docs[i]) await this.closeDoc(j); }], null, [t('Copy Path'), () => navigator.clipboard?.writeText(this.docs[i].wb.path || '')]]);
     });
     // sheet tabs
     const tabs = this.$('#sheet-tabs');
     tabs.addEventListener('click', (e) => { const t = e.target.closest('.sheet-tab'); if (t) this.activateSheet(+t.dataset.i, { keepEditor: this.editor.isFormula() }); });
     tabs.addEventListener('dblclick', (e) => { const t = e.target.closest('.sheet-tab'); if (t) this.renameSheetPrompt(+t.dataset.i); });
     tabs.addEventListener('contextmenu', (e) => {
-      const t = e.target.closest('.sheet-tab'); if (!t) return; e.preventDefault();
-      const i = +t.dataset.i; this.activateSheet(i);
+      const tab = e.target.closest('.sheet-tab'); if (!tab) return; e.preventDefault();
+      const i = +tab.dataset.i; this.activateSheet(i);
       const wb = this.doc.wb;
-      this.menu(e.clientX, e.clientY, [['삽입', () => wb.addSheet(null, i)], ['삭제', () => this.deleteSheet(i)], ['이름 바꾸기', () => this.renameSheetPrompt(i)],
-        ['복사본 만들기', () => wb.duplicateSheet(i)], ['왼쪽으로 이동', () => wb.moveSheet(i, i - 1)], ['오른쪽으로 이동', () => wb.moveSheet(i, i + 1)], null,
-        ['탭 색', () => this.tabColor(i, t)], ['숨기기', () => this.hideSheet(i)], ['숨기기 취소…', () => this.unhideSheet()]]);
+      this.menu(e.clientX, e.clientY, [[t('Insert'), () => wb.addSheet(null, i)], [t('Delete'), () => this.deleteSheet(i)], [t('Rename'), () => this.renameSheetPrompt(i)],
+        [t('Make a Copy'), () => wb.duplicateSheet(i)], [t('Move Left'), () => wb.moveSheet(i, i - 1)], [t('Move Right'), () => wb.moveSheet(i, i + 1)], null,
+        [t('Tab Color'), () => this.tabColor(i, tab)], [t('Hide'), () => this.hideSheet(i)], [t('Unhide…'), () => this.unhideSheet()]]);
     });
     let dragFrom = -1;
     tabs.addEventListener('dragstart', (e) => { const t = e.target.closest('.sheet-tab'); dragFrom = t ? +t.dataset.i : -1; e.dataTransfer.effectAllowed = 'move'; });
@@ -1519,7 +1521,7 @@ class App {
     this.grid.scroller.addEventListener('pointerup', () => setTimeout(() => this.onSelectionDone(), 0));
     // dropping files would make the *browser* read bytes (DRM!) — refuse and explain
     window.addEventListener('dragover', (e) => { if (e.dataTransfer?.types?.includes('Files')) e.preventDefault(); });
-    window.addEventListener('drop', (e) => { if (e.dataTransfer?.files?.length) { e.preventDefault(); this.toast('DRM 보호를 위해 파일은 [열기] (Ctrl+O)로 서버(Python)를 통해 엽니다.', 'warn', 6000); } });
+    window.addEventListener('drop', (e) => { if (e.dataTransfer?.files?.length) { e.preventDefault(); this.toast(t('For DRM protection, files are opened through the server (Python) with [Open] (Ctrl+O).'), 'warn', 6000); } });
     // ribbon state follows focus changes
     this.$('#font-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.dataset.sent = e.target.value; this.exec('fontName', e.target.value); } });
     combo(this.$('#font-name'), { items: () => this.fontItems(), onPick: (v) => this.exec('fontName', v), width: 240 });
@@ -1533,14 +1535,14 @@ class App {
     const wb = this.doc?.wb, seen = new Set(), out = [];
     // like Excel, a font can show in several groups (recent ones also under all fonts); once per group
     const add = (name, group) => { const k = name && `${group}\u0000${name.toLowerCase()}`; if (k && !seen.has(k)) { seen.add(k); out.push({ value: name, group, font: name }); } };
-    if (wb) add(wb.defaultFont.name, '테마 글꼴');
+    if (wb) add(wb.defaultFont.name, t('Theme Fonts'));
     if (wb) {
       const used = new Set(); let n = 0;
       for (const s of wb.sheets) { for (const cell of s.cells.values()) { if (cell.s?.ff) used.add(cell.s.ff); if (++n > 200000) break; } }
-      [...used].sort().forEach((f) => add(f, '이 문서에서 사용'));
+      [...used].sort().forEach((f) => add(f, t('Used in This Document')));
     }
-    this.recentFonts().forEach((f) => add(f, '최근 사용'));
-    (await this.systemFonts()).forEach((f) => add(f, '모든 글꼴'));
+    this.recentFonts().forEach((f) => add(f, t('Recently Used')));
+    (await this.systemFonts()).forEach((f) => add(f, t('All Fonts')));
     return out;
   }
   async systemFonts() {
@@ -1558,10 +1560,10 @@ class App {
   fileMenu(anchor) {
     const r = anchor.getBoundingClientRect();
     this.menu(r.left, r.bottom, [
-      ['새로 만들기', () => this.exec('new'), { key: 'Ctrl+N' }], ['열기…', () => this.exec('open'), { key: 'Ctrl+O' }],
-      ['저장', () => this.exec('save'), { key: 'Ctrl+S' }], ['다른 이름으로 저장…', () => this.exec('saveAs'), { key: 'F12' }], null,
-      ['새 창', () => this.exec('newWindow')], ['닫기', () => this.exec('close'), { key: 'Ctrl+F4' }], null,
-      ['바로 가기 키', () => this.exec('help')],
+      [t('New'), () => this.exec('new'), { key: 'Ctrl+N' }], [t('Open…'), () => this.exec('open'), { key: 'Ctrl+O' }],
+      [t('Save'), () => this.exec('save'), { key: 'Ctrl+S' }], [t('Save As…'), () => this.exec('saveAs'), { key: 'F12' }], null,
+      [t('New Window'), () => this.exec('newWindow')], [t('Close'), () => this.exec('close'), { key: 'Ctrl+F4' }], null,
+      [t('Keyboard shortcuts'), () => this.exec('help')],
     ]);
   }
 
@@ -1570,19 +1572,19 @@ class App {
     const at = (items) => this.menu(r.left, r.bottom + 2, items);
     const c = (cmd, arg) => () => this.exec(cmd, arg);
     switch (name) {
-      case 'paste': return at([['붙여넣기', c('paste'), { key: 'Ctrl+V' }], ['값 붙여넣기', () => this.clipboard.pasteCommand('values')], ['서식 붙여넣기', () => this.clipboard.pasteCommand('formats')], ['수식 붙여넣기', () => this.clipboard.pasteCommand('formulas')], ['행/열 바꿈', () => this.clipboard.pasteCommand('all', true)], ['선택하여 붙여넣기…', c('pasteSpecial'), { key: 'Ctrl+Alt+V' }]]);
-      case 'borders': return at([['아래쪽 테두리', c('borders', 'bottom')], ['위쪽 테두리', c('borders', 'top')], ['왼쪽 테두리', c('borders', 'left')], ['오른쪽 테두리', c('borders', 'right')], null, ['테두리 없음', c('borders', 'none')], ['모든 테두리', c('borders', 'all')], ['바깥쪽 테두리', c('borders', 'outline')], ['굵은 바깥쪽 테두리', c('borders', 'thickOutline')], ['안쪽 테두리', c('borders', 'inside')], null, ['아래쪽 이중 테두리', c('borders', 'doubleBottom')], ['굵은 아래쪽 테두리', c('borders', 'thickBottom')], ['위쪽/아래쪽 테두리', c('borders', 'topBottom')], null, ['다른 테두리…', () => D.formatCellsDialog(this, 'border')]]);
-      case 'merge': return at([['병합하고 가운데 맞춤', c('mergeCenter')], ['전체 병합', c('mergeAcross')], ['셀 병합', c('merge')], ['셀 분할', c('unmerge')]]);
-      case 'insert': return at([['셀 삽입…', c('insertCells')], ['시트 행 삽입', c('insertRow')], ['시트 열 삽입', c('insertCol')], ['시트 삽입', c('insertSheet'), { key: 'Shift+F11' }]]);
-      case 'delete': return at([['셀 삭제…', c('deleteCells')], ['시트 행 삭제', c('deleteRow')], ['시트 열 삭제', c('deleteCol')], ['시트 삭제', c('deleteSheet')]]);
-      case 'format': return at([['행 높이…', c('rowHeight')], ['행 높이 자동 맞춤', c('autofitRow')], ['열 너비…', c('colWidth')], ['열 너비 자동 맞춤', c('autofitCol')], null, ['행 숨기기', () => this.hide('row', true)], ['열 숨기기', () => this.hide('col', true)], ['행 숨기기 취소', () => this.hide('row', false)], ['열 숨기기 취소', () => this.hide('col', false)], ['시트 숨기기', () => this.hideSheet(this.doc.wb.active)], ['시트 숨기기 취소…', c('unhideSheet')], null, ['시트 이름 바꾸기', () => this.renameSheetPrompt(this.doc.wb.active)], ['탭 색', () => this.tabColor(this.doc.wb.active, anchor)], null, ['셀 서식…', c('formatCells'), { key: 'Ctrl+1' }]]);
-      case 'autosum': return at([['합계', c('autosum', 'SUM')], ['평균', c('autosum', 'AVERAGE')], ['숫자 개수', c('autosum', 'COUNT')], ['최대값', c('autosum', 'MAX')], ['최소값', c('autosum', 'MIN')], null, ['기타 함수…', c('insertFunction')]]);
-      case 'clear': return at([['모두 지우기', c('clearAll')], ['서식 지우기', c('clearFormats')], ['내용 지우기', c('clearContents'), { key: 'Delete' }], ['메모 지우기', c('clearComments')]]);
-      case 'fill': return at([['아래로', c('fillDown'), { key: 'Ctrl+D' }], ['오른쪽으로', c('fillRight'), { key: 'Ctrl+R' }]]);
-      case 'sortfilter': return at([['텍스트 오름차순 정렬', c('sortAsc')], ['텍스트 내림차순 정렬', c('sortDesc')], ['사용자 지정 정렬…', c('sortDialog')], null, ['필터', c('filter'), { key: 'Ctrl+Shift+L' }], ['지우기', c('filterClear')], ['다시 적용', c('filterReapply')]]);
-      case 'find': return at([['찾기…', c('find'), { key: 'Ctrl+F' }], ['바꾸기…', c('replace'), { key: 'Ctrl+H' }], ['이동…', () => this.$('#name-box').focus(), { key: 'Ctrl+G' }]]);
-      case 'freeze': return at([['틀 고정', c('freeze')], ['첫 행 고정', c('freezeRow')], ['첫 열 고정', c('freezeCol')], ['틀 고정 취소', c('unfreeze')]]);
-      case 'zoom': return at([['25%', () => this.setZoom(0.25)], ['50%', () => this.setZoom(0.5)], ['75%', () => this.setZoom(0.75)], ['100%', () => this.setZoom(1)], ['150%', () => this.setZoom(1.5)], ['200%', () => this.setZoom(2)], ['선택 영역 확대/축소', c('zoomSel')]]);
+      case 'paste': return at([[t('Paste'), c('paste'), { key: 'Ctrl+V' }], [t('Paste Values'), () => this.clipboard.pasteCommand('values')], [t('Paste Formatting'), () => this.clipboard.pasteCommand('formats')], [t('Paste Formulas'), () => this.clipboard.pasteCommand('formulas')], [t('Transpose'), () => this.clipboard.pasteCommand('all', true)], [t('Paste Special…'), c('pasteSpecial'), { key: 'Ctrl+Alt+V' }]]);
+      case 'borders': return at([[t('Bottom Border'), c('borders', 'bottom')], [t('Top Border'), c('borders', 'top')], [t('Left Border'), c('borders', 'left')], [t('Right Border'), c('borders', 'right')], null, [t('No Border'), c('borders', 'none')], [t('All Borders'), c('borders', 'all')], [t('Outside Borders'), c('borders', 'outline')], [t('Thick Outside Borders'), c('borders', 'thickOutline')], [t('Inside Borders'), c('borders', 'inside')], null, [t('Bottom Double Border'), c('borders', 'doubleBottom')], [t('Thick Bottom Border'), c('borders', 'thickBottom')], [t('Top and Bottom Border'), c('borders', 'topBottom')], null, [t('More Borders…'), () => D.formatCellsDialog(this, 'border')]]);
+      case 'merge': return at([[t('Merge & Center'), c('mergeCenter')], [t('Merge Across'), c('mergeAcross')], [t('Merge Cells'), c('merge')], [t('Unmerge Cells'), c('unmerge')]]);
+      case 'insert': return at([[t('Insert Cells…'), c('insertCells')], [t('Insert Sheet Rows'), c('insertRow')], [t('Insert Sheet Columns'), c('insertCol')], [t('Insert Worksheet'), c('insertSheet'), { key: 'Shift+F11' }]]);
+      case 'delete': return at([[t('Delete Cells…'), c('deleteCells')], [t('Delete Sheet Rows'), c('deleteRow')], [t('Delete Sheet Columns'), c('deleteCol')], [t('Delete Sheet'), c('deleteSheet')]]);
+      case 'format': return at([[t('Row Height…'), c('rowHeight')], [t('AutoFit Row Height'), c('autofitRow')], [t('Column Width…'), c('colWidth')], [t('AutoFit Column Width'), c('autofitCol')], null, [t('Hide Rows'), () => this.hide('row', true)], [t('Hide Columns'), () => this.hide('col', true)], [t('Unhide Rows'), () => this.hide('row', false)], [t('Unhide Columns'), () => this.hide('col', false)], [t('Hide Sheet'), () => this.hideSheet(this.doc.wb.active)], [t('Unhide Sheet…'), c('unhideSheet')], null, [t('Rename Sheet'), () => this.renameSheetPrompt(this.doc.wb.active)], [t('Tab Color'), () => this.tabColor(this.doc.wb.active, anchor)], null, [t('Format Cells…'), c('formatCells'), { key: 'Ctrl+1' }]]);
+      case 'autosum': return at([[t('Sum'), c('autosum', 'SUM')], [t('Average'), c('autosum', 'AVERAGE')], [t('Count Numbers'), c('autosum', 'COUNT')], [t('Maximum'), c('autosum', 'MAX')], [t('Minimum'), c('autosum', 'MIN')], null, [t('More Functions…'), c('insertFunction')]]);
+      case 'clear': return at([[t('Clear All'), c('clearAll')], [t('Clear Formats'), c('clearFormats')], [t('Clear Contents'), c('clearContents'), { key: 'Delete' }], [t('Clear Notes'), c('clearComments')]]);
+      case 'fill': return at([[t('Down'), c('fillDown'), { key: 'Ctrl+D' }], [t('To the Right'), c('fillRight'), { key: 'Ctrl+R' }]]);
+      case 'sortfilter': return at([[t('Sort Text A to Z'), c('sortAsc')], [t('Sort Text Z to A'), c('sortDesc')], [t('Custom Sort…'), c('sortDialog')], null, [t('Filter'), c('filter'), { key: 'Ctrl+Shift+L' }], [t('Clear'), c('filterClear')], [t('Reapply'), c('filterReapply')]]);
+      case 'find': return at([[t('Find…'), c('find'), { key: 'Ctrl+F' }], [t('Replace…'), c('replace'), { key: 'Ctrl+H' }], [t('Go To…'), () => this.$('#name-box').focus(), { key: 'Ctrl+G' }]]);
+      case 'freeze': return at([[t('Freeze Panes'), c('freeze')], [t('Freeze Top Row'), c('freezeRow')], [t('Freeze First Column'), c('freezeCol')], [t('Unfreeze Panes'), c('unfreeze')]]);
+      case 'zoom': return at([['25%', () => this.setZoom(0.25)], ['50%', () => this.setZoom(0.5)], ['75%', () => this.setZoom(0.75)], ['100%', () => this.setZoom(1)], ['150%', () => this.setZoom(1.5)], ['200%', () => this.setZoom(2)], [t('Zoom to Selection'), c('zoomSel')]]);
       case 'windows': return this.windowsMenu(anchor);
       default: return null;
     }
@@ -1593,13 +1595,13 @@ class App {
     const want = params.get('doc'), open = params.get('open');
     let docs = [];
     try { docs = (await api.docs()).docs; } catch (e) {
-      if (!this.onAuthError(e)) this.toast(`서버에 연결할 수 없습니다: ${e.message}. 페이지를 새로 고치세요.`, 'error', 15000);
+      if (!this.onAuthError(e)) this.toast(t('Cannot connect to the server: {error}. Reload the page.', { error: e.message }), 'error', 15000);
       return;
     }
     // read before attaching: attaching activates the first document, which overwrites this value
     const last = (() => { try { return sessionStorage.getItem('wx_active_doc'); } catch { return null; } })();
     for (const d of docs) await this.attachQuiet(d.docId, { activate: false });
-    if (want && !this.docs.some((d) => d.wb.docId === want)) this.toast('요청한 문서가 서버에 없습니다.', 'warn');
+    if (want && !this.docs.some((d) => d.wb.docId === want)) this.toast(t('The requested document is not open on the server.'), 'warn');
     if (want) history.replaceState(null, '', location.pathname + location.hash);
     // the document to show: the one the URL asks for, else the one this window showed before a reload,
     // else the one most recently opened/shown/worked on anywhere (server's focusedAt)
@@ -1637,12 +1639,12 @@ class App {
     el.id = 'auth-panel';
     el.setAttribute('role', 'alertdialog');
     el.innerHTML = `<div class="auth-box">
-      <h2>${mismatch ? '주소의 토큰이 서버와 맞지 않습니다' : '이 주소에는 토큰이 없어 파일을 열 수 없습니다'}</h2>
-      <p>${mismatch ? '서버가 새 토큰을 쓰고 있거나 다른 작업 폴더의 주소입니다.' : '미리보기 주소는 끝에 <code>#t=…</code> 토큰이 붙은 전체 주소여야 합니다.'}</p>
-      <p>에이전트에게 이렇게 요청한 뒤, 받은 주소를 <b>그대로</b> 여세요:</p>
-      <p class="ask">“<code>xl.py url</code>로 미리보기 주소를 알려 줘”</p>
+      <h2>${mismatch ? t("The address's token does not match the server") : t('This address has no token, so files cannot be opened')}</h2>
+      <p>${mismatch ? t('The server is using a new token, or this address is for another working folder.') : t('The preview address must be the full address ending in a <code>#t=…</code> token.')}</p>
+      <p>${t('Ask the agent for it like this, then open the address you get <b>exactly as given</b>:')}</p>
+      <p class="ask">${t('“Give me the preview address with <code>xl.py url</code>”')}</p>
       <p class="muted small">${D.esc(e?.message || '')}</p>
-      <div class="auth-btns"><button class="btn" data-act="close">닫기</button></div></div>`;
+      <div class="auth-btns"><button class="btn" data-act="close">${t('Close')}</button></div></div>`;
     el.querySelector('[data-act=close]').addEventListener('click', () => el.remove());
     document.body.append(el);
   }
@@ -1666,8 +1668,8 @@ class App {
     if (!this.started) { (this._earlyOpened ||= []).push(d); return; } // replayed at the end of start()
     this.attachQuiet(d.docId, { activate: false }).then((doc) => {
       if (!doc) return;
-      if (d.by === 'agent') this.showDoc(doc, `에이전트가 '${d.name}'을(를) 열었습니다.`);
-      else if (doc !== this.doc) this.setStatus(`'${d.name}' 문서가 다른 창에서 열렸습니다.`);
+      if (d.by === 'agent') this.showDoc(doc, t("The agent opened '{name}'.", { name: d.name }));
+      else if (doc !== this.doc) this.setStatus(t("'{name}' was opened in another window.", { name: d.name }));
     });
   }
 
@@ -1675,7 +1677,7 @@ class App {
   onDocFocus(d) {
     if (!this.started) { (this._earlyOpened ||= []).push({ ...d, by: 'agent' }); return; }
     if (d.by !== 'agent') return;
-    this.attachQuiet(d.docId, { activate: false }).then((doc) => doc && this.showDoc(doc, `에이전트가 '${d.name}'을(를) 보여 줍니다.`));
+    this.attachQuiet(d.docId, { activate: false }).then((doc) => doc && this.showDoc(doc, t("The agent is showing '{name}'.", { name: d.name })));
   }
 
   /** Bring a document to the front, unless the user is typing in a cell: then only mark its tab. */
@@ -1684,7 +1686,7 @@ class App {
     if (i < 0) return;
     if (this.editor.active) {
       if (doc !== this.doc) { doc.unseen = true; this.renderTabs(); }
-      if (msg) this.setStatus(`${msg} (입력을 마친 뒤 탭을 누르세요)`);
+      if (msg) this.setStatus(t('{msg} (click the tab when you finish typing)', { msg }));
       return;
     }
     if (i !== this.di) this.activateDoc(i);
@@ -1705,9 +1707,9 @@ class App {
       el = document.createElement('div');
       el.id = 'empty-state';
       el.innerHTML = `<div class="empty-box">
-        <h2>열린 파일이 없습니다</h2>
-        <p>에이전트가 파일을 열면 여기에 자동으로 표시됩니다.</p>
-        <div class="empty-btns"><button class="btn primary" data-act="new">새 통합 문서</button><button class="btn" data-act="open">열기…</button></div></div>`;
+        <h2>${t('No file is open')}</h2>
+        <p>${t('When the agent opens a file, it shows up here automatically.')}</p>
+        <div class="empty-btns"><button class="btn primary" data-act="new">${t('New Workbook')}</button><button class="btn" data-act="open">${t('Open…')}</button></div></div>`;
       el.addEventListener('click', (e) => { const a = e.target.closest('[data-act]')?.dataset.act; if (a === 'new') this.newDoc(); else if (a === 'open') this.openFile(); });
       this.$('#grid-host').append(el);
     }
@@ -1779,7 +1781,7 @@ function makeSeries(cells, wb) {
       return (k, base) => ({ ...base, v: L[(((idx[0] + Math.round(step * k)) % L.length) + L.length) % L.length] });
     }
   }
-  // text with trailing number: "항목 1", "Q1"
+  // text with trailing number: "Item 1", "Q1"
   const m = vals.map((v) => (typeof v === 'string' ? /^(.*?)(\d+)(\D*)$/.exec(v) : null));
   if (m.every(Boolean) && m.every((x) => x[1] === m[0][1] && x[3] === m[0][3])) {
     const nums = m.map((x) => parseInt(x[2], 10));
@@ -1789,6 +1791,12 @@ function makeSeries(cells, wb) {
   }
   return copy;
 }
+
+// UI language: translate the static page once, and use the locale's currency / long date formats
+document.documentElement.lang = LANG;
+for (const opt of document.querySelectorAll('#num-format option[data-f]')) if (FORMATS[opt.dataset.f]) opt.value = FORMATS[opt.dataset.f];
+for (const el of document.querySelectorAll('[data-f-symbol]')) el.textContent = FORMATS.currencySymbol;
+translateDom(document.body);
 
 const app = new App();
 window.monoonom = app; // for debugging & e2e tests

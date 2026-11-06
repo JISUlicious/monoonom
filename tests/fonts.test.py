@@ -67,8 +67,10 @@ F.font_dirs = lambda: [d]
 r = F.list_fonts(refresh=True)
 F.font_dirs = orig
 names = [f["name"] for f in r["fonts"]]
-check("list: shown in Korean where there is a Korean name, Korean names first, both names kept",
-      names[:2] == ["맑은 고딕", "바탕"] and "Noto Sans KR" in names and r["fonts"][0]["names"] == ["맑은 고딕", "Malgun Gothic"], str(r["fonts"]))
+check("list: English names by default, sorted, both names kept",
+      names[:2] == ["Batang", "Malgun Gothic"] and "Noto Sans KR" in names and r["fonts"][0]["names"] == ["바탕", "Batang"], str(r["fonts"]))
+names_ko = [f["name"] for f in F.list_fonts(lang="ko")["fonts"]]
+check("list (lang=ko): Korean names where there is one, Korean names first", names_ko[:2] == ["맑은 고딕", "바탕"] and "Noto Sans KR" in names_ko, str(names_ko))
 real = F.list_fonts(refresh=True)
 check("this computer's font folders are read", real["files"] >= 0 and all(f["name"] for f in real["fonts"]), f"{len(real['fonts'])} fonts from {real['files']} files in {real['ms']} ms")
 print(f"{fails} FAILED" if fails else "ALL PASSED")

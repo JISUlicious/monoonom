@@ -19,7 +19,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   fs.mkdirSync(OUT, { recursive: true });
   const src = path.join(OUT, 'keep.xlsx');
   execFileSync('python3', [PYTEST, '--make', src]);
-  const browser = await chromium.launch();
+  const browser = require('./korean.cjs')(await chromium.launch());
   const page = await browser.newPage({ viewport: { width: 1300, height: 800 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));

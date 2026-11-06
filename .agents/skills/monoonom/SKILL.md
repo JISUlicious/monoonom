@@ -96,13 +96,13 @@ values in.
 | Insert / delete rows, columns | `xl.py rows insert 5 --count 2`, `rows delete 5:7`, `cols insert C`, `cols delete C:D` |
 | Insert / delete cells (shift) | `xl.py cells insert B2:C3 --shift down`, `cells delete B2 --shift left` |
 | Sort / remove duplicates | `xl.py sort A1:F50 --by C:desc --by A`, `xl.py dedupe A1:F50 --columns A,C` |
-| Filter conditions | `xl.py filter col B --where '>150'`, `filter col A --values '서울\|부산'`, `filter clear`, `filter reapply` |
+| Filter conditions | `xl.py filter col B --where '>150'`, `filter col A --values 'Seoul\|Busan'`, `filter clear`, `filter reapply` |
 | Copy / paste special / move | `xl.py copy A1:C5 E1 [--what values\|formats\|formulas] [--transpose]`, `xl.py move A1:C5 E1` |
-| Series (fill handle) | `xl.py series A2:A3 A2:A50` (1,2→…, 월→화, 항목1→항목2, dates +1) |
-| Find / replace | `xl.py find '*서울*'`, `xl.py replace 구 신 --all [--in formulas]` |
-| Notes, links, autofit | `xl.py comment B2 '확인'`, `xl.py link A1 https://… --text 사이트`, `xl.py autofit A:F` |
+| Series (fill handle) | `xl.py series A2:A3 A2:A50` (1,2→…, Mon→Tue, Item1→Item2, dates +1) |
+| Find / replace | `xl.py find '*Seoul*'`, `xl.py replace old new --all [--in formulas]` |
+| Notes, links, autofit | `xl.py comment B2 'Check'`, `xl.py link A1 https://… --text Site`, `xl.py autofit A:F` |
 | Format copy, decimals | `xl.py format-copy A1:F1 A20:F20`, `xl.py decimals B2:B9 +1` |
-| Sheets | `xl.py sheet add 요약`, `rename Old New`, `rm`, `copy`, `move Name 1`, `hide`/`unhide`, `color Name #FF0000`, `gridlines Name off` |
+| Sheets | `xl.py sheet add Summary`, `rename Old New`, `rm`, `copy`, `move Name 1`, `hide`/`unhide`, `color Name #FF0000`, `gridlines Name off` |
 | Charts | `xl.py chart add 'A1:C13' --type line --title 'Monthly' --at H2`, `chart set ID --title … --to-type bar --data A1:D13` (`--switch` swaps rows/columns), `chart ls`, `chart rm ID`. Chart ids change whenever the file is reopened or the server restarts: run `chart ls` before `chart set/rm` instead of reusing an older id |
 | Preview URL (with token) | `xl.py url` |
 | Show the user something | `xl.py goto 'Sheet2!B10'` (moves the preview), `xl.py view --zoom 150 --formulas` |
@@ -110,7 +110,7 @@ values in.
 | History / undo | `xl.py changes --since 0`, `xl.py undo BATCH` |
 
 Tables do not have to start at A1. Give filter/sort/chart/dedupe a single cell or whole columns and
-they use the table there (the contiguous block, without a 합계/Total row under it); an explicit
+they use the table there (the contiguous block, without a Total row under it); an explicit
 multi-cell range is used as given. `describe` lists each table with its header and totals rows.
 
 Pivot tables in the file are kept and listed by `describe` / `xl.py pivot ls` (range, source,
@@ -121,8 +121,8 @@ e.g. new items that only Excel can add rows for). Saving makes Excel refresh the
 opens the file either way. Inserting rows/columns above or left of a pivot moves it.
 To make one: `xl.py pivot add 'Data!A1' --rows Region --cols Product --values Sales:sum
 [--filters Quarter] --at 'Pivot!A3'` (fields are the source's header names; a missing sheet is
-created; several `--rows`/`--values` separated by commas; with `--cols` only one value field). It
-is written in tabular form and saved as a real pivot table that Excel rebuilds when it opens the
+created; several `--rows`/`--values` separated by commas; with `--cols` only one value field; `--lang ko` for Korean labels when the user works
+in Korean Excel). It is written in tabular form and saved as a real pivot table that Excel rebuilds when it opens the
 file. Prefer a pivot when the user asks for one; for a summary they will edit, use formulas.
 
 Row/column inserts, deletes and sorts move formulas, chart ranges, merges and the filter range just

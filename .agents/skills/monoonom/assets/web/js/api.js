@@ -5,6 +5,8 @@
 // X-Monoonom-Token header. This works in previews that embed the page in a cross-site iframe
 // (VS Code Simple Browser, Tauri apps), where cookies are not sent. Top-level tabs opened without the
 // token still work through the HttpOnly cookie the page gets when it loads.
+import { LANG, serverText } from './i18n.js';
+
 const KEY = 'mn_token';
 let token = null;
 let fromUrl = false; // the token came with this page's URL (not from storage left by an earlier server)
@@ -51,8 +53,9 @@ async function call(method, url, body) {
   try { data = await res.json(); } catch { data = {}; }
   if (!res.ok) {
     if (res.status === 401 && data.reason === 'token-mismatch') forgetStaleToken();
-    const e = new Error(data.error || `HTTP ${res.status}`);
-    e.status = res.status; e.data = data;
+    // server messages are English: e.message is in the UI language, e.raw the server's text
+    const e = new Error(serverText(data.error) || `HTTP ${res.status}`);
+    e.status = res.status; e.data = data; e.raw = data.error || '';
     throw e;
   }
   return data;
@@ -64,15 +67,15 @@ export const api = {
   fs: (path) => call('GET', '/api/fs' + (path ? `?path=${encodeURIComponent(path)}` : '')),
   docs: () => call('GET', '/api/docs'),
   openDoc: (path, clientId) => call('POST', '/api/docs', { path, actor: 'user', clientId }),
-  newDoc: (name, clientId) => call('POST', '/api/docs', { new: true, name, actor: 'user', clientId }),
+  newDoc: (name, clientId) => call('POST', '/api/docs', { new: true, name, lang: LANG, actor: 'user', clientId }),
   snapshot: (id) => call('GET', `${D(id)}/snapshot`),
   ops: (id, payload) => call('POST', `${D(id)}/ops`, payload),
   presence: (id, payload) => call('POST', `${D(id)}/presence`, payload),
   calc: (id, payload) => call('POST', `${D(id)}/calc`, payload),
   saveDoc: (id, opts) => call('POST', `${D(id)}/save`, opts),
   pivotRefresh: (id, payload) => call('POST', `${D(id)}/pivots/refresh`, payload),
-  fonts: () => call('GET', '/api/fonts'),
-  pivotCreate: (id, payload) => call('POST', `${D(id)}/pivots`, payload),
+  fonts: () => call('GET', `/api/fonts?lang=${LANG}`),
+  pivotCreate: (id, payload) => call('POST', `${D(id)}/pivots`, { lang: LANG, ...payload }),
   closeDoc: (id, force = false) => call('DELETE', D(id), { force }),
   streamTicket: () => call('POST', '/api/stream/ticket', {}),
   subscribe: (payload) => call('POST', '/api/stream/subscribe', payload),

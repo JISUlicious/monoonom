@@ -22,19 +22,23 @@ const XSD = process.env.WX_SML_XSD; // optional: ECMA-376 Part 4 transitional sm
 (async () => {
   xl('serve', '--port', '8866'); xl('open', 'pivot.xlsx');
   // agent: two row fields (subtotals), two data fields, on a new sheet
-  const out = xl('pivot', 'add', '데이터!A1', '--rows', '지역,분기', '--values', '매출:sum,매출:average', '--at', '요약!B2');
-  check('agent pivot add: created on a new sheet', /피벗 테이블 '피벗 테이블1' → 요약!B2:E13/.test(out), out);
+  const out = xl('pivot', 'add', '데이터!A1', '--rows', '지역,분기', '--values', '매출:sum,매출:average', '--at', '요약!B2', '--lang', 'ko');
+  check('agent pivot add (--lang ko): created on a new sheet', /pivot table '피벗 테이블1' → 요약!B2:E13/.test(out), out);
   const rd = xl('read', '요약!B2:E13');
   check('…tabular layout with a 값 header, subtotals and grand total', /값/.test(rd) && /대구 요약\t\t150\t37\.5/.test(rd) && /총합계\t\t860\t71\.66/.test(rd), rd);
   let e = xlErr('pivot', 'add', '데이터!A1', '--rows', '지역', '--values', '매출', '--at', '데이터!B2');
-  check('agent: placing it over data is refused', e && e.code === 4 && /데이터가 있습니다/.test(e.out), JSON.stringify(e));
+  check('agent: placing it over data is refused', e && e.code === 4 && /has data/.test(e.out), JSON.stringify(e));
   e = xlErr('pivot', 'add', '데이터!A1', '--rows', '도시', '--values', '매출', '--at', '새!A1');
-  check('agent: an unknown field is refused with the header names', e && /'도시' 열이 없습니다. 머리글: 지역, 제품, 분기, 매출/.test(e.out), JSON.stringify(e));
+  check('agent: an unknown field is refused with the header names', e && /no column '도시'. Headers: 지역, 제품, 분기, 매출/.test(e.out), JSON.stringify(e));
   e = xlErr('pivot', 'add', '데이터!A1', '--rows', '지역', '--cols', '제품', '--values', '매출:sum,매출:max', '--at', '새!A1');
-  check('agent: columns + several data fields is refused (not supported yet)', e && /값 필드는 하나까지/.test(e.out), JSON.stringify(e));
-  check('agent: the new pivot is protected like a file pivot', /영역은 바꿀 수 없습니다/.test(JSON.stringify(xlErr('write', '요약!D5', '1'))));
+  check('agent: columns + several data fields is refused (not supported yet)', e && /at most one value field/.test(e.out), JSON.stringify(e));
+  check('agent: the new pivot is protected like a file pivot', /cannot be changed/.test(JSON.stringify(xlErr('write', '요약!D5', '1'))));
+  // default labels: English, as English Excel writes them
+  const en = xl('pivot', 'add', '데이터!A1', '--rows', '지역', '--values', '매출', '--at', 'EN!A1');
+  const enRead = xl('read', 'EN!A1:B5');
+  check('agent pivot add (default): English names and labels', /'PivotTable1' → EN!A1:B5/.test(en) && /Sum of 매출/.test(enRead) && /Grand Total\t860/.test(enRead), en + enRead);
 
-  const browser = await chromium.launch();
+  const browser = require('./korean.cjs')(await chromium.launch());
   const errors = [];
   try {
     const p = await browser.newPage({ viewport: { width: 1300, height: 800 } });
@@ -58,7 +62,7 @@ const XSD = process.env.WX_SML_XSD; // optional: ECMA-376 Part 4 transitional sm
     // refresh the created pivots after a source change
     xl('write', '데이터!D2', '1000');
     const ref = JSON.parse(xl('pivot', 'refresh', '--json'));
-    check('refresh: the created pivots update (서울 A Q1 120 -> 1000)', ref.pivots.filter((x) => x.changed > 0).map((x) => x.name).sort().join() === '피벗 테이블1,피벗 테이블2,피벗1', JSON.stringify(ref.pivots));
+    check('refresh: the created pivots update (서울 A Q1 120 -> 1000)', ref.pivots.filter((x) => x.changed > 0).map((x) => x.name).sort().join() === 'PivotTable1,피벗 테이블1,피벗 테이블2,피벗1', JSON.stringify(ref.pivots));
     await p.waitForFunction(() => window.monoonom.doc.wb.sheets.find((s) => s.name === '제품별').get(6, 3)?.v === 1130, null, { timeout: 4000 }).catch(() => {});
     check('…and the preview shows it (서울 A 1130)', await p.evaluate(() => window.monoonom.doc.wb.sheets.find((s) => s.name === '제품별').get(6, 3)?.v === 1130));
     check('no page errors', errors.length === 0, errors.join('; '));
@@ -72,6 +76,7 @@ import json, openpyxl, zipfile, re
 f = ${JSON.stringify(path.join(ws, 'out.xlsx'))}
 wb = openpyxl.load_workbook(f)
 res = {ws.title: [(p.name, p.location.ref, bool(p.cache and p.cache.refreshOnLoad)) for p in ws._pivots] for ws in wb}
+res['_captions'] = {ws.title: [(p.grandTotalCaption, p.dataCaption) for p in ws._pivots] for ws in wb}
 z = zipfile.ZipFile(f)
 res['_parts'] = sorted(n for n in z.namelist() if 'pivot' in n and n.endswith('.xml') and '_rels' not in n)
 res['_rid'] = any(re.search(r'<pivotTableDefinition[^>]* r:id=', z.read(n).decode()) for n in res['_parts'] if 'pivotTables' in n)
@@ -84,6 +89,7 @@ print(json.dumps(res, ensure_ascii=False))`));
   check('saved twice: 3 pivots, no duplicates; new ones refresh on open', JSON.stringify(r['요약']) === '[["피벗 테이블1","B2:E13",true]]'
     && r['제품별'].length === 1 && r['제품별'][0][1] === 'A5:E9' && r['피벗'].length === 1, JSON.stringify(r));
   check('…no r:id on pivotTableDefinition (not in the schema)', r._rid === false);
+  check('…captions follow the label language (EN: Grand Total / Values, 요약: 총합계 / 값)', JSON.stringify(r._captions.EN) === '[["Grand Total","Values"]]' && JSON.stringify(r._captions['요약']) === '[["총합계","값"]]', JSON.stringify(r._captions));
   if (XSD) check('…every pivot part and workbook.xml valid against ECMA-376 sml.xsd', Object.values(r._xsd).every(Boolean), JSON.stringify(r._xsd));
   else console.log('SKIP XSD check (set WX_SML_XSD to the ECMA-376 transitional sml.xsd)');
   // LibreOffice reads the file as pivot tables and computes the same numbers (when installed)

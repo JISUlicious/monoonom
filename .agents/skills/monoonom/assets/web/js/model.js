@@ -2,6 +2,7 @@
 import { key, keyRow, keyCol, MAX_COLS, MAX_ROWS, parseRange, rangeA1, a1, parseA1 } from './address.js';
 import { translateFormula, adjustFormula, renameSheetInFormula } from './formula.js';
 import { Engine } from './engine.js';
+import { t, FORMATS } from './i18n.js';
 
 let uid = 0;
 export const newId = (p = 'id') => `${p}${Date.now().toString(36)}${(uid++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -87,14 +88,14 @@ export class Workbook {
   constructor() {
     this.id = newId('wb');
     this.docId = newId('doc');
-    this.name = '통합 문서1.xlsx';
+    this.name = t('Book1.xlsx');
     this.path = null;
     this.format = 'xlsx';
     this.basePath = null; // original file for patch-saving
     this.sheets = [];
     this.active = 0;
     this.definedNames = {};
-    this.defaultFont = { name: '맑은 고딕', size: 11 };
+    this.defaultFont = { name: FORMATS.defaultFont, size: 11 };
     this.dirty = false;
     this.undoStack = [];
     this.redoStack = [];
@@ -246,7 +247,7 @@ export class Workbook {
 
   // ------------------------------------------------------------ sheet operations
   addSheet(name, at = this.sheets.length) {
-    this.begin('시트 추가');
+    this.begin(t('Insert Sheet'));
     this.markStructural(true);
     this.touchStructure();
     const s = new Sheet(name || this.uniqueSheetName());
@@ -257,7 +258,7 @@ export class Workbook {
   }
   deleteSheet(idx) {
     if (this.sheets.length <= 1) return false;
-    this.begin('시트 삭제');
+    this.begin(t('Delete Sheet'));
     this.markStructural(false);
     this.touchStructure();
     this.sheets.splice(idx, 1);
@@ -267,12 +268,12 @@ export class Workbook {
   }
   renameSheet(idx, name) {
     name = name.trim();
-    if (!name || /[\\/?*[\]:]/.test(name) || name.length > 31) throw new Error('시트 이름에 \\ / ? * [ ] : 를 사용할 수 없고 31자 이하여야 합니다.');
-    if (this.sheets.some((s, i) => i !== idx && s.name.toLowerCase() === name.toLowerCase())) throw new Error('같은 이름의 시트가 이미 있습니다.');
+    if (!name || /[\\/?*[\]:]/.test(name) || name.length > 31) throw new Error(t('A sheet name cannot contain \\ / ? * [ ] : and must be 31 characters or fewer.'));
+    if (this.sheets.some((s, i) => i !== idx && s.name.toLowerCase() === name.toLowerCase())) throw new Error(t('A sheet with that name already exists.'));
     const sh = this.sheets[idx];
     const old = sh.name;
     if (old === name) return;
-    this.begin('시트 이름 바꾸기');
+    this.begin(t('Rename Sheet'));
     this.markStructural(true);
     this.touchMeta(sh);
     sh.name = name;
@@ -299,7 +300,7 @@ export class Workbook {
   }
   moveSheet(from, to) {
     if (to < 0 || to >= this.sheets.length || from === to) return;
-    this.begin('시트 이동');
+    this.begin(t('Move Sheet'));
     this.markStructural(true);
     this.touchStructure();
     const [s] = this.sheets.splice(from, 1);
@@ -309,7 +310,7 @@ export class Workbook {
   }
   duplicateSheet(idx) {
     const src = this.sheets[idx];
-    this.begin('시트 복사');
+    this.begin(t('Copy Sheet'));
     this.markStructural(true);
     this.touchStructure();
     const s = new Sheet(this.uniqueSheetName(src.name));
@@ -329,7 +330,7 @@ export class Workbook {
   shift(sheet, axis, at, count) {
     const blocked = pivotShiftProblem(sheet, axis, at, count);
     if (blocked) throw new Error(blocked);
-    this.begin(count > 0 ? (axis === 'row' ? '행 삽입' : '열 삽입') : (axis === 'row' ? '행 삭제' : '열 삭제'));
+    this.begin(count > 0 ? (axis === 'row' ? t('Insert Rows') : t('Insert Columns')) : (axis === 'row' ? t('Delete Rows') : t('Delete Columns')));
     this.markStructural(true, { sheet: sheet.id, axis, at, count });
     this.touchMeta(sheet);
     const isRow = axis === 'row';
@@ -441,7 +442,7 @@ export class Workbook {
       // whole rows/columns: only apply to used part
       g = { ...g, r2: Math.min(g.r2, Math.max(sheet.maxRow, g.r1 + 199)), c2: Math.min(g.c2, Math.max(sheet.maxCol, g.c1 + 49)) };
     }
-    this.begin('서식');
+    this.begin(t('Format'));
     for (let r = g.r1; r <= g.r2; r++) {
       if (sheet.isRowHidden(r) && sheet.filterHidden.has(r)) continue;
       for (let c = g.c1; c <= g.c2; c++) {
@@ -609,7 +610,7 @@ export function pivotsIn(sheet, g) {
   return (sheet.pivots || []).filter((p) => { const x = parseRange(p.ref); return x && x.r1 <= g.r2 && g.r1 <= x.r2 && x.c1 <= g.c2 && g.c1 <= x.c2; });
 }
 export function pivotBlockedMessage(p) {
-  return `피벗 테이블 '${p.name}'(${p.ref}) 영역은 바꿀 수 없습니다. 원본 데이터(${p.source || '?'})를 고치세요. 저장하면 Excel이 열 때 피벗을 새로 고칩니다.`;
+  return t("The area of pivot table '{name}' ({ref}) cannot be changed. Its results come from the source data ({source}), so change the source (after saving, Excel refreshes the pivot when it opens the file).", { name: p.name, ref: p.ref, source: p.source || '?' });
 }
 /** Same rules as server/pivots.py shift_problem: rows/columns may go above/below a pivot, not through it. */
 export function pivotShiftProblem(sheet, axis, at, count) {
@@ -617,9 +618,9 @@ export function pivotShiftProblem(sheet, axis, at, count) {
     const g = parseRange(p.ref);
     if (!g) continue;
     const lo = axis === 'row' ? g.r1 : g.c1, hi = axis === 'row' ? g.r2 : g.c2;
-    const what = axis === 'row' ? '행' : '열';
-    if (count > 0 && lo < at && at <= hi) return `피벗 테이블 '${p.name}'(${p.ref}) 가운데에는 ${what}을 삽입할 수 없습니다. 피벗 위나 아래(왼쪽·오른쪽)에 삽입하세요.`;
-    if (count < 0 && at <= hi && lo <= at - count - 1) return `피벗 테이블 '${p.name}'(${p.ref})의 ${what}은 삭제할 수 없습니다.`;
+    const row = axis === 'row', v = { name: p.name, ref: p.ref };
+    if (count > 0 && lo < at && at <= hi) return row ? t("Cannot insert rows inside pivot table '{name}' ({ref}). Insert them above, below, left or right of it.", v) : t("Cannot insert columns inside pivot table '{name}' ({ref}). Insert them above, below, left or right of it.", v);
+    if (count < 0 && at <= hi && lo <= at - count - 1) return row ? t("Cannot delete rows of pivot table '{name}' ({ref}).", v) : t("Cannot delete columns of pivot table '{name}' ({ref}).", v);
   }
   return null;
 }

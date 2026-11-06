@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,165 +11,165 @@
 <body>
 <header id="titlebar">
   <div class="brand"><img src="/img/monoonom-white.svg" alt="" width="22" height="22">MoNooNoM</div>
-  <div id="doc-tabs" class="doc-tabs" role="tablist" aria-label="통합 문서"></div>
-  <button id="win-btn" class="win-btn" title="창 목록 / 새 창">🗗 창 <span id="win-count">1</span></button>
+  <div id="doc-tabs" class="doc-tabs" role="tablist" aria-label="Workbooks"></div>
+  <button id="win-btn" class="win-btn" title="Windows / new window">🗗 Windows <span id="win-count">1</span></button>
 </header>
 
 <nav id="ribbon-tabs" class="ribbon-tabs">
-  <button data-rtab="file" class="file-tab">파일</button>
-  <button data-rtab="home" class="on">홈</button>
-  <button data-rtab="insert">삽입</button>
-  <button data-rtab="formulas">수식</button>
-  <button data-rtab="data">데이터</button>
-  <button data-rtab="view">보기</button>
+  <button data-rtab="file" class="file-tab">File</button>
+  <button data-rtab="home" class="on">Home</button>
+  <button data-rtab="insert">Insert</button>
+  <button data-rtab="formulas">Formulas</button>
+  <button data-rtab="data">Data</button>
+  <button data-rtab="view">View</button>
   <span class="spacer"></span>
-  <button class="qa" data-cmd="save" title="저장 (Ctrl+S)">💾</button>
-  <button class="qa" id="undo-btn" data-cmd="undo" title="실행 취소 (Ctrl+Z)">↶</button>
-  <button class="qa" id="redo-btn" data-cmd="redo" title="다시 실행 (Ctrl+Y)">↷</button>
-  <button class="qa" data-cmd="help" title="바로 가기 키">⌨</button>
+  <button class="qa" data-cmd="save" title="Save (Ctrl+S)">💾</button>
+  <button class="qa" id="undo-btn" data-cmd="undo" title="Undo (Ctrl+Z)">↶</button>
+  <button class="qa" id="redo-btn" data-cmd="redo" title="Redo (Ctrl+Y)">↷</button>
+  <button class="qa" data-cmd="help" title="Keyboard shortcuts">⌨</button>
 </nav>
 
 <section id="ribbon" class="ribbon">
   <!-- HOME -->
   <div data-rpane="home" class="rpane">
     <div class="group"><div class="gbody">
-      <div class="split big"><button class="rb big" data-cmd="paste" title="붙여넣기 (Ctrl+V)"><span class="ic">📋</span>붙여넣기</button><button class="dd" data-dd="paste" title="붙여넣기 옵션">▾</button></div>
+      <div class="split big"><button class="rb big" data-cmd="paste" title="Paste (Ctrl+V)"><span class="ic">📋</span>Paste</button><button class="dd" data-dd="paste" title="Paste options">▾</button></div>
       <div class="col">
-        <button class="rb" data-cmd="cut" title="잘라내기 (Ctrl+X)">✂ 잘라내기</button>
-        <button class="rb" data-cmd="copy" title="복사 (Ctrl+C)">⧉ 복사</button>
-        <button class="rb" id="painter-btn" data-cmd="painter" title="서식 복사 (두 번 클릭하면 계속 적용)">🖌 서식 복사</button>
-      </div></div><div class="gname">클립보드</div></div>
+        <button class="rb" data-cmd="cut" title="Cut (Ctrl+X)">✂ Cut</button>
+        <button class="rb" data-cmd="copy" title="Copy (Ctrl+C)">⧉ Copy</button>
+        <button class="rb" id="painter-btn" data-cmd="painter" title="Format Painter (double-click to keep applying)">🖌 Format Painter</button>
+      </div></div><div class="gname">Clipboard</div></div>
 
     <div class="group"><div class="gbody"><div class="col">
       <div class="row">
-        <input id="font-name" class="inp font-name" data-cmd="fontName" title="글꼴" aria-label="글꼴">
-        <input id="font-size" class="inp font-size" data-cmd="fontSize" title="글꼴 크기" aria-label="글꼴 크기">
-        <button class="rb ico" data-cmd="fontGrow" title="글꼴 크기 크게">A⁺</button><button class="rb ico" data-cmd="fontShrink" title="글꼴 크기 작게">A⁻</button>
+        <input id="font-name" class="inp font-name" data-cmd="fontName" title="Font" aria-label="Font">
+        <input id="font-size" class="inp font-size" data-cmd="fontSize" title="Font size" aria-label="Font size">
+        <button class="rb ico" data-cmd="fontGrow" title="Increase font size">A⁺</button><button class="rb ico" data-cmd="fontShrink" title="Decrease font size">A⁻</button>
       </div>
       <div class="row">
-        <button class="rb ico" data-cmd="bold" title="굵게 (Ctrl+B)"><b>가</b></button>
-        <button class="rb ico" data-cmd="italic" title="기울임꼴 (Ctrl+I)"><i>가</i></button>
-        <button class="rb ico" data-cmd="underline" title="밑줄 (Ctrl+U)"><u>가</u></button>
-        <button class="rb ico" data-cmd="strike" title="취소선 (Ctrl+5)"><s>가</s></button>
-        <div class="split"><button class="rb ico" data-cmd="borders" data-arg="bottom" title="아래쪽 테두리">▁</button><button class="dd" data-dd="borders" title="테두리">▾</button></div>
-        <div class="split"><button class="rb ico color-btn" id="fill-color-btn" title="채우기 색">🪣<span class="cbar" id="fill-color-bar" style="background:#FFFF00"></span></button><button class="dd" id="fill-color-pick" title="채우기 색 선택">▾</button></div>
-        <div class="split"><button class="rb ico color-btn" id="font-color-btn" title="글꼴 색">A<span class="cbar" id="font-color-bar" style="background:#FF0000"></span></button><button class="dd" id="font-color-pick" title="글꼴 색 선택">▾</button></div>
-      </div></div></div><div class="gname">글꼴</div></div>
+        <button class="rb ico" data-cmd="bold" title="Bold (Ctrl+B)"><b data-i18n="glyph.bold">B</b></button>
+        <button class="rb ico" data-cmd="italic" title="Italic (Ctrl+I)"><i data-i18n="glyph.italic">I</i></button>
+        <button class="rb ico" data-cmd="underline" title="Underline (Ctrl+U)"><u data-i18n="glyph.underline">U</u></button>
+        <button class="rb ico" data-cmd="strike" title="Strikethrough (Ctrl+5)"><s data-i18n="glyph.strike">S</s></button>
+        <div class="split"><button class="rb ico" data-cmd="borders" data-arg="bottom" title="Bottom border">▁</button><button class="dd" data-dd="borders" title="Borders">▾</button></div>
+        <div class="split"><button class="rb ico color-btn" id="fill-color-btn" title="Fill color">🪣<span class="cbar" id="fill-color-bar" style="background:#FFFF00"></span></button><button class="dd" id="fill-color-pick" title="Choose fill color">▾</button></div>
+        <div class="split"><button class="rb ico color-btn" id="font-color-btn" title="Font color">A<span class="cbar" id="font-color-bar" style="background:#FF0000"></span></button><button class="dd" id="font-color-pick" title="Choose font color">▾</button></div>
+      </div></div></div><div class="gname">Font</div></div>
 
     <div class="group"><div class="gbody"><div class="col">
       <div class="row">
-        <button class="rb ico" data-cmd="vTop" title="위쪽 맞춤">⤒</button><button class="rb ico" data-cmd="vMiddle" title="가운데 맞춤">↕</button><button class="rb ico" data-cmd="vBottom" title="아래쪽 맞춤">⤓</button>
-        <button class="rb" data-cmd="wrap" title="텍스트 줄 바꿈">↵ 줄 바꿈</button>
+        <button class="rb ico" data-cmd="vTop" title="Top align">⤒</button><button class="rb ico" data-cmd="vMiddle" title="Center">↕</button><button class="rb ico" data-cmd="vBottom" title="Bottom align">⤓</button>
+        <button class="rb" data-cmd="wrap" title="Wrap text">↵ Wrap</button>
       </div>
       <div class="row">
-        <button class="rb ico" data-cmd="alignLeft" title="왼쪽 맞춤">⫷</button><button class="rb ico" data-cmd="alignCenter" title="가운데 맞춤">≡</button><button class="rb ico" data-cmd="alignRight" title="오른쪽 맞춤">⫸</button>
-        <button class="rb ico" data-cmd="outdent" title="내어쓰기">⇤</button><button class="rb ico" data-cmd="indent" title="들여쓰기">⇥</button>
-        <div class="split"><button class="rb" data-cmd="mergeCenter" title="병합하고 가운데 맞춤">⊞ 병합</button><button class="dd" data-dd="merge">▾</button></div>
-      </div></div></div><div class="gname">맞춤</div></div>
+        <button class="rb ico" data-cmd="alignLeft" title="Align left">⫷</button><button class="rb ico" data-cmd="alignCenter" title="Center">≡</button><button class="rb ico" data-cmd="alignRight" title="Align right">⫸</button>
+        <button class="rb ico" data-cmd="outdent" title="Decrease indent">⇤</button><button class="rb ico" data-cmd="indent" title="Increase indent">⇥</button>
+        <div class="split"><button class="rb" data-cmd="mergeCenter" title="Merge & Center">⊞ Merge</button><button class="dd" data-dd="merge">▾</button></div>
+      </div></div></div><div class="gname">Alignment</div></div>
 
     <div class="group"><div class="gbody"><div class="col">
-      <div class="row"><select id="num-format" class="inp num-format" data-cmd="numFormat" title="표시 형식">
-        <option value="General">일반</option><option value="0">숫자 (0)</option><option value="0.00">숫자 (0.00)</option><option value="#,##0">숫자 (#,##0)</option>
-        <option value="&quot;₩&quot;#,##0">통화 (₩)</option><option value="_-* #,##0_-;-* #,##0_-;_-* &quot;-&quot;_-;_-@_-">회계</option>
-        <option value="yyyy-mm-dd">간단한 날짜</option><option value="yyyy&quot;년&quot; m&quot;월&quot; d&quot;일&quot; dddd">자세한 날짜</option><option value="h:mm:ss">시간</option>
-        <option value="0%">백분율</option><option value="# ?/?">분수</option><option value="0.00E+00">지수</option><option value="@">텍스트</option>
-        <option value="__custom">사용자 지정</option><option value="__more">기타 표시 형식…</option></select></div>
+      <div class="row"><select id="num-format" class="inp num-format" data-cmd="numFormat" title="Number format">
+        <option value="General">General</option><option value="0">Number (0)</option><option value="0.00">Number (0.00)</option><option value="#,##0">Number (#,##0)</option>
+        <option value="&quot;$&quot;#,##0.00" data-f="currency">Currency</option><option value="_-* #,##0_-;-* #,##0_-;_-* &quot;-&quot;_-;_-@_-">Accounting</option>
+        <option value="yyyy-mm-dd">Short date</option><option value="dddd, mmmm d, yyyy" data-f="longDate">Long date</option><option value="h:mm:ss">Time</option>
+        <option value="0%">Percentage</option><option value="# ?/?">Fraction</option><option value="0.00E+00">Scientific</option><option value="@">Text</option>
+        <option value="__custom">Custom</option><option value="__more">More number formats…</option></select></div>
       <div class="row">
-        <button class="rb ico" data-cmd="currency" title="통화 (₩)">₩</button><button class="rb ico" data-cmd="percent" title="백분율 (Ctrl+Shift+5)">%</button><button class="rb ico" data-cmd="comma" title="쉼표 스타일">,</button>
-        <button class="rb ico" data-cmd="decInc" title="자릿수 늘림">.0⁺</button><button class="rb ico" data-cmd="decDec" title="자릿수 줄임">.0⁻</button>
-      </div></div></div><div class="gname">표시 형식</div></div>
+        <button class="rb ico" data-cmd="currency" title="Currency" data-f-symbol>$</button><button class="rb ico" data-cmd="percent" title="Percent style (Ctrl+Shift+5)">%</button><button class="rb ico" data-cmd="comma" title="Comma style">,</button>
+        <button class="rb ico" data-cmd="decInc" title="Increase decimal">.0⁺</button><button class="rb ico" data-cmd="decDec" title="Decrease decimal">.0⁻</button>
+      </div></div></div><div class="gname">Number format</div></div>
 
     <div class="group"><div class="gbody"><div class="col">
-      <button class="rb" data-dd="insert">⊕ 삽입 ▾</button><button class="rb" data-dd="delete">⊖ 삭제 ▾</button><button class="rb" data-dd="format">▤ 서식 ▾</button>
-    </div></div><div class="gname">셀</div></div>
+      <button class="rb" data-dd="insert">⊕ Insert ▾</button><button class="rb" data-dd="delete">⊖ Delete ▾</button><button class="rb" data-dd="format">▤ Format ▾</button>
+    </div></div><div class="gname">Cells</div></div>
 
     <div class="group"><div class="gbody"><div class="col">
-      <div class="split"><button class="rb" data-cmd="autosum" title="자동 합계 (Alt+=)">Σ 자동 합계</button><button class="dd" data-dd="autosum">▾</button></div>
-      <button class="rb" data-dd="fill">⬇ 채우기 ▾</button><button class="rb" data-dd="clear">⌫ 지우기 ▾</button>
+      <div class="split"><button class="rb" data-cmd="autosum" title="AutoSum (Alt+=)">Σ AutoSum</button><button class="dd" data-dd="autosum">▾</button></div>
+      <button class="rb" data-dd="fill">⬇ Fill ▾</button><button class="rb" data-dd="clear">⌫ Clear ▾</button>
     </div><div class="col">
-      <button class="rb" data-dd="sortfilter">⇅ 정렬 및 필터 ▾</button><button class="rb" data-dd="find">🔍 찾기 및 선택 ▾</button>
-    </div></div><div class="gname">편집</div></div>
+      <button class="rb" data-dd="sortfilter">⇅ Sort & Filter ▾</button><button class="rb" data-dd="find">🔍 Find & Select ▾</button>
+    </div></div><div class="gname">Editing</div></div>
   </div>
 
   <!-- INSERT -->
   <div data-rpane="insert" class="rpane" hidden>
     <div class="group"><div class="gbody">
-      <button class="rb big" data-cmd="chartDialog"><span class="ic">📊</span>추천 차트</button>
-      <div class="col"><button class="rb" data-cmd="chart" data-arg="bar">▮ 세로 막대형</button><button class="rb" data-cmd="chart" data-arg="barH">▬ 가로 막대형</button><button class="rb" data-cmd="chart" data-arg="barStacked">▦ 누적 막대형</button></div>
-      <div class="col"><button class="rb" data-cmd="chart" data-arg="line">📈 꺾은선형</button><button class="rb" data-cmd="chart" data-arg="area">◭ 영역형</button><button class="rb" data-cmd="chart" data-arg="scatter">⁘ 분산형</button></div>
-      <div class="col"><button class="rb" data-cmd="chart" data-arg="pie">◔ 원형</button><button class="rb" data-cmd="chart" data-arg="doughnut">◎ 도넛형</button><button class="rb" data-cmd="chart" data-arg="radar">✶ 방사형</button></div>
-    </div><div class="gname">차트 (Alt+F1)</div></div>
+      <button class="rb big" data-cmd="chartDialog"><span class="ic">📊</span>Recommended Charts</button>
+      <div class="col"><button class="rb" data-cmd="chart" data-arg="bar">▮ Column</button><button class="rb" data-cmd="chart" data-arg="barH">▬ Bar</button><button class="rb" data-cmd="chart" data-arg="barStacked">▦ Stacked column</button></div>
+      <div class="col"><button class="rb" data-cmd="chart" data-arg="line">📈 Line</button><button class="rb" data-cmd="chart" data-arg="area">◭ Area</button><button class="rb" data-cmd="chart" data-arg="scatter">⁘ Scatter</button></div>
+      <div class="col"><button class="rb" data-cmd="chart" data-arg="pie">◔ Pie</button><button class="rb" data-cmd="chart" data-arg="doughnut">◎ Doughnut</button><button class="rb" data-cmd="chart" data-arg="radar">✶ Radar</button></div>
+    </div><div class="gname">Charts (Alt+F1)</div></div>
     <div class="group"><div class="gbody">
-      <button class="rb big" data-cmd="pivotDialog" title="선택한 표로 피벗 테이블 만들기"><span class="ic">▦</span>피벗 테이블</button>
-    </div><div class="gname">표</div></div>
+      <button class="rb big" data-cmd="pivotDialog" title="Create a pivot table from the selected table"><span class="ic">▦</span>PivotTable</button>
+    </div><div class="gname">Tables</div></div>
     <div class="group"><div class="gbody"><div class="col">
-      <button class="rb" data-cmd="insertFunction">𝑓x 함수</button><button class="rb" data-cmd="comment">🗨 메모 (Shift+F2)</button><button class="rb" data-cmd="link">🔗 링크 (Ctrl+K)</button>
-    </div></div><div class="gname">기타</div></div>
+      <button class="rb" data-cmd="insertFunction">𝑓x Function</button><button class="rb" data-cmd="comment">🗨 Note (Shift+F2)</button><button class="rb" data-cmd="link">🔗 Link (Ctrl+K)</button>
+    </div></div><div class="gname">More</div></div>
   </div>
 
   <!-- FORMULAS -->
   <div data-rpane="formulas" class="rpane" hidden>
     <div class="group"><div class="gbody">
-      <button class="rb big" data-cmd="insertFunction"><span class="ic">𝑓x</span>함수 삽입</button>
-      <div class="col"><div class="split"><button class="rb" data-cmd="autosum">Σ 자동 합계</button><button class="dd" data-dd="autosum">▾</button></div></div>
-    </div><div class="gname">함수 라이브러리</div></div>
+      <button class="rb big" data-cmd="insertFunction"><span class="ic">𝑓x</span>Insert Function</button>
+      <div class="col"><div class="split"><button class="rb" data-cmd="autosum">Σ AutoSum</button><button class="dd" data-dd="autosum">▾</button></div></div>
+    </div><div class="gname">Function Library</div></div>
     <div class="group"><div class="gbody"><div class="col">
-      <button class="rb" data-cmd="showFormulas" title="Ctrl+`">⨍ 수식 표시</button><button class="rb" data-cmd="recalc" title="F9">⟳ 지금 계산</button>
-    </div></div><div class="gname">수식 분석 / 계산</div></div>
+      <button class="rb" data-cmd="showFormulas" title="Ctrl+`">⨍ Show Formulas</button><button class="rb" data-cmd="recalc" title="F9">⟳ Calculate Now</button>
+    </div></div><div class="gname">Formula Auditing / Calculation</div></div>
   </div>
 
   <!-- DATA -->
   <div data-rpane="data" class="rpane" hidden>
     <div class="group"><div class="gbody">
-      <div class="col"><button class="rb" data-cmd="sortAsc">↑ 오름차순</button><button class="rb" data-cmd="sortDesc">↓ 내림차순</button></div>
-      <button class="rb big" data-cmd="sortDialog"><span class="ic">⇅</span>정렬</button>
-      <button class="rb big" data-cmd="filter" title="Ctrl+Shift+L"><span class="ic">⏷</span>필터</button>
-      <div class="col"><button class="rb" data-cmd="filterClear">⨯ 지우기</button><button class="rb" data-cmd="filterReapply">⟳ 다시 적용</button></div>
-    </div><div class="gname">정렬 및 필터</div></div>
+      <div class="col"><button class="rb" data-cmd="sortAsc">↑ Sort A to Z</button><button class="rb" data-cmd="sortDesc">↓ Sort Z to A</button></div>
+      <button class="rb big" data-cmd="sortDialog"><span class="ic">⇅</span>Sort</button>
+      <button class="rb big" data-cmd="filter" title="Ctrl+Shift+L"><span class="ic">⏷</span>Filter</button>
+      <div class="col"><button class="rb" data-cmd="filterClear">⨯ Clear</button><button class="rb" data-cmd="filterReapply">⟳ Reapply</button></div>
+    </div><div class="gname">Sort & Filter</div></div>
     <div class="group"><div class="gbody"><div class="col">
-      <button class="rb" data-cmd="removeDuplicates">⧉ 중복된 항목 제거</button>
-    </div></div><div class="gname">데이터 도구</div></div>
+      <button class="rb" data-cmd="removeDuplicates">⧉ Remove Duplicates</button>
+    </div></div><div class="gname">Data Tools</div></div>
     <div class="group"><div class="gbody">
-      <button class="rb big" data-cmd="pivotRefresh" title="이 문서의 피벗 테이블 값을 원본 데이터에서 다시 계산"><span class="ic">⟳</span>피벗 새로 고침</button>
-    </div><div class="gname">피벗 테이블</div></div>
+      <button class="rb big" data-cmd="pivotRefresh" title="Recompute this document's pivot tables from their source data"><span class="ic">⟳</span>Refresh pivots</button>
+    </div><div class="gname">PivotTable</div></div>
   </div>
 
   <!-- VIEW -->
   <div data-rpane="view" class="rpane" hidden>
     <div class="group"><div class="gbody"><div class="col">
-      <button class="rb" data-cmd="gridlines">▦ 눈금선</button><button class="rb" data-cmd="showFormulas">⨍ 수식 표시</button>
-    </div></div><div class="gname">표시</div></div>
+      <button class="rb" data-cmd="gridlines">▦ Gridlines</button><button class="rb" data-cmd="showFormulas">⨍ Show Formulas</button>
+    </div></div><div class="gname">Show</div></div>
     <div class="group"><div class="gbody">
-      <button class="rb big" data-dd="zoom"><span class="ic">🔍</span>확대/축소</button>
-      <div class="col"><button class="rb" data-cmd="zoom100">100%</button><button class="rb" data-cmd="zoomSel">선택 영역 확대</button></div>
-    </div><div class="gname">확대/축소</div></div>
+      <button class="rb big" data-dd="zoom"><span class="ic">🔍</span>Zoom</button>
+      <div class="col"><button class="rb" data-cmd="zoom100">100%</button><button class="rb" data-cmd="zoomSel">Zoom to selection</button></div>
+    </div><div class="gname">Zoom</div></div>
     <div class="group"><div class="gbody">
-      <button class="rb big" data-cmd="newWindow"><span class="ic">🗗</span>새 창</button>
-      <button class="rb big" data-dd="windows"><span class="ic">🪟</span>창 전환</button>
-      <button class="rb big" data-dd="freeze"><span class="ic">❄</span>틀 고정</button>
-    </div><div class="gname">창</div></div>
+      <button class="rb big" data-cmd="newWindow"><span class="ic">🗗</span>New Window</button>
+      <button class="rb big" data-dd="windows"><span class="ic">🪟</span>Switch Windows</button>
+      <button class="rb big" data-dd="freeze"><span class="ic">❄</span>Freeze Panes</button>
+    </div><div class="gname">Windows</div></div>
   </div>
 </section>
 
 <div id="formula-bar" class="formula-bar">
-  <input id="name-box" class="name-box" title="이름 상자 (참조를 입력하고 Enter)" aria-label="이름 상자" spellcheck="false">
-  <div class="fx-btns"><button id="fx-cancel" title="취소">✕</button><button id="fx-ok" title="입력">✓</button><button id="fx-btn" title="함수 삽입">𝑓x</button></div>
-  <textarea id="fx-input" class="fx-input" rows="1" spellcheck="false" aria-label="수식 입력줄"></textarea>
+  <input id="name-box" class="name-box" title="Name Box (type a reference and press Enter)" aria-label="Name Box" spellcheck="false">
+  <div class="fx-btns"><button id="fx-cancel" title="Cancel">✕</button><button id="fx-ok" title="Enter">✓</button><button id="fx-btn" title="Insert Function">𝑓x</button></div>
+  <textarea id="fx-input" class="fx-input" rows="1" spellcheck="false" aria-label="Formula bar"></textarea>
 </div>
 
 <main id="grid-host" class="grid-host" tabindex="-1"></main>
 
 <footer id="sheetbar" class="sheetbar">
-  <button id="sheet-prev" title="이전 시트 (Ctrl+PgUp)">◀</button><button id="sheet-next" title="다음 시트 (Ctrl+PgDn)">▶</button>
+  <button id="sheet-prev" title="Previous sheet (Ctrl+PgUp)">◀</button><button id="sheet-next" title="Next sheet (Ctrl+PgDn)">▶</button>
   <div id="sheet-tabs" class="sheet-tabs"></div>
-  <button id="add-sheet" class="add-sheet" title="새 시트 (Shift+F11)">＋</button>
+  <button id="add-sheet" class="add-sheet" title="New sheet (Shift+F11)">＋</button>
 </footer>
 <footer id="statusbar" class="statusbar">
   <div id="status-msg" class="status-msg"></div>
   <div id="status-stats" class="status-stats"></div>
-  <span id="agent-busy" class="agent-busy" hidden title="에이전트가 방금 이 통합 문서를 바꿨습니다">● 에이전트 작업 중</span>
-  <label class="follow-agent" title="켜면 에이전트가 작업하는 시트와 셀로 화면이 따라갑니다. 끄면 화면은 그대로 두고 에이전트가 바꾼 셀만 강조합니다."><input type="checkbox" id="follow-agent"> 에이전트 따라가기</label>
-  <div class="zoom"><button data-cmd="zoomOut" title="축소">−</button><input id="zoom-range" type="range" min="25" max="400" value="100" aria-label="확대/축소"><button data-cmd="zoomIn" title="확대">＋</button><span id="zoom-label" title="100%로">100%</span></div>
+  <span id="agent-busy" class="agent-busy" hidden title="The agent just changed this workbook">● Agent working</span>
+  <label class="follow-agent" title="On: the view follows the sheet and cells the agent works on. Off: the view stays put and the agent's changes are only highlighted."><input type="checkbox" id="follow-agent"> Follow agent</label>
+  <div class="zoom"><button data-cmd="zoomOut" title="Zoom out">−</button><input id="zoom-range" type="range" min="25" max="400" value="100" aria-label="Zoom"><button data-cmd="zoomIn" title="Zoom in">＋</button><span id="zoom-label" title="Reset to 100%">100%</span></div>
 </footer>
 
 <div id="toasts" class="toasts" aria-live="polite"></div>
