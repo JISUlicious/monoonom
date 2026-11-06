@@ -5,6 +5,7 @@ sheet, so an id from another sheet gave 404. Also: `--at 'Sheet!E2'` used to be 
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -68,6 +69,17 @@ try:
 
     p = xl("chart", "rm", pie)
     check("rm an id from a non-active sheet without --sheet", p.returncode == 0 and all(i != pie for i, _, _ in charts()["비중"]), p.stderr.strip())
+
+    # labels made by formulas (=TEXT(…)) are categories, as in the preview: decided by their values
+    xl("sheet", "add", "Bins")
+    xl("write", "Bins!A1", "Bin", "Count")
+    xl("write", "Bins!A2", '=TEXT(1000,"#,##0")&"+"', "5")
+    xl("write", "Bins!A3", '=TEXT(2000,"#,##0")&"+"', "7")
+    p = xl("chart", "add", "Bins!A1:B3", "--type", "bar")
+    ls = xl("chart", "ls").stdout
+    bins = [l for l in ls.splitlines() if "'Bins'" in l or "Bins!" in l]
+    check("chart from a range whose label column is formulas: one series, labels as categories",
+          p.returncode == 0 and "series 2" not in ls.split("Bins  ch")[-1] and re.search(r"X '?Bins'?!\$A\$2:\$A\$3\s+Y '?Bins'?!\$B\$2:\$B\$3", ls) is not None, "\n".join(bins) or ls[-400:])
 
     xl("save", "--as", "out.xlsx")
     from openpyxl import load_workbook

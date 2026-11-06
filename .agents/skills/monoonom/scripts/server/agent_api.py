@@ -604,7 +604,9 @@ def chart_from_range(doc, sh, g, e, pending=None):
     pending = pending or {}
     r1, c1, r2, c2 = clamp(sh, g, pending=pending)
     get = lambda r, c: (pending[(r, c)] if (r, c) in pending else sh["cells"].get((r, c))) or {}
-    val = lambda r, c: cell_value(doc, sh, r, c, get(r, c)) if not get(r, c).get("f") else 0
+    # computed values decide text vs number, as the preview's ChartLayer.fromRange does; a formula written
+    # earlier in this same batch has no value yet (treated as a number)
+    val = lambda r, c: 0 if (r, c) in pending and get(r, c).get("f") else cell_value(doc, sh, r, c, get(r, c))
     is_date = lambda r, c: bool(re.search(r"[ymd]", (get(r, c).get("s") or {}).get("nf", "")))
     rows, cols = r2 - r1 + 1, c2 - c1 + 1
     header_row = rows > 1 and any(isinstance(val(r1, c), str) for c in range(c1, c2 + 1))
@@ -910,6 +912,8 @@ def r_edit(h, m, q, body):
     if cur:
         groups.append(cur)
     results = []
+    if any(e.get("op") == "chart" for e in edits):
+        ensure_calc(doc)  # a chart's categories are decided by cell values: formulas need theirs
     with doc.lock:
         for gi, group in enumerate(groups):
             batch = (body.get("batchId") if len(groups) == 1 else None) or new_id("b")
