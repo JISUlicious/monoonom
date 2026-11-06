@@ -1,5 +1,6 @@
 // Korean text for dialogs (English key -> Korean).
 export default {
+  "Pivot chart of '{name}': its data comes from the pivot table, so the data range cannot be changed here.": "피벗 테이블 '{name}'의 피벗 차트입니다. 데이터는 피벗 테이블에서 오므로 여기서 데이터 범위를 바꿀 수 없습니다.",
   // generic modal / message boxes
   'OK': '확인',
   'Close': '닫기',

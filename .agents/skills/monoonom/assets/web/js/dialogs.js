@@ -375,12 +375,17 @@ export function chartDialog(app, model = null, presetType = null) {
       <label class="fld">${t('Horizontal (category) axis title')}<input class="inp" data-k="xt" value="${esc(model?.xTitle || '')}"></label>
       <label class="fld">${t('Vertical (value) axis title')}<input class="inp" data-k="yt" value="${esc(model?.yTitle || '')}"></label>
     </div>
-    ${model && !isNew ? `<p class="muted small">${t('If you leave the data range unchanged, the original series definitions (formula references) are kept.')}</p>` : ''}`;
+    ${model?.pivot ? `<p class="muted small">${t("Pivot chart of '{name}': its data comes from the pivot table, so the data range cannot be changed here.", { name: esc(model.pivot.table) })}</p>`
+    : model && !isNew ? `<p class="muted small">${t('If you leave the data range unchanged, the original series definitions (formula references) are kept.')}</p>` : ''}`;
   let type = curType;
   return modal({
     title: isNew ? t('Insert Chart') : t('Edit Chart'), body, width: 600, className: 'chart-dialog',
     onOpen: (el) => {
       el.querySelector('[data-k=legend]').value = model ? (model.legend || '') : 'r';
+      if (model?.pivot) {  // Excel: a pivot chart takes its data from the pivot table and cannot be XY scatter
+        el.querySelector('[data-k=range]').disabled = true; el.querySelector('[data-k=dir]').disabled = true;
+        const sc = el.querySelector('[data-t=scatter]'); if (sc) sc.disabled = true;
+      }
       el.querySelector('.chart-types').addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (!b) return; type = b.dataset.t; el.querySelectorAll('.ct').forEach((x) => x.classList.toggle('on', x === b)); });
     },
     onOk: (el) => {

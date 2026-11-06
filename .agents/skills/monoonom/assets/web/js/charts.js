@@ -333,6 +333,7 @@ export class ChartLayer {
     const m = this.app.doc.wb.sheet.charts.find((c) => c.id === id);
     if (!m) return;
     if (m.type === 'scatter') return this.app.toast(t('A scatter chart cannot switch row/column (its X and Y values are paired).'), 'warn');
+    if (m.pivot) return this.app.toast(t("This is a pivot chart of '{name}': its data comes from the pivot table. Change the pivot table's fields instead.", { name: m.pivot.table }), 'warn');
     let series;
     try { series = ChartLayer.switchRowCol(m.series); } catch (e) { return this.app.toast(e.message, 'warn'); }
     this.focusSeries = null;
@@ -396,9 +397,10 @@ export class ChartLayer {
     const cur = this.app.doc.wb.sheet;
     const chip = (p) => `<span class="cr-part"><i style="background:${p.color}"></i>${label[p.kind]} <code>${esc(p.ref)}</code>${p.lit ? ` <em>${t('(values stored in the chart)')}</em>` : !p.sheet ? ` <em>${t('(no sheet)')}</em>` : ''}</span>`;
     panel.innerHTML = `<div class="cr-title">${t('Data Range')}${inst.model.title ? ` — ${esc(inst.model.title)}` : ''}`
-      + `${inst.model.type !== 'scatter' ? `<button class="cr-switch" data-switch title="${t('Swap the series and the categories (X)')}">⇄ ${t('Switch Row/Column')}</button>` : ''}</div>`
+      + `${inst.model.type !== 'scatter' && !inst.model.pivot ? `<button class="cr-switch" data-switch title="${t('Swap the series and the categories (X)')}">⇄ ${t('Switch Row/Column')}</button>` : ''}</div>`
       + series.map((s) => `<div class="cr-row${focus === s.index ? ' on' : ''}${focus != null && focus !== s.index ? ' dim' : ''}" data-series="${s.index}" title="${t('Click: show only this series / click again: all')}">`
         + `<b>${esc(s.name || t('Series {n}', { n: s.index + 1 }))}</b>${s.type !== inst.model.type ? ` <small>(${esc(s.type)})</small>` : ''} ${s.parts.map(chip).join(' ')}</div>`).join('')
+      + (inst.model.pivot ? `<div class="cr-note">${t("Pivot chart of '{name}': its data comes from the pivot table.", { name: esc(inst.model.pivot.table) })}</div>` : '')
       + (series.some((s) => s.parts.some((p) => p.sheet && p.sheet !== cur)) ? `<div class="cr-note">${t('Ranges on other sheets are not shown on this sheet.')}</div>` : '');
     const b = inst.el;
     Object.assign(panel.style, { left: b.style.left, top: `calc(${b.style.top} + ${b.style.height} + 4px)`, minWidth: b.style.width, display: '' });
