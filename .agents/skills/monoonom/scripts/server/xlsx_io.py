@@ -1164,7 +1164,7 @@ def fix_drawings(data: bytes) -> bytes:
     openpyxl writes each chart's <graphicFrame> with an empty <xfrm/>. That is valid: in ECMA-376
     CT_Transform2D, <a:off> and <a:ext> are both optional (minOccurs=0), and every chart openpyxl
     writes has it. It was suspected for Excel's "Removed Part: /xl/drawings/drawingN.xml", but XSD
-    checks found the scatter chart's missing <scatterStyle> instead (see docs/skill-implementation.md);
+    checks found the scatter chart's missing <scatterStyle> instead (see docs/dev/skill-implementation.md);
     Excel reports chart-part errors as a removed drawing. This writes the form Excel itself saves,
     <xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xfrm> (also what XlsxWriter, which is tested
     against Excel-made files, writes: xlsxwriter/drawing.py _write_xfrm); the anchor holds the position.

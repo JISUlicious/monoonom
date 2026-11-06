@@ -16,6 +16,7 @@
 
 ## 변경 이력
 
+- 2026-11-06: 문서를 `docs/guide/`(사용자, 영문+한국어)와 `docs/dev/`(개발)로 나눔. README는 첫 화면만 남김
 - 2026-11-06: 저장소 이름 변경(`web-excel-agent-skills` → `monoonom`), 설치 명령과 플러그인 주소 갱신
 - 2026-11-04: 공개 전환, 저장소 이름 변경(`web-excel` → `web-excel-agent-skills`), PR #1 squash 병합
 - 2026-11-04: 문서 작성 (저장소 생성, 문서화 규칙 적용)

@@ -1,6 +1,14 @@
 # 개발 문서
 
-저장소 구조, 설계 결정, 테스트 실행 방법. 사용자용 안내는 [README.md](../README.md).
+저장소 구조, 설계 결정, 테스트 실행 방법. 사용자용 안내는 [README.md](../../README.md).
+
+## 문서 구성
+
+- `README.md` / `README.ko.md`: 첫 화면(소개, 빠른 시작, 문서 목록). 길게 쓰지 않는다.
+- `docs/guide/`: 사용자 문서. 영문 `<이름>.md`와 한국어 `<이름>.ko.md`를 같은 폴더에 두고, 화면은 `docs/guide/images/`.
+- `docs/dev/`: 개발 문서(한국어). 설계·구현 기록·평가, 화면은 `docs/dev/images/`, 평가 원본은 `docs/dev/evals/`.
+- 에이전트가 읽는 문서(`SKILL.md`, `references/`)는 skill 패키지 안에 둔다. 설치할 때 함께 복사되므로 `docs/`로 옮기지 않고 가이드에서 링크한다.
+- 문서 링크는 `python3 tests/doc_links.test.py`로 검사한다(모든 `.md`의 상대 링크·이미지가 있는지).
 
 ## 배포 구성
 
@@ -68,7 +76,7 @@ docs/                              development.md, project-setup.md, skill-spec.
 3. **재계산**: 매 변경 시 전체 재계산(메모이제이션)을 수행하되, 재귀 깊이를 제한하고 가장 깊은 미계산 셀부터 다시 시작하는 반복 심화 방식으로 20,000단계 체인도 스택 오버플로 없이 계산합니다(Sestoft의 Corecalc 보고서가 다루는 스프레드시트 재계산·의존 그래프 문제 참고 [4]).
 4. **Excel 호환 세부 규칙**: 1900 윤년 버그를 포함한 날짜 일련번호 [3], 15자리 유효숫자 비교, 단항 `-`가 `^`보다 우선(`=-2^2`=4), 숫자<텍스트<논리값 비교 순서, `_xlfn.` 미래 함수 접두사 [2].
 5. **보안**: 기본 127.0.0.1 바인딩, Host 헤더 검사(DNS 리바인딩 방지), 변경 API는 커스텀 헤더 `X-Monoonom` 필수(교차 출처 요청은 CORS 프리플라이트에서 차단됨 [8]), 선택적 `--root` 샌드박스.
-6. **동기화**: 서버가 문서를 소유하고 변경(op)에 버전을 붙여 순서를 정합니다. 같은 셀은 서버에 나중에 도착한 쪽이 이기고, 좌표를 바꾸는 변경(행 삽입·정렬 등)은 그 사이 다른 클라이언트가 바꿨으면 거절(409)해 다시 불러오게 합니다. 창마다 이벤트 스트림(SSE)을 하나만 열어 브라우저의 호스트당 연결 수 제한을 피합니다. 자세한 내용은 docs/skill-implementation.md.
+6. **동기화**: 서버가 문서를 소유하고 변경(op)에 버전을 붙여 순서를 정합니다. 같은 셀은 서버에 나중에 도착한 쪽이 이기고, 좌표를 바꾸는 변경(행 삽입·정렬 등)은 그 사이 다른 클라이언트가 바꿨으면 거절(409)해 다시 불러오게 합니다. 창마다 이벤트 스트림(SSE)을 하나만 열어 브라우저의 호스트당 연결 수 제한을 피합니다. 자세한 내용은 docs/dev/skill-implementation.md.
 
 
 ### 서버 옵션
@@ -97,6 +105,7 @@ API는 토큰이 필요합니다. CLI와 페이지 모두 `X-Monoonom-Token` 헤
 ## 테스트
 
 ```bash
+python3 tests/doc_links.test.py           # 문서의 상대 링크·이미지가 모두 있는지
 node tests/i18n_keys.test.mjs             # 화면 문구 사전 검사 (키 누락·미사용·사전 밖 한국어)
 node tests/i18n.e2e.cjs                   # 화면 언어: 영어 기본, ?lang=ko, 한국어 브라우저 (서버를 스스로 띄움)
 python -m unittest tests.test_roundtrip   # Python 읽기/쓰기 왕복 (xlsx 패치, 차트, xls 읽기 전용, _xlfn)
@@ -107,7 +116,7 @@ node tests/sync.e2e.cjs                   # 서버 동기화 17개 (에이전트
 python3 tests/agent_cli.test.py           # 에이전트 CLI 시나리오 39개 (브라우저 없이, 저장 파일을 openpyxl로 확인)
 python3 tests/structural.test.py          # 행/열 삽입·삭제·정렬·충돌 좌표 변환 20개
 python3 tests/region.test.py              # A1이 아닌 곳에서 시작하는 표(제목·빈 행·합계 행)
-python3 tests/agent_full.test.py          # UI 기능 전부를 에이전트 명령으로 (대응표: docs/agent-coverage.md)
+python3 tests/agent_full.test.py          # UI 기능 전부를 에이전트 명령으로 (대응표: docs/dev/agent-coverage.md)
 python3 tests/chart_style.test.py         # 저장한 차트 서식(테마 색·글꼴·눈금선·간격)과 새 통합 문서 테마
 node tests/chart_style.e2e.cjs            # 미리보기가 같은 색·서식으로 그리는지 (서버를 스스로 띄움)
 python3 tests/chart_ids.test.py           # 차트 id로 set/rm(다른 시트의 차트), --at '시트!셀', 시트 간 이동
