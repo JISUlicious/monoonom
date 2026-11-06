@@ -2,7 +2,8 @@
 
 ## 기본 문서
 
-- [README.md](README.md) — 소개, 설치(Claude Code 플러그인·`npx skills`·직접 복사), 사용, 제한
+- [README.md](README.md) — 영문 소개, 설치(Claude Code 플러그인·`npx skills`·직접 복사), 사용, 제한
+- [README.ko.md](README.ko.md) — README 한국어판
 - [logs.md](logs.md) — 작업 기록
 
 ## docs/
