@@ -352,6 +352,10 @@ def cmd_pivot(args):
 
 
 def cmd_chart(args):
+    if args.action == "add" and args.pivot:
+        e = {"op": "chart", "pivot": args.pivot, "pivotSheet": args.sheet, "type": args.type, "title": args.title,
+             "at": args.at, "legend": args.legend, "width": args.width, "height": args.height}
+        return edit(args, [{k: v for k, v in e.items() if v is not None}])
     if args.action == "add":
         e = {"op": "chart", "data": args.target, "type": args.type, "title": args.title, "at": args.at,
              "sheet": args.sheet, "legend": args.legend}
@@ -614,7 +618,7 @@ def register(sub):
     p.add_argument("--filters", help="add: report filter fields"); p.add_argument("--at", help="add: top-left cell, e.g. 'Pivot!A3' (a missing sheet is created)")
     p.add_argument("--title", help="add: pivot name")
     p.add_argument("--lang", choices=["en", "ko"], default="en", help="add: label language (Grand Total, Sum of …), as Excel in that UI language writes them")
-    p = add("chart", cmd_chart, "charts: add DATA | set ID --title … | rm ID | ls"); p.add_argument("action", choices=["add", "set", "rm", "ls"]); p.add_argument("target", nargs="?")
+    p = add("chart", cmd_chart, "charts: add DATA | add --pivot NAME | set ID --title … | rm ID | ls"); p.add_argument("action", choices=["add", "set", "rm", "ls"]); p.add_argument("target", nargs="?")
     p.add_argument("--type", default="bar", help="bar, barH, barStacked, line, area, pie, doughnut, scatter, radar")
     p.add_argument("--to-type", dest="type_set", help="set: change the chart type"); p.add_argument("--data", help="set: change the data range")
     p.add_argument("--x-title"); p.add_argument("--y-title")
@@ -622,6 +626,7 @@ def register(sub):
     p.add_argument("--switch", action="store_true", help="set: switch row/column (swap series and categories)")
     p.add_argument("--title"); p.add_argument("--at", help="top-left cell"); p.add_argument("--sheet"); p.add_argument("--legend")
     p.add_argument("--width", type=int); p.add_argument("--height", type=int)
+    p.add_argument("--pivot", help="add: a pivot chart of this pivot table (its data, linked to it); --sheet: the pivot's sheet if names repeat")
     for name in ("rows", "cols"):
         p = add(name, cmd_rows_cols, "insert / delete rows (e.g. rows insert 5 --count 2, rows delete 5:7)" if name == "rows" else "insert / delete columns (e.g. cols insert C, cols delete C:D)")
         p.add_argument("action", choices=["insert", "delete"]); p.add_argument("at", help="5 / 5:7" if name == "rows" else "C / C:D")

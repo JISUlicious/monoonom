@@ -2,6 +2,13 @@
 // Sources: scripts/server/*.py (ApiError / SessionError messages, open warnings, save notes, pivot notes).
 // More specific patterns come before more general ones.
 export default [
+  // pivot charts
+  [/^Pivot charts are made for pivot tables with one row field; '(.+)' has (\d+)\.$/, "피벗 차트는 행 필드가 하나인 피벗 테이블에서 만들 수 있습니다. '$1'에는 $2개가 있습니다."],
+  [/^Pivot table '(.+)' has subtotals between its items; pivot charts of such pivots are not supported yet\.$/, "피벗 테이블 '$1'에는 항목 사이에 부분합이 있어 아직 피벗 차트를 만들 수 없습니다."],
+  [/^Pivot table '(.+)' has no data to chart\.$/, "피벗 테이블 '$1'에 차트로 만들 데이터가 없습니다."],
+  [/^A pivot chart cannot be a scatter chart \(Excel does not allow XY scatter, bubble or stock pivot charts\)\.$/, "피벗 차트는 분산형으로 만들 수 없습니다(Excel은 분산형·거품형·주식형 피벗 차트를 허용하지 않습니다)."],
+  [/^This is a pivot chart of pivot table '(.+)': its data comes from the pivot table\. Change the pivot table's fields or source instead\.$/, "피벗 테이블 '$1'의 피벗 차트입니다. 데이터는 피벗 테이블에서 오므로 피벗 테이블의 필드나 원본을 바꾸세요."],
+  [/^Pivot chart types: (.+)$/, "피벗 차트 종류: $1"],
   // --- app.py: paths, files, folders, auth ---
   [/^The path is empty\.$/, '경로가 비어 있습니다.'],
   [/^The path is outside the allowed root \((.+)\)\.$/, '허용된 루트($1) 밖의 경로입니다.'],

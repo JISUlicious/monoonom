@@ -124,8 +124,9 @@ To make one: `xl.py pivot add 'Data!A1' --rows Region --cols Product --values Sa
 created; several `--rows`/`--values` separated by commas; with `--cols` only one value field; `--lang ko` for Korean labels when the user works
 in Korean Excel). It is written in tabular form and saved as a real pivot table that Excel rebuilds when it opens the
 file. Prefer a pivot when the user asks for one; for a summary they will edit, use formulas.
-Pivot charts in the file (`chart ls` says "pivot chart of 'NAME'") stay linked to their pivot when
-edited; their data range, row/column switch and scatter type cannot be changed (change the pivot).
+Pivot charts (`chart ls` says "pivot chart of 'NAME'") stay linked to their pivot when edited; their
+data range, row/column switch and scatter type cannot be changed (change the pivot). To make one:
+`xl.py chart add --pivot NAME [--type line] [--at 'S!H2']` (pivots with one row field).
 
 Row/column inserts, deletes and sorts move formulas, chart ranges, merges and the filter range just
 like Excel, everywhere in the workbook. If the user edits cells at the same moment, their edits are

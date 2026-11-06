@@ -1103,7 +1103,10 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
                 ch = _build_chart(cm, chart_theme)
                 if cm.get("pivot"):  # an edited pivot chart stays linked to its pivot table
                     old = orig_charts[o] if isinstance(o, int) and 0 <= o < len(orig_charts) else None
-                    ch.pivotSource = getattr(old, "pivotSource", None) or PivotSource(name=cm["pivot"]["name"], fmtId=cm["pivot"].get("fmtId", 0))
+                    pv = cm["pivot"]
+                    if pv.get("create"):  # made here: name it after the file being written, as Excel does
+                        pv = {**pv, "name": f"[{model.get('fileName') or model.get('name') or 'Book1.xlsx'}]{A.quote_sheet(pv['sheet'])}!{pv['table']}"}
+                    ch.pivotSource = getattr(old, "pivotSource", None) or PivotSource(name=pv["name"], fmtId=pv.get("fmtId", 0))
                     ch.pivotFormats = getattr(old, "pivotFormats", None) or ()
             ch.anchor = _anchor(cm.get("anchor", {}))
             new_charts.append(ch)

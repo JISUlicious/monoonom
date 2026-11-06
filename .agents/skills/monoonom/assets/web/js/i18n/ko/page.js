@@ -1,5 +1,7 @@
 // Korean text for index.html (English key -> Korean); glyph.* are the B/I/U/S button letters.
 export default {
+  "PivotChart": "피벗 차트",
+  "Create a pivot chart of the pivot table at the selection": "선택한 피벗 테이블로 피벗 차트 만들기",
   "Workbooks": "통합 문서",
   "Windows / new window": "창 목록 / 새 창",
   "Windows": "창",

@@ -176,7 +176,7 @@ def write_workbook(path: str, fmt: str, model: dict, base: str | None) -> list[s
         if base_bytes[:2] != b"PK":
             base_bytes = None
     keep_vba = fmt == "xlsm" and base_bytes is not None and base.lower().endswith(".xlsm")
-    data = write_xlsx(model, base_bytes, keep_vba=keep_vba)
+    data = write_xlsx({**model, "fileName": os.path.basename(path)}, base_bytes, keep_vba=keep_vba)
     fileio.write_bytes(path, data)
     return warns
 

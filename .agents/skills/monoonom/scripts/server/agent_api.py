@@ -406,6 +406,10 @@ def build_ops(doc, edits):
                 meta.setdefault(sh["id"], {})["autoFilter"] = None
             meta[sh["id"]]["filterHidden"] = []
             summary.append(f"{sh['name']} autofilter {'on' if g else 'off'}")
+        elif kind == "chart" and e.get("pivot"):
+            target, chart = pivot_chart_from(doc, e, sheet)
+            meta_of(target, "charts").append(chart)
+            summary.append(f"{target['name']} add pivot chart of '{chart['pivot']['table']}' ({chart['type']}, id={chart['id']})")
         elif kind == "chart":
             sh_data, g = resolve(doc, e.get("data"), sheet)
             g, _ = RG.auto_range(sh_data, g, cur)
@@ -541,6 +545,59 @@ def _lit_label(xs):
         return None
     shown = ", ".join("" if x is None else (f"{x:g}" if isinstance(x, float) else str(x)) for x in xs[:3])
     return f"{{{shown}{', …' if len(xs) > 3 else ''}}} ({len(xs)} values stored in the chart)"
+
+
+# LibreOffice writes "Total Result" / "<item> Result" and no item records (rowItems/colItems)
+_LO_TOTAL = re.compile(r"^(Total Result|.+ Result)$")
+
+
+def pivot_chart_from(doc, e, sheet=None):
+    """A pivot chart of pivot table e["pivot"] (as Excel makes one: series = the data columns, categories =
+    the row items, totals left out), linked to it by c:pivotSource. Returns (target sheet, chart)."""
+    name = str(e["pivot"]).strip().lower()
+    psheet = (e.get("pivotSheet") or "").strip().lower()
+    found = [(s, p) for s in doc.sheets for p in s.get("pivots") or []
+             if p["name"].lower() == name and (not psheet or s["name"].lower() == psheet)]
+    if not found:
+        raise ApiError(404, f"Pivot table not found: {e['pivot']}")
+    sh, p = found[0]
+    ctype = e.get("type") or "bar"
+    if ctype == "scatter":
+        raise ApiError(400, "A pivot chart cannot be a scatter chart (Excel does not allow XY scatter, bubble or stock pivot charts).")
+    lay = p.get("layout") or {}
+    r1, c1, r2, c2 = A.parse_range(p["ref"])[:4]
+    fdr, fdc = lay.get("firstDataRow") or 1, lay.get("firstDataCol") or 1
+    if fdc != 1:
+        raise ApiError(400, f"Pivot charts are made for pivot tables with one row field; '{p['name']}' has {fdc}.")
+    val = lambda r, c: cell_value(doc, sh, r, c, sh["cells"].get((r, c)) or {})  # noqa: E731
+    total = lambda x: PV.is_total_label(x) or (isinstance(x, str) and bool(_LO_TOTAL.match(x)))  # noqa: E731
+    head = r1 + fdr - 1  # the column labels sit right above the data rows (tabular and compact forms)
+
+    def keep(items, k, label):
+        it = items[k] if items and k < len(items) else None
+        return it["t"] == "data" if it else not (label in (None, "") or total(label))
+    rows = [r for k, r in enumerate(range(r1 + fdr, r2 + 1)) if keep(lay.get("rowItems"), k, val(r, c1))]
+    cols = [c for k, c in enumerate(range(c1 + fdc, c2 + 1)) if keep(lay.get("colItems"), k, val(head, c))]
+    if not rows or not cols:
+        raise ApiError(400, f"Pivot table '{p['name']}' has no data to chart.")
+    if rows != list(range(rows[0], rows[-1] + 1)) or cols != list(range(cols[0], cols[-1] + 1)):
+        raise ApiError(400, f"Pivot table '{p['name']}' has subtotals between its items; pivot charts of such pivots are not supported yet.")
+    q = lambda a, b, c, d: f"{A.quote_sheet(sh['name'])}!${A.col_name(b)}${a + 1}:${A.col_name(d)}${c + 1}"  # noqa: E731
+    one = lambda r, c: f"{A.quote_sheet(sh['name'])}!${A.col_name(c)}${r + 1}"  # noqa: E731
+    series = [{"name": None, "nameRef": one(head, c), "cat": q(rows[0], c1, rows[-1], c1), "val": q(rows[0], c, rows[-1], c)}
+              for c in cols]
+    preset = {"barH": ("bar", "bar", "clustered"), "barStacked": ("bar", "col", "stacked")}.get(ctype)
+    t, bar_dir, grouping = preset or (ctype, "col", "standard" if ctype in ("line", "area") else "clustered")
+    if t not in ("bar", "line", "area", "pie", "doughnut", "radar"):
+        raise ApiError(400, "Pivot chart types: bar, barH, barStacked, line, area, pie, doughnut, radar")
+    at_sheet = parse_at(doc, e["at"])[0] if e.get("at") else None
+    target = at_sheet or (doc.sheet(e["sheet"]) if e.get("sheet") else sh)
+    ar, ac = parse_at(doc, e["at"])[1:] if e.get("at") else (r1, min(c2 + 2, A.MAX_COLS - 10))
+    link = {"name": f"[{doc.name}]{A.quote_sheet(sh['name'])}!{p['name']}", "fmtId": 0, "sheet": sh["name"], "table": p["name"], "create": True}
+    return target, {"id": new_id("ch"), "type": t, "barDir": bar_dir, "grouping": grouping, "title": e.get("title"),
+                    "legend": e.get("legend", "r" if (len(series) > 1 or t in ("pie", "doughnut")) else None),
+                    "xTitle": e.get("xTitle"), "yTitle": e.get("yTitle"), "series": series, "dirty": True, "pivot": link,
+                    "anchor": {"c": ac, "r": ar, "dx": 0, "dy": 0, "w": int(e.get("width", 480)), "h": int(e.get("height", 288))}}
 
 
 def chart_from_range(doc, sh, g, e, pending=None):
@@ -866,7 +923,7 @@ def r_edit(h, m, q, body):
             if not ops:
                 results.append({"version": doc.version, "batchId": None, "summary": summary or []})
                 continue
-            v = doc.apply(ops, actor="agent", client_id=body.get("clientId", "agent-cli"), batch_id=batch,
+            v = doc.apply(ops, actor="user" if body.get("actor") == "user" else "agent", client_id=body.get("clientId", "agent-cli"), batch_id=batch,
                           label=(body.get("label") if len(groups) == 1 else None) or "; ".join(summary)[:120],
                           structural=structural, shifts=shifts, transformable=transformable)
             results.append({"version": v, "batchId": batch, "summary": summary})
