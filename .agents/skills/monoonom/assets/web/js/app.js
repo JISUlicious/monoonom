@@ -1137,7 +1137,7 @@ class App {
     const rows = this.fullRows(), cols = this.fullCols();
     const a = this.view().active, pv = pivotAt(this.doc.wb.sheet, a.r, a.c);
     const items = [
-      ...(pv ? [[t('Refresh Pivot ({name})', { name: pv.name }), () => this.refreshPivots(pv.name)], null] : []),
+      ...(pv ? [[t('Refresh Pivot ({name})', { name: pv.name }), () => this.refreshPivots(pv.name)], [t('Insert PivotChart'), () => this.insertPivotChart()], null] : []),
       [t('Cut'), () => this.clipboard.copyCommand(true), { key: 'Ctrl+X' }], [t('Copy'), () => this.clipboard.copyCommand(false), { key: 'Ctrl+C' }],
       [t('Paste'), () => this.clipboard.pasteCommand(), { key: 'Ctrl+V' }], [t('Paste Special…'), () => D.pasteSpecialDialog(this), { key: 'Ctrl+Alt+V' }], null,
       rows ? [t('Insert Row'), () => this.insert('row'), { key: 'Ctrl++' }] : cols ? [t('Insert Column'), () => this.insert('col'), { key: 'Ctrl++' }] : [t('Insert…'), () => this.insertDialog(false), { key: 'Ctrl++' }],
@@ -1215,6 +1215,7 @@ class App {
       removeDuplicates: () => this.removeDuplicates(),
       pivotRefresh: (name) => this.refreshPivots(name),
       pivotDialog: () => D.pivotDialog(this),
+      pivotChart: () => this.insertPivotChart(),
       find: () => D.findDialog(this, false), replace: () => D.findDialog(this, true),
       chart: (t) => (t ? this.quickChart(t) : this.chartDialog(null)), chartDialog: () => this.chartDialog(null),
       insertFunction: () => D.insertFunctionDialog(this), comment: () => this.editComment(), link: () => this.editLink(),
@@ -1261,6 +1262,23 @@ class App {
     }
     return res;
   }
+  /** Insert → PivotChart: a pivot chart of the pivot table at the selection (or the document's only
+   * pivot). The server builds it (series = the pivot's data columns, linked by c:pivotSource). */
+  async insertPivotChart() {
+    const doc = this.doc, a = this.view().active;
+    let pv = pivotAt(doc.wb.sheet, a.r, a.c), psheet = doc.wb.sheet.name;
+    if (!pv) {
+      const all = doc.wb.sheets.flatMap((s) => (s.pivots || []).map((p) => [s, p]));
+      if (all.length !== 1) return this.toast(all.length ? t('Select a cell in a pivot table first.') : t('This document has no pivot tables.'), 'warn');
+      [{ name: psheet }, pv] = all[0];
+    }
+    for (let i = 0; i < 50 && doc.sync.pending.size; i++) await new Promise((r) => setTimeout(r, 100)); // our edits first
+    try {
+      await api.edit(doc.wb.docId, { edits: [{ op: 'chart', pivot: pv.name, pivotSheet: psheet }], actor: 'user', clientId: `${this.clientId}-pivot`, label: t('Insert PivotChart') });
+      this.setStatus(t("Pivot chart of '{name}' inserted.", { name: pv.name }));
+    } catch (e) { this.toast(e.message, 'error'); }
+  }
+
   /** Recompute pivot tables from their sources on the server (one undoable batch; the result comes
    * back on the event stream like any other client's edit). */
   async refreshPivots(name = null) {

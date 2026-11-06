@@ -893,3 +893,25 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 **바꾼 것**: 새로 고침 응답에 피벗마다 연결된 피벗 차트 id(`charts`)를 넣고, `xl.py pivot refresh`가 "pivot charts ID show them"을 출력한다(에이전트가 차트도 바뀐 것을 안다). cli.md에 설명.
 
 **검증**: `tests/pivot_chart.e2e.cjs`에 3개 추가 — 새로 고침 출력에 차트 id, 미리보기 차트 값 변경(서울 A 250 → 1130), 피벗 위 행 2개 삽입 시 피벗 A5:D10 → A7:D12와 차트 범위 B7:B9 → B9:B11 이동. 저장 후에도 `pivotSource` 유지와 이동한 범위 확인. 15개 통과.
+
+## 피벗 차트 3단계: 만들기 (2026-11-06)
+**바꾼 것**:
+- 서버 `pivot_chart_from`(`agent_api.py`): 피벗 테이블 이름으로 피벗 차트를 만든다. Excel이 만드는 모양을 따른다.
+  - 계열: 데이터 열마다 하나(열 항목, 열 필드가 없으면 값 필드). 이름은 데이터 행 바로 위의 열 레이블 셀.
+  - 항목(X): 행 항목 열. 총합계 행·열은 뺀다. 파일에 배치 정보(`rowItems`/`colItems`)가 있으면 그 종류(`data`/`grand`/`default`)로, 없으면(LibreOffice가 쓴 피벗) 레이블로 판단한다(Grand Total, 총합계, LibreOffice의 "Total Result"·"… Result").
+  - 범위가 이어져야 한다: 행 필드가 둘 이상이면(부분합이 항목 사이에 들어감) 아직 만들지 않고 이유를 알린다. 분산형은 Excel처럼 거부.
+  - 위치: 피벗 오른쪽(기본) 또는 `--at`.
+  - 연결: 모델 `pivot: {..., "create": true}`. 저장할 때 `pivotSource` 이름을 `[저장 파일 이름]시트!피벗`으로 만든다(Excel이 쓰는 형식; `write_workbook`이 파일 이름을 넘긴다).
+- `xl.py chart add --pivot NAME [--type] [--at] [--sheet]`, 편집 API에 `actor: "user"`(미리보기에서 만든 차트는 사용자 변경으로 기록).
+- 미리보기: 삽입 탭의 **피벗 차트** 단추, 피벗 셀 오른쪽 클릭의 **피벗 차트 삽입**. 선택한 피벗(또는 문서의 유일한 피벗)으로 서버에 만들게 한다. 서버 오류의 한국어 문구를 `i18n/ko/server.js`에 추가.
+
+**확인하지 못한 것**: 실제 Excel에서 피벗 차트로 열리는지. LibreOffice는 xlsx의 `c:pivotSource`를 읽으면 차트를 피벗 차트처럼 다루지 않고 데이터 범위 대화상자만 막는다(oox `chartspacefragment.cxx`의 `mbPivotChart`, `chartspaceconverter.cxx`의 `DisableDataTableDialog`). 그래서 LibreOffice로는 연결을 확인할 수 없고, 스키마 검증과 저장된 XML로 확인했다.
+
+**검증**: `tests/pivot_chart_create.e2e.cjs` 14개 — LibreOffice 피벗(배치 정보 없음)과 여기서 만든 피벗(배치 정보 있음)에서 만들기·계열과 범위·총합계 제외·`--at`, 행 필드 2개·분산형·없는 피벗 거부, 미리보기 단추(피벗 밖 안내, 피벗 셀에서 만들기, 지역 레이블로 그림, 상태 표시줄), 저장한 세 차트의 `pivotSource` 이름, ECMA-376 `dml-chart.xsd` 검증.
+
+**코드 리뷰 반영**(검증 후 꼭 필요한 것만):
+- 행 필드 수를 `firstDataCol`이 아니라 `rowFields`로 센다. Excel 기본(압축) 레이아웃은 행 필드를 한 열에 모아 `firstDataCol`이 1이라, 행 필드가 둘인 피벗이 통과해 부분합이 항목에 섞일 수 있었다.
+- 행 필드가 하나이면 부분합이 없으므로 총합계 레이블(Grand Total, 총합계, Total Result)만 뺀다. "… Result"로 끝나는 실제 항목이 빠지던 문제.
+- 시트 이름을 바꾸면 저장할 때 `pivotSource` 이름의 시트를 현재 이름으로 다시 쓴다(`pivots.pivot_sheet`). 새로 고침의 연결 차트 목록도 같은 규칙.
+- `chart add --pivot`이 `--x-title`/`--y-title`을 넘긴다. app.js의 `refreshPivots` 주석 위치 복구.
+- 그대로 둔 것: `sheet`/`at` 동시 지정 순서(CLI·UI가 보내지 않는 조합), 같은 batch의 대기 셀(피벗 영역은 편집 불가), 대기 루프 중복·`parse_at` 두 번 호출(동작 문제 아님).

@@ -75,6 +75,7 @@ export const api = {
   saveDoc: (id, opts) => call('POST', `${D(id)}/save`, opts),
   pivotRefresh: (id, payload) => call('POST', `${D(id)}/pivots/refresh`, payload),
   fonts: () => call('GET', `/api/fonts?lang=${LANG}`),
+  edit: (id, payload) => call('POST', `${D(id)}/edit`, payload),
   pivotCreate: (id, payload) => call('POST', `${D(id)}/pivots`, { lang: LANG, ...payload }),
   closeDoc: (id, force = false) => call('DELETE', D(id), { force }),
   streamTicket: () => call('POST', '/api/stream/ticket', {}),

@@ -1,5 +1,8 @@
 // Korean text for app (English key -> Korean).
 export default {
+  "Select a cell in a pivot table first.": "먼저 피벗 테이블의 셀을 선택하세요.",
+  "Insert PivotChart": "피벗 차트 삽입",
+  "Pivot chart of '{name}' inserted.": "피벗 테이블 '{name}'의 피벗 차트를 삽입했습니다.",
   "'{name}' was closed.": "'{name}' 문서가 닫혔습니다.",
   "Do you want to save the changes to '{name}'?": "'{name}'의 변경 내용을 저장하시겠습니까?",
   "Save": "저장",
