@@ -50,5 +50,25 @@ for label, path in (("package SKILL.md", os.path.join(PKG, "SKILL.md")), ("Claud
     base = os.path.dirname(path)
     check(f"{label}: every referenced file exists", all(os.path.exists(os.path.join(base, r)) for r in refs), str(refs))
 
+# Claude Code plugin + marketplace (.claude-plugin/): one plugin at the repository root
+import json
+PL = os.path.join(ROOT, ".claude-plugin")
+plugin = json.load(open(os.path.join(PL, "plugin.json"), encoding="utf-8"))
+market = json.load(open(os.path.join(PL, "marketplace.json"), encoding="utf-8"))
+skill_meta = yaml.safe_load(open(os.path.join(PKG, "SKILL.md"), encoding="utf-8").read().split("---\n", 2)[1])
+check("plugin: marketplace entry name = plugin.json name, source is the repository root",
+      [(e["name"], e["source"]) for e in market["plugins"]] == [(plugin["name"], "./")], str(market["plugins"]))
+check("plugin: version matches SKILL.md metadata.version (bump both)", plugin["version"].startswith(skill_meta["metadata"]["version"] + "."),
+      f'{plugin["version"]} vs {skill_meta["metadata"]["version"]}')
+check("plugin: skills come from .claude-plugin/skills/ (no links: Git for Windows checks links out as text)",
+      plugin.get("skills") == ["./.claude-plugin/skills/"] and not any(os.path.islink(os.path.join(d, f)) for d, ds, fs in os.walk(os.path.join(PL, "skills")) for f in ds + fs))
+psk = open(os.path.join(PL, "skills", "monoonom", "SKILL.md"), encoding="utf-8").read()
+prefs = re.findall(r"\$\{CLAUDE_PLUGIN_ROOT\}/([\w./-]+)", psk)
+check("plugin SKILL.md: paths go through ${CLAUDE_PLUGIN_ROOT} and exist", "${CLAUDE_SKILL_DIR}" not in psk and prefs
+      and all(os.path.exists(os.path.join(ROOT, r.rstrip("."))) for r in prefs), str(sorted(set(prefs)))[:200])
+head = open(os.path.join(ROOT, plugin["icon"]), "rb").read(24)
+w, h = int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
+check("plugin: icon is a square PNG of 512–2048 px", head[:8] == b"\x89PNG\r\n\x1a\n" and w == h and 512 <= w <= 2048, f"{w}x{h}")
+
 print(f"{fails} FAILED" if fails else "ALL PASSED")
 sys.exit(1 if fails else 0)

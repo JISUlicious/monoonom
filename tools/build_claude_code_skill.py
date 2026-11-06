@@ -34,13 +34,21 @@ out = "---\n" + front + "---\n" + body
 ROOT = os.path.dirname(SKILL)
 ROOT = os.path.dirname(os.path.dirname(ROOT))
 TARGETS = [os.path.join(SKILL, "SKILL.claude-code.md"), os.path.join(ROOT, ".claude", "skills", "monoonom", "SKILL.md")]
+# The Claude Code plugin (.claude-plugin/plugin.json) gets its own copy whose paths point into the
+# package through ${CLAUDE_PLUGIN_ROOT}, not through the symlinks above: Git for Windows checks
+# symlinks out as plain text files by default (core.symlinks=false), which would break a plugin
+# install there.
+PLUGIN_SKILL = os.path.join(ROOT, ".claude-plugin", "skills", "monoonom", "SKILL.md")
+plugin_out = out.replace("${CLAUDE_SKILL_DIR}", "${CLAUDE_PLUGIN_ROOT}/.agents/skills/monoonom")
+FILES = [(t, out) for t in TARGETS] + [(PLUGIN_SKILL, plugin_out)]
 
 if "--check" in sys.argv:  # tests: fail when SKILL.md changed but the generated files were not rebuilt
-    stale = [t for t in TARGETS if not os.path.exists(t) or open(t, encoding="utf-8").read() != out]
+    stale = [t for t, text in FILES if not os.path.exists(t) or open(t, encoding="utf-8").read() != text]
     for t in stale:
         print("stale:", os.path.relpath(t, ROOT), "(run python3 tools/build_claude_code_skill.py)")
     sys.exit(1 if stale else 0)
-for t in TARGETS:
+for t, text in FILES:
+    os.makedirs(os.path.dirname(t), exist_ok=True)
     with open(t, "w", encoding="utf-8") as f:
-        f.write(out)
-    print("wrote", os.path.relpath(t, ROOT), len(out.splitlines()), "lines")
+        f.write(text)
+    print("wrote", os.path.relpath(t, ROOT), len(text.splitlines()), "lines")

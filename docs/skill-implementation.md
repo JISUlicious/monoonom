@@ -826,3 +826,30 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 - 전체 테스트 24종 통과
 - 예전 상태 폴더가 이전되고 토큰이 유지됨
 - 화면: `docs/monoonom-preview.png`
+
+## 배포 구성: Claude Code 플러그인과 `npx skills` (2026-11-06)
+**목표**: `npx skills add`와 Claude Code 플러그인 마켓플레이스로 설치할 수 있게 한다.
+
+**`npx skills add`** (skills CLI 1.7.6으로 확인):
+- 저장소에서 `.agents/skills/`·`.claude/skills/` 등을 찾고, 이름이 같으면 먼저 찾은 것 하나만 남긴다([creating-skills.md](https://github.com/vercel-labs/skills/blob/main/docs/creating-skills.md)).
+- 실제 결과: 1개(`monoonom`)를 찾고 `.agents/skills/monoonom`(이식판)을 설치한다. Codex에는 복사, Claude Code에는 `.claude/skills/monoonom` → `.agents/skills/monoonom` 링크. 설치한 위치에서 `xl.py`가 실행됨을 확인했다. `plugin.json`을 추가한 뒤에도 같은 폴더를 고른다.
+- 공개 저장소 `JISUlicious/web-excel-agent-skills`를 원본으로 `--list`도 확인했다. 바꾼 것 없음.
+
+**Claude Code 플러그인**([marketplace](https://code.claude.com/docs/en/plugin-marketplaces), [publish](https://code.claude.com/docs/en/plugins/publish.md), [loading](https://code.claude.com/docs/en/plugins/loading.md)):
+- 저장소 루트를 플러그인으로 하고 같은 `.claude-plugin/`에 `marketplace.json`(항목 하나, `source: "./"`)을 둔다. 문서가 권하는 "플러그인 자신의 저장소에서 배포" 형태다. 마켓플레이스 이름과 플러그인 이름 모두 `monoonom`(설치 id `monoonom@monoonom`).
+- `version`은 `0.3.0`으로 고정했다(SKILL.md `metadata.version` 0.3과 맞춤). 고정하면 올리기 전까지 사용자가 새 커밋을 받지 않으므로, 릴리스할 때 둘을 함께 올린다. 테스트가 두 값이 맞는지 본다.
+- 아이콘: 디렉터리 검사가 512–2048px 정사각 PNG를 요구해 `monoonom.svg`를 512px PNG로 만들었다(`.claude-plugin/icon.png`).
+- **링크를 쓰지 않는 플러그인 skill**: 처음에는 `skills`를 `.claude/skills/`(원본으로 가는 링크)로 지정했고, Linux에서 GitHub 설치(캐시 복사)까지 동작했다. 그러나 Git for Windows는 기본값(`core.symlinks=false`)에서 링크를 경로가 적힌 텍스트 파일로 받으므로([git-config core.symlinks](https://git-scm.com/docs/git-config#Documentation/git-config.txt-coresymlinks)) Windows에서는 `scripts/`가 없어진다. 그래서 `tools/build_claude_code_skill.py`가 `.claude-plugin/skills/monoonom/SKILL.md`를 하나 더 만든다. 이 파일은 `${CLAUDE_SKILL_DIR}` 대신 `${CLAUDE_PLUGIN_ROOT}/.agents/skills/monoonom`으로 경로를 적는다. `plugin.json`의 `skills`는 이 폴더를 가리킨다.
+
+**검증**:
+- `claude plugin validate --strict .` 통과(Claude Code 2.1.318).
+- 로컬 경로와 GitHub 브랜치(`JISUlicious/web-excel-agent-skills#feature/distribution`)를 마켓플레이스로 추가 → 설치 → `claude plugin details`에 Skills (1) `monoonom`.
+- 링크를 모두 지운 복사본을 `--plugin-dir`로 띄운 실제 세션(`claude -p`):
+  - 상태 주입이 실행되고(`monoonom: not running …`) 경로가 `${CLAUDE_PLUGIN_ROOT}`로 풀렸다.
+  - Sonnet이 skill로 새 통합 문서를 만들어 A1=42를 저장했다(openpyxl로 확인).
+  - `xl.py` 명령은 `allowed-tools`로 확인 없이 실행되었다. 거부된 것은 허용 목록 밖의 `grep`과 묶음 셸 명령 두 건뿐이었다.
+- `tests/skill_package.test.py`에 5개 검사를 추가했다: 마켓플레이스 항목과 플러그인 이름·`./` 원본, 버전 일치, 플러그인 skill 폴더에 링크 없음, `${CLAUDE_PLUGIN_ROOT}` 경로가 모두 존재, 아이콘 크기.
+
+**Anthropic 디렉터리(claude.ai)**: 제출은 유료 claude.ai 계정으로 개발자 포털(claude.ai/directory/manage)에서 사용자가 한다. 디렉터리에 올리면 claude.ai·Cowork에도 나타난다. 그러나 이 skill은 사용자 컴퓨터의 localhost 서버가 필요해 클라우드 실행 환경에서는 동작하지 않으므로, 지금은 자체 마켓플레이스 배포만 한다.
+
+**README**: 사용자 안내(소개·설치 세 가지·사용·보안·DRM·제한) 중심으로 다시 썼다. 구조·설계 결정·테스트·최초 요구사항 대응표·참고 문헌은 `docs/development.md`로 옮겼다.

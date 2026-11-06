@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-06: 배포 구성 — Claude Code 플러그인·마켓플레이스(`.claude-plugin/`, 링크 없는 플러그인 skill), `npx skills add` 설치 확인, README를 사용자 안내 중심으로 재구성(영문 README.md, 한국어 README.ko.md)하고 개발 내용은 docs/development.md로 이동 (→ docs/skill-implementation.md)
 - 2026-11-06: 글꼴·크기 선택창을 실제 드롭다운으로 — `<datalist>`는 입력칸 값과 맞는 항목만 보여 줘서 비어 보였음. 펼치면 전체 목록(테마·이 문서·최근·모든 글꼴, 각 글꼴로 미리 보기), 입력하면 좁혀짐, 키보드 조작. 글꼴은 서버가 이 컴퓨터의 글꼴 파일 이름 표를 읽어 한국어·영어 이름으로 나열(`/api/fonts`, `xl.py fonts`). 크기는 1–409·0.5 단위 검사 (→ docs/skill-implementation.md)
 - 2026-11-06: 아이콘 흰색 버전 `monoonom-white.svg` 추가(색 배경용, 제목줄에 사용), 아이콘 생성 스크립트 `tools/make_icons.cjs` 추가, 대소문자 표기를 MoNooNoM으로 되돌림 (→ docs/skill-implementation.md)
 - 2026-11-06: 이름을 MoNooNoM(`monoonom`)으로 변경 — 상표('Excel')가 든 제품 이름과 Excel 앱 아이콘과 비슷한 파비콘 정리. skill 폴더·이름, 화면 제목·로고, 서버 메시지, 내부 식별자(헤더·쿠키·환경 변수, 예전 이름도 인식), 상태 폴더 `.web-excel` → `.monoonom` 자동 이전(토큰 유지). 강조색 올리브 그린 #4B7A55, 새 아이콘(점대칭 펜 두 개가 격자에 씀), README 상표 고지 (→ docs/skill-implementation.md)
