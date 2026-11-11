@@ -1488,14 +1488,7 @@ class App {
     nb.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') { if (e.key === 'Escape') { this.syncFormulaBar(); this.focusGrid(); } return; }
       e.preventDefault();
-      const txt = nb.value.trim();
-      const wb = this.doc.wb;
-      const target = wb.definedNames[txt] ? wb.definedNames[txt] : txt;
-      const p = parseSheetRef(target);
-      if (!p) { this.toast(t('Invalid reference.'), 'error'); return; }
-      if (p.sheet) { const i = wb.sheets.findIndex((s) => s.name.toLowerCase() === p.sheet.toLowerCase()); if (i < 0) return this.toast(t('No such sheet.'), 'error'); this.activateSheet(i); }
-      this.selectRange(p.range, { r: p.range.r1, c: p.range.c1 });
-      this.focusGrid();
+      this.goToRef(nb.value.trim());
     });
     nb.addEventListener('focus', () => nb.select());
     this.$('#fx-btn').addEventListener('click', () => this.exec('insertFunction'));
@@ -1547,6 +1540,26 @@ class App {
     this.$('#font-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.dataset.sent = e.target.value; this.exec('fontName', e.target.value); } });
     combo(this.$('#font-name'), { items: () => this.fontItems(), onPick: (v) => this.exec('fontName', v), width: 240 });
     combo(this.$('#font-size'), { items: () => FONT_SIZES.map((n) => ({ value: String(n) })), onPick: (v) => this.exec('fontSize', v) });
+  }
+
+  /** Go to a reference or defined name ("Sheet2!B3", "Total"), as the name box does. */
+  goToRef(txt) {
+    const wb = this.doc.wb;
+    const target = wb.definedNames[txt] ? wb.definedNames[txt] : txt;
+    const p = parseSheetRef(target);
+    if (!p) { this.toast(t('Invalid reference.'), 'error'); return; }
+    if (p.sheet) { const i = wb.sheets.findIndex((s) => s.name.toLowerCase() === p.sheet.toLowerCase()); if (i < 0) return this.toast(t('No such sheet.'), 'error'); this.activateSheet(i); }
+    this.selectRange(p.range, { r: p.range.r1, c: p.range.c1 });
+    this.focusGrid();
+  }
+
+  /** Ctrl+click on a link: a place in the workbook ("#Sheet2!A1") is shown here; web and mail links open in
+   * a new tab without a Referer (noreferrer); other kinds (file paths, javascript:, …) are not opened. */
+  openLink(h) {
+    const s = String(h || '').trim();
+    if (s.startsWith('#')) return this.goToRef(s.slice(1));
+    if (/^(https?:|mailto:)/i.test(s)) { window.open(s, '_blank', 'noopener,noreferrer'); return; }
+    this.toast(t('This link was not opened: only web (http, https) and mail links open from here. {link}', { link: s.slice(0, 120) }), 'warn');
   }
 
   // ------------------------------------------------------------------ font picker
