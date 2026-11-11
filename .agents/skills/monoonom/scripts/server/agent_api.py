@@ -981,9 +981,14 @@ def r_edit(h, m, q, body):
     if cur:
         groups.append(cur)
     results = []
+    by_agent = body.get("actor") != "user" and h.headers.get("X-Monoonom-Client") == "agent-cli"
     if any(e.get("op") == "chart" for e in edits):
         ensure_calc(doc)  # a chart's categories are decided by cell values: formulas need theirs
     with doc.lock:
+        user_changes = user_changes_since(doc, doc.agent_seen) if by_agent else []
+        user_cells = {(op["sheet"], c[0], c[1]) for e in doc.log if by_agent and e["v"] > doc.agent_seen and e["actor"] == "user"
+                      for op in e["ops"] if op["op"] == "setCells" for c in op["cells"]}
+        overwritten = set()
         for gi, group in enumerate(groups):
             batch = (body.get("batchId") if len(groups) == 1 else None) or new_id("b")
             if group[0].get("op") in STRUCTURAL:
@@ -995,12 +1000,22 @@ def r_edit(h, m, q, body):
             if not ops:
                 results.append({"version": doc.version, "batchId": None, "summary": summary or []})
                 continue
+            if user_cells:
+                overwritten |= {(op["sheet"], c[0], c[1]) for op in ops if op["op"] == "setCells" for c in op["cells"]} & user_cells
             v = doc.apply(ops, actor="user" if body.get("actor") == "user" else "agent", client_id=body.get("clientId", "agent-cli"), batch_id=batch,
                           label=(body.get("label") if len(groups) == 1 else None) or "; ".join(summary)[:120],
                           structural=structural, shifts=shifts, transformable=transformable)
             results.append({"version": v, "batchId": batch, "summary": summary})
     last = results[-1] if results else {"version": doc.version, "batchId": None, "summary": []}
-    return {**last, "batches": results, "summary": [x for r in results for x in r["summary"]]}
+    out = {**last, "batches": results, "summary": [x for r in results for x in r["summary"]]}
+    if user_changes:
+        out["userChanges"] = user_changes
+    if overwritten:
+        names = {sh["id"]: sh["name"] for sh in doc.sheets}
+        cells = sorted(overwritten, key=lambda x: (str(names.get(x[0])), x[1], x[2]))
+        out["overwroteUser"] = [f"{names.get(s, s)}!{A.a1(r, c)}" for s, r, c in cells[:20]] + (
+            [f"… {len(cells) - 20} more"] if len(cells) > 20 else [])
+    return out
 
 
 def pivot_charts_of(doc, sh, p):
@@ -1279,29 +1294,48 @@ def r_describe(h, m, q, body):
     return out
 
 
+def _entry_parts(doc, e):
+    """A log entry's changed cell ranges and sheet properties, as text."""
+    names = {sh["id"]: sh["name"] for sh in doc.sheets}
+    ranges, metas = [], []
+    for op in e["ops"]:
+        if op["op"] == "setCells" and op["cells"]:
+            rs = [x[0] for x in op["cells"]]
+            cs = [x[1] for x in op["cells"]]
+            ranges.append(f"{names.get(op['sheet'], op['sheet'])}!{A.range_a1(min(rs), min(cs), max(rs), max(cs))}"
+                          f" ({len(op['cells'])} cells)")
+        elif op["op"] == "setSheetMeta":
+            metas.append(f"{names.get(op['sheet'], op['sheet'])}: {', '.join(sorted(op['meta']))}")
+        elif op["op"] == "sheets":
+            metas.append("sheets: " + ", ".join(names.get(i, i) for i in op["order"]))
+    return ranges, metas
+
+
+def user_changes_since(doc, v, limit=6):
+    """What the user changed after version v (the agent's last look): one short text per change, the
+    most recent last. Lets an edit's output warn the agent without an extra `changes` call."""
+    items = []
+    for e in doc.log:
+        if e["v"] > v and e["actor"] == "user":
+            ranges, metas = _entry_parts(doc, e)
+            items.append(f"{e['label'] or 'edit'}: {', '.join(ranges + metas) or 'no cells'}")
+    if len(items) > limit:
+        items = items[:limit - 1] + [f"… and {len(items) - limit + 1} more (xl.py changes --since {v} --actor user)"]
+    return items
+
+
 @route("GET", r"/api/docs/([\w-]+)/changes")
 @_wrap
 def r_changes(h, m, q, body):
     doc = _doc(m)
     since = int((q.get("since") or ["0"])[0])
     actor = (q.get("actor") or [None])[0]
-    names = {sh["id"]: sh["name"] for sh in doc.sheets}
     out = []
     with doc.lock:
         for e in doc.log:
             if e["v"] <= since or (actor and e["actor"] != actor):
                 continue
-            ranges, metas = [], []
-            for op in e["ops"]:
-                if op["op"] == "setCells" and op["cells"]:
-                    rs = [x[0] for x in op["cells"]]
-                    cs = [x[1] for x in op["cells"]]
-                    ranges.append(f"{names.get(op['sheet'], op['sheet'])}!{A.range_a1(min(rs), min(cs), max(rs), max(cs))}"
-                                  f" ({len(op['cells'])} cells)")
-                elif op["op"] == "setSheetMeta":
-                    metas.append(f"{names.get(op['sheet'], op['sheet'])}: {', '.join(sorted(op['meta']))}")
-                elif op["op"] == "sheets":
-                    metas.append("sheets: " + ", ".join(names.get(i, i) for i in op["order"]))
+            ranges, metas = _entry_parts(doc, e)
             out.append({"v": e["v"], "actor": e["actor"], "label": e["label"], "batchId": e["batchId"],
                         "time": time.strftime("%H:%M:%S", time.localtime(e["ts"])), "cells": ranges, "meta": metas})
     return {"version": doc.version, "dirty": doc.dirty, "changes": out}

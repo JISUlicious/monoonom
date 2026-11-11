@@ -85,6 +85,7 @@ class DocSession:
         self.id = new_id("d")
         self.lock = threading.RLock()
         self.version = 0
+        self.agent_seen = 0  # the version the agent (CLI) last saw; set by app._agent_saw
         self.log: deque = deque(maxlen=LOG_LIMIT)
         self.hub = Hub()
         self.presence: dict = {}

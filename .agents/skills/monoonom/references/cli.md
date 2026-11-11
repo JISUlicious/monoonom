@@ -62,6 +62,12 @@ leaves the `.csv` unchanged. `save --as x.csv` (or `x.tsv`) writes only the acti
 
 All edits are one batch per command, applied live and undoable with `undo BATCH`.
 
+Before the batch lines, an edit prints what the user changed in the preview since the agent's last
+command (any command on that document, reads included; at most 6 lines, then where to see the rest):
+`note: since your last command the user changed Typing: Sheet1!B2:B3 (2 cells)`. If the edit replaced
+cells the user had just changed, it also prints `warning: this edit replaced cells the user had just
+changed: Sheet1!C7 …`. With `--json` these are `userChanges` and `overwroteUser`.
+
 | Command | Notes |
 |---|---|
 | `write RANGE V... [--down] [--data JSON] [--tsv FILE\|-] [--raw]` | Values parse like Excel input. A single value with a multi-cell range fills it. |

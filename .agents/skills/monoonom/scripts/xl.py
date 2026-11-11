@@ -211,6 +211,7 @@ def request(st, method, path, body=None, timeout=30):
     req = urllib.request.Request(url, data=data, method=method)
     req.add_header("X-Monoonom-Token", st.get("token") or "")
     req.add_header("X-Monoonom", "1")
+    req.add_header("X-Monoonom-Client", "agent-cli")  # the server notes what the agent has seen
     if data is not None:
         req.add_header("Content-Type", "application/json")
     try:

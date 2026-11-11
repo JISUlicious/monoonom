@@ -218,6 +218,20 @@ def api_new(_body):
 ROUTES: list = []  # (method, compiled regex, handler, opts)
 
 
+def _agent_saw(path: str, res) -> None:
+    """After an agent (CLI) request on a document: the version it has now seen. The next edit reports
+    what the user changed after that (agent_api.user_changes_since)."""
+    from .docs_api import REGISTRY
+    mm = re.match(r"^/api/docs/([\w-]+)", path)
+    doc_id = mm.group(1) if mm else (res.get("docId") if isinstance(res, dict) else None)
+    try:
+        doc = REGISTRY.get(doc_id) if doc_id else None
+    except Exception:
+        doc = None
+    if doc is not None:
+        doc.agent_seen = doc.version
+
+
 def route(method, pattern, **opts):
     """Register handler(h, m, q, body) -> dict | bytes | None (None = handler wrote the response)."""
     import re
@@ -390,6 +404,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 body = json.loads(raw) if raw else {}
                 res = fn(self, m, q, body)
+                if self.headers.get("X-Monoonom-Client") == "agent-cli":
+                    _agent_saw(url.path, res)
                 if res is None:
                     return None
                 if isinstance(res, bytes):
