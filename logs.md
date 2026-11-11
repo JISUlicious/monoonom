@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-06: 데이터 분석 7종 실측(Sonnet) — 결과 값·원본 무결성 모두 정상, 도구 호출 작업당 2~7회. 발견한 오류 수정: 에이전트가 만든 차트가 수식으로 만든 레이블 열(=TEXT…)을 계열로 잡던 문제(수식 값을 0으로 봄, 편집 전에 계산 안 함) (→ docs/dev/skill-implementation.md)
 - 2026-11-06: 피벗 차트 3단계(만들기) — `xl.py chart add --pivot NAME`, 삽입 → 피벗 차트·피벗 오른쪽 클릭 메뉴. 계열은 피벗의 데이터 열, 항목은 행 항목(총합계 제외), `pivotSource`는 저장 파일 이름으로. 행 필드 하나인 피벗만, 분산형 거부 (→ docs/dev/skill-implementation.md)
 - 2026-11-06: 피벗 차트 2단계(새로 고침 연동) — `pivot refresh`가 연결된 피벗 차트를 알려 주고, 미리보기 피벗 차트가 새 값으로 다시 그려지며, 피벗 위 행 삽입 때 차트 범위도 함께 이동함을 테스트로 고정 (→ docs/dev/skill-implementation.md)
 - 2026-11-06: 피벗 차트 1단계(보존·표시) — 수정한 피벗 차트가 일반 차트로 바뀌던 문제 수정(`pivotSource`·`pivotFmts` 유지), `chart ls`·`describe`·미리보기 범위 패널에 피벗 차트 표시, Excel처럼 데이터 범위·행/열 전환·분산형 변경 거부 (→ docs/dev/skill-implementation.md)
