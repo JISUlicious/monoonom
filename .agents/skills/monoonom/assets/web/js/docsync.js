@@ -95,6 +95,7 @@ export class DocSync {
   onOps(ev) {
     if (ev.v <= this.version) return; // replayed after reconnect
     this.version = ev.v;
+    this.app.history?.onChange(this.doc);
     if (ev.clientId && ev.clientId === this.app.clientId) {
       const batch = this.pending.get(ev.batchId);
       if (batch) this.track(ev.batchId, batch, -1);

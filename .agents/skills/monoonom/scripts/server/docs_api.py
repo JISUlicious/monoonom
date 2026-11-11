@@ -290,6 +290,10 @@ def r_undo(h, m, q, body):
                       structural=entry["structural"],
                       shifts=[{**x, "count": -x["count"]} for x in reversed(entry.get("shifts", []))],
                       transformable=entry.get("transformable"))
+        if doc.log and doc.log[-1]["v"] == v:
+            doc.log[-1]["undoOf"] = entry["batchId"]  # the change history shows the original as undone
+            # which window asked (not clientId: that would make the window skip applying it as its own echo)
+            doc.log[-1]["by"] = body.get("clientId")
     return {"version": v}
 
 

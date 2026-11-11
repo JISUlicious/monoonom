@@ -15,6 +15,16 @@ chart", "Check the cell I just changed and fix the other rows the same way".
 - **Follow agent** (status bar): on, the view moves to where the agent works; off, the view stays and the agent's changes are only highlighted.
 - Saving keeps the previous file in `<workspace>/.monoonom/backups/`. Files changed by another program since they were opened are not overwritten without asking.
 
+## Undo and change history
+
+- **Ctrl+Z / Ctrl+Y** undo and redo your own changes in that window (up to 300 steps).
+- **View > Change History** (or click "● Agent working" in the status bar) lists every change since the workbook
+  was opened, newest first: who made it (Agent, You, Another window), what and where (click a range to go
+  there). **Undo** on any change takes it back in every window, including the agent's changes; it is recorded
+  as a new change. If the same cells were changed again afterwards, it asks first. The agent sees your undo the
+  next time it edits.
+- Every save first copies the previous file to `.monoonom/backups/NAME.YYYYMMDD-HHMMSS.xlsx`.
+
 ## Pictures
 
 Paste a picture into the preview (a screenshot, or an image copied from a web page): it is placed at the

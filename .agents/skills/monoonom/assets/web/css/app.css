@@ -288,3 +288,31 @@ kbd { font: 11px Consolas, monospace; color: var(--muted); }
 .fld .combo { display: flex; width: 100%; }
 .fld .combo > .inp { flex: 1; width: 100%; min-width: 0; }
 .brand { display: flex; align-items: center; gap: 6px; }
+
+/* change history panel (View > Change History): beside the grid and the sheet tabs */
+body.history-open .grid-host, body.history-open .sheetbar { margin-right: 320px; }
+.agent-busy { cursor: pointer; }
+.history-panel { position: fixed; right: 0; width: 320px; display: flex; flex-direction: column; background: var(--panel, #fff); border-left: 1px solid var(--line); z-index: 40; font-size: 12px; box-shadow: -2px 0 6px rgba(0,0,0,.06); }
+.history-panel[hidden] { display: none; }
+.hp-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.hp-head b { flex: 1; font-size: 13px; }
+.hp-filter { font: inherit; padding: 1px 2px; }
+.hp-close { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 14px; }
+.hp-list { flex: 1; overflow: auto; }
+.hp-item { padding: 6px 8px; border-bottom: 1px solid #eef0f2; }
+.hp-item.undone .hp-label { text-decoration: line-through; color: var(--muted); }
+.hp-line { display: flex; align-items: center; gap: 6px; }
+.hp-who { font-weight: 600; padding: 0 5px; border-radius: 3px; background: #e8eaed; }
+.hp-who.agent { background: #e4d9f7; color: #5b2bb5; }
+.hp-who.me { background: #dcefe3; color: #1e6b3a; }
+.hp-who.other { background: #dfe9f7; color: #1f4f8f; }
+.hp-time { color: var(--muted); flex: 1; }
+.hp-undo { border: 1px solid var(--line); background: #fff; border-radius: 3px; cursor: pointer; padding: 1px 6px; font: inherit; }
+.hp-undo:hover { background: #f1f3f4; }
+.hp-label { margin-top: 2px; overflow-wrap: anywhere; }
+.hp-where { margin-top: 2px; color: var(--muted); overflow-wrap: anywhere; }
+.hp-ref { color: #1f5fbf; cursor: pointer; text-decoration: underline dotted; margin-right: 4px; }
+.hp-meta { margin-right: 4px; }
+.hp-empty { padding: 16px 8px; color: var(--muted); }
+.hp-foot { padding: 6px 8px; border-top: 1px solid var(--line); color: var(--muted); }
+

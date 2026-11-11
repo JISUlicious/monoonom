@@ -76,6 +76,8 @@ export const api = {
   pivotRefresh: (id, payload) => call('POST', `${D(id)}/pivots/refresh`, payload),
   fonts: () => call('GET', `/api/fonts?lang=${LANG}`),
   edit: (id, payload) => call('POST', `${D(id)}/edit`, payload),
+  changes: (id) => call('GET', `${D(id)}/changes`),
+  undo: (id, payload) => call('POST', `${D(id)}/undo`, payload),
   mediaAdd: (id, payload) => call('POST', `${D(id)}/media`, payload),
   /** A picture's bytes as a Blob (with the token header; an <img src> could not send it). */
   media: async (id, key) => {
