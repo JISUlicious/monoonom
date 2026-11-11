@@ -149,6 +149,9 @@
       <button class="rb big" data-dd="windows"><span class="ic">🪟</span>Switch Windows</button>
       <button class="rb big" data-dd="freeze"><span class="ic">❄</span>Freeze Panes</button>
     </div><div class="gname">Windows</div></div>
+    <div class="group"><div class="gbody">
+      <button class="rb big" data-cmd="history" title="Every change since the workbook was opened: who made it, where; undo any one of them"><span class="ic">🕘</span>Change History</button>
+    </div><div class="gname">History</div></div>
   </div>
 </section>
 
@@ -168,7 +171,7 @@
 <footer id="statusbar" class="statusbar">
   <div id="status-msg" class="status-msg"></div>
   <div id="status-stats" class="status-stats"></div>
-  <span id="agent-busy" class="agent-busy" hidden title="The agent just changed this workbook">● Agent working</span>
+  <span id="agent-busy" class="agent-busy" hidden title="The agent just changed this workbook (click: change history)">● Agent working</span>
   <label class="follow-agent" title="On: the view follows the sheet and cells the agent works on. Off: the view stays put and the agent's changes are only highlighted."><input type="checkbox" id="follow-agent"> Follow agent</label>
   <div class="zoom"><button data-cmd="zoomOut" title="Zoom out">−</button><input id="zoom-range" type="range" min="25" max="400" value="100" aria-label="Zoom"><button data-cmd="zoomIn" title="Zoom in">＋</button><span id="zoom-label" title="Reset to 100%">100%</span></div>
 </footer>

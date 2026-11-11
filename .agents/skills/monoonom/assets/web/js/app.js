@@ -9,6 +9,7 @@ import { Clipboard } from './clipboard.js';
 import { Filters } from './filter.js';
 import { ChartLayer } from './charts.js';
 import { ImageLayer } from './images.js';
+import { HistoryPanel } from './history.js';
 import { DocSync, EventStream } from './docsync.js';
 import { api, hasToken, tokenFragment } from './api.js';
 import { geom } from './geometry.js';
@@ -61,6 +62,8 @@ class App {
     this.filters = new Filters(this);
     this.charts = new ChartLayer(this, this.grid);
     this.images = new ImageLayer(this, this.grid);
+    this.history = new HistoryPanel(this);
+    this.$('#agent-busy').addEventListener('click', () => this.history.toggle(true));
     this.clientId = newId('c');
     this.stream = new EventStream(this);
     this.lastAction = null;
@@ -164,6 +167,7 @@ class App {
     this.restoreScroll();
     this.render();
     document.title = `${this.doc.wb.name} - MoNooNoM`;
+    this.history?.onDocSwitch();
     this.focusGrid();
   }
 
@@ -1226,6 +1230,7 @@ class App {
       showFormulas: () => { const v = this.view(); v.showFormulas = !v.showFormulas; this.grid.measureCache.clear(); this.render(); },
       zoomIn: () => this.setZoom(this.view().zoom + 0.1), zoomOut: () => this.setZoom(this.view().zoom - 0.1), zoom100: () => this.setZoom(1),
       zoomSel: () => { const s = this.selection(), g = geom(this.doc.wb.sheet), m = this.grid.metrics(); const w = g.cols.pos(Math.min(s.c2, s.c1 + 200) + 1) - g.cols.pos(s.c1), h = g.rows.pos(Math.min(s.r2, s.r1 + 1000) + 1) - g.rows.pos(s.r1); this.setZoom(Math.min((this.grid.scroller.clientWidth - m.HW) / w, (this.grid.scroller.clientHeight - m.HH) / h) * 0.95); this.grid.scrollTo(s.r1, s.c1); },
+      history: () => this.history.toggle(),
       newWindow: () => this.newWindow(), recalc: () => { this.doc.wb.recalc(); this.render(); this.setStatus(t('Recalculated ({ms} ms)', { ms: this.doc.wb.lastCalcMs.toFixed(0) })); },
       unhideSheet: () => this.unhideSheet(),
       selectAll: () => this.selectAllSmart(),

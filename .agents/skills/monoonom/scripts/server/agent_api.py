@@ -1337,7 +1337,8 @@ def r_changes(h, m, q, body):
                 continue
             ranges, metas = _entry_parts(doc, e)
             out.append({"v": e["v"], "actor": e["actor"], "label": e["label"], "batchId": e["batchId"],
-                        "time": time.strftime("%H:%M:%S", time.localtime(e["ts"])), "cells": ranges, "meta": metas})
+                        "time": time.strftime("%H:%M:%S", time.localtime(e["ts"])), "cells": ranges, "meta": metas,
+                        "clientId": e.get("by") or e.get("clientId"), "undoOf": e.get("undoOf")})
     return {"version": doc.version, "dirty": doc.dirty, "changes": out}
 
 

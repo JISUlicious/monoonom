@@ -60,6 +60,8 @@ the token the page loads but no workbook opens. If you no longer have the URL, r
    ("this part" usually means the user's current selection). Each edit's output also starts with
    `note: since your last command the user changed …` lines, and with a `warning:` when the edit
    replaced cells the user had just changed; then tell the user and offer `xl.py undo BATCH`.
+   The user can also undo any of your changes from the preview (View > Change History); such an
+   undo shows up in that note as the user's `undo: …` change, so do not redo it unasked.
 6. **Save only when the user asks** (or agreed): `xl.py save` or `xl.py save --as new.xlsx`.
    The previous file is backed up to `.monoonom/backups/` first. `.xls` files are read-only: saving
    one writes `NAME.xlsx` next to it, so tell the user the new file name. A `.csv`/`.tsv` file
