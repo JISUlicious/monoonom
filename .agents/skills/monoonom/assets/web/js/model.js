@@ -39,6 +39,7 @@ export class Sheet {
     this.freeze = { r: 0, c: 0 };
     this.autoFilter = null;      // {range:{...}, cols:{relIdx:{values?:[], blank?, custom?:[{op,val}], and?}}}
     this.charts = [];
+    this.images = [];            // pictures: [{id, media (server key), format, anchor {c,r,dx,dy,w,h}, orig?, dirty?}]
     this.pivots = [];            // pivot tables in the file: [{name, ref, source, rows, cols, values, filters, idx, srcSig}]
     this.state = 'visible';
     this.tabColor = null;
@@ -66,7 +67,7 @@ export class Sheet {
     return structuredClone({
       name: this.name, colW: [...this.colW], rowH: [...this.rowH], hiddenCols: [...this.hiddenCols],
       hiddenRows: [...this.hiddenRows], filterHidden: [...this.filterHidden], merges: this.merges,
-      freeze: this.freeze, autoFilter: this.autoFilter, charts: this.charts, pivots: this.pivots, state: this.state,
+      freeze: this.freeze, autoFilter: this.autoFilter, charts: this.charts, images: this.images, pivots: this.pivots, state: this.state,
       tabColor: this.tabColor, showGrid: this.showGrid, defaultColW: this.defaultColW, defaultRowH: this.defaultRowH,
     });
   }
@@ -75,7 +76,7 @@ export class Sheet {
     this.name = m.name; this.colW = new Map(m.colW); this.rowH = new Map(m.rowH);
     this.hiddenCols = new Set(m.hiddenCols); this.hiddenRows = new Set(m.hiddenRows);
     this.filterHidden = new Set(m.filterHidden); this.merges = m.merges; this.freeze = m.freeze;
-    this.autoFilter = m.autoFilter; this.charts = m.charts; this.pivots = m.pivots || []; this.state = m.state; this.tabColor = m.tabColor;
+    this.autoFilter = m.autoFilter; this.charts = m.charts; this.images = m.images || []; this.pivots = m.pivots || []; this.state = m.state; this.tabColor = m.tabColor;
     this.showGrid = m.showGrid; this.defaultColW = m.defaultColW; this.defaultRowH = m.defaultRowH;
     this._geomVersion++;
   }
@@ -316,6 +317,7 @@ export class Workbook {
     const s = new Sheet(this.uniqueSheetName(src.name));
     s.applyMeta({ ...src.metaSnapshot(), name: s.name });
     s.charts.forEach((c) => { c.id = newId('ch'); c.orig = null; c.dirty = true; });
+    s.images = s.images.map((im) => ({ ...structuredClone(im), id: newId('im'), orig: null, dirty: true }));
     s.pivots = []; // the copy's cells are plain values: the file's pivot stays on the original sheet
     for (const [k, c] of src.cells) s.cells.set(k, { ...c });
     s.updateExtent();
@@ -395,7 +397,7 @@ export class Workbook {
       const nr = adjRange(sheet.autoFilter.range);
       if (!nr) { sheet.autoFilter = null; sheet.filterHidden.clear(); } else sheet.autoFilter.range = nr;
     }
-    for (const ch of sheet.charts) {
+    for (const ch of [...sheet.charts, ...sheet.images]) { // pictures move with their cells like charts
       const p = isRow ? 'r' : 'c';
       if (ch.anchor[p] >= at) ch.anchor[p] = Math.max(at, ch.anchor[p] + count);
     }
@@ -506,6 +508,7 @@ export class Workbook {
         s.autoFilter = { range: parseRange(sj.autoFilter.ref), cols: sj.autoFilter.cols || {} };
       }
       s.charts = (sj.charts || []).map((c) => ({ id: newId('ch'), ...c }));
+      s.images = (sj.images || []).map((im) => ({ id: newId('im'), ...im }));
       s.pivots = structuredClone(sj.pivots || []);
       if (Array.isArray(sj.filterHidden)) { s.filterHidden = new Set(sj.filterHidden.map(Number)); s._explicitFilter = true; }
       s.updateExtent();
@@ -566,6 +569,7 @@ export class Workbook {
         freeze: s.freeze && (s.freeze.r || s.freeze.c) ? a1(s.freeze.r, s.freeze.c) : null,
         autoFilter: s.autoFilter ? { ref: rangeA1(s.autoFilter.range), cols: s.autoFilter.cols } : null,
         charts: s.charts.map((c) => { const o = { ...c }; delete o.id; return o; }),
+        images: s.images.map((im) => { const o = { ...im }; delete o.id; return o; }),
         pivots: structuredClone(s.pivots),
       };
     });
@@ -592,6 +596,7 @@ export function sheetMetaJSON(s) {
     freeze: s.freeze && (s.freeze.r || s.freeze.c) ? a1(s.freeze.r, s.freeze.c) : null,
     autoFilter: s.autoFilter ? { ref: rangeA1(s.autoFilter.range), cols: s.autoFilter.cols } : null,
     charts: structuredClone(s.charts),
+    images: structuredClone(s.images),
     pivots: structuredClone(s.pivots),
   };
 }
@@ -647,6 +652,7 @@ export function applySheetMetaJSON(s, m) {
   if ('freeze' in m) { const p = m.freeze ? parseA1(m.freeze) : null; s.freeze = p ? { r: p.r, c: p.c } : { r: 0, c: 0 }; }
   if ('autoFilter' in m) s.autoFilter = m.autoFilter && m.autoFilter.ref ? { range: parseRange(m.autoFilter.ref), cols: m.autoFilter.cols || {} } : null;
   if ('charts' in m) s.charts = (m.charts || []).map((c) => ({ id: c.id || newId('ch'), ...structuredClone(c) }));
+  if ('images' in m) s.images = (m.images || []).map((im) => ({ id: im.id || newId('im'), ...structuredClone(im) }));
   if ('pivots' in m) s.pivots = structuredClone(m.pivots || []);
   s._geomVersion++;
 }

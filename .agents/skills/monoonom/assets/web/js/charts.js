@@ -287,6 +287,7 @@ export class ChartLayer {
 
   select(id) {
     if (this.selected !== id) this.focusSeries = null;
+    this.app.images?.deselect();
     this.selected = id; this.app.editor?.active && this.app.editor.commit(); this.layout();
   }
   deselect() { if (this.selected) { this.selected = null; this.focusSeries = null; this.layout(); } }

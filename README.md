@@ -13,12 +13,12 @@ paper) written in English so that it reads from either end: MoNooN + NooNoM.
 *The agent has just added the chart and is filling the Share column: the cells it changes are highlighted, and the status bar says what it did.*
 
 - **Edit together**: the agent's and your edits are merged in order and appear in every open window. The agent reads the cells you changed.
-- **Excel-compatible**: about 200 formula functions, formatting, filters and sorting, charts, pivot tables, Excel keyboard shortcuts. Saving keeps what the app does not edit, such as conditional formatting, images and VBA.
+- **Excel-compatible**: about 200 formula functions, formatting, filters and sorting, charts, pivot tables, Excel keyboard shortcuts, pictures (paste one into the preview). Saving keeps what the app does not edit, such as conditional formatting and VBA.
 - **Local only**: the server listens on `127.0.0.1`, files never leave the workspace folder, and a DRM hook can be plugged into file reads and writes.
 
 ## Quick start
 
-Needs Python 3.9+ on the same computer as the agent: `python3 -m pip install openpyxl xlrd`.
+Needs Python 3.9+ on the same computer as the agent: `python3 -m pip install openpyxl pillow xlrd`.
 
 ```bash
 # Claude Code

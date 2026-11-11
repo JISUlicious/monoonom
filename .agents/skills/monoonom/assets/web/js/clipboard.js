@@ -76,6 +76,14 @@ export class Clipboard {
   async pasteCommand(only = 'all', transpose = false) {
     let text = null;
     try { text = await navigator.clipboard.readText(); } catch { /* permission denied */ }
+    if (only === 'all' && !text) { // a picture alone (screenshot): the async clipboard API, where allowed
+      try {
+        for (const item of await navigator.clipboard.read()) {
+          const type = item.types.find((ty) => ty.startsWith('image/'));
+          if (type) return this.app.images.paste(await item.getType(type));
+        }
+      } catch { /* not allowed: fall through */ }
+    }
     if (this.state && (text === null || normalizeText(text) === this.state.text)) return this.pasteInternal(only, transpose);
     if (text !== null) return this.pasteText(text, null);
     this.app.toast(t('The browser does not allow reading the clipboard. Use Ctrl+V.'), 'warn');
@@ -87,6 +95,11 @@ export class Clipboard {
     const text = e.clipboardData.getData('text/plain');
     const html = e.clipboardData.getData('text/html');
     if (this.state && normalizeText(text) === this.state.text) return this.pasteInternal('all');
+    // a picture: alone (a screenshot), or an image copied from a web page (HTML that is just one <img>);
+    // Excel's cell copies also carry a picture, but with text: those paste as cells
+    const pic = [...(e.clipboardData.files || [])].find((f) => f.type.startsWith('image/'));
+    const onlyImg = html && /^\s*(<meta[^>]*>\s*)?<img\b[^>]*>\s*$/i.test(html.replace(/<!--.*?-->|<\/?(html|body)[^>]*>/gis, ''));
+    if (pic && (!text.trim() || onlyImg)) return this.app.images.paste(pic);
     this.pasteText(text, html);
   }
 

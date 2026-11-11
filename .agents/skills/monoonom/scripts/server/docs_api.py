@@ -20,6 +20,34 @@ def state_dir():
 Config.recovery_cb = lambda: REGISTRY.write_recovery(state_dir())
 
 
+MEDIA_MAX = 10 * 1024 * 1024
+IMAGE_TYPES = {"png": "image/png", "jpeg": "image/jpeg", "gif": "image/gif"}
+
+
+def add_media(doc, data: bytes) -> dict:
+    """Store picture bytes in the document: {"media": key, "format", "w", "h"} (pixels). PNG, JPEG and GIF
+    are kept as they are; other formats Pillow reads (BMP, WebP, TIFF, ...) are converted to PNG."""
+    import io
+    from PIL import Image as PILImage, UnidentifiedImageError
+    from .xlsx_io import media_key
+    if not data or len(data) > MEDIA_MAX:
+        raise ApiError(400, f"Images must be 1 byte to {MEDIA_MAX // (1024 * 1024)} MB.")
+    try:
+        img = PILImage.open(io.BytesIO(data))
+        img.load()
+    except (UnidentifiedImageError, OSError) as e:
+        raise ApiError(400, f"Not an image this app can read: {e}")
+    fmt = (img.format or "").lower()
+    if fmt not in IMAGE_TYPES:
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        data, fmt = buf.getvalue(), "png"
+    key = media_key(data)
+    with doc.lock:
+        doc.media[key] = data
+    return {"media": key, "format": fmt, "w": img.width, "h": img.height}
+
+
 def _doc(m):
     try:
         return REGISTRY.get(m.group(1))
@@ -171,7 +199,7 @@ def r_save_doc(h, m, q, body):
     # formula results are written into the file as cached values, so make them current first
     from .agent_api import ensure_calc
     calc = ensure_calc(doc, wait=2.0)
-    warns = write_workbook(path, fmt, doc.file_model(), doc.base_path)
+    warns = write_workbook(path, fmt, {**doc.file_model(), "media": doc.media}, doc.base_path)
     note = []
     if converted:
         note.append(f"Files are not saved as xls, so this was saved as '{os.path.basename(path)}' ({fmt}). The original .xls is unchanged.")
@@ -208,6 +236,33 @@ def r_save_doc(h, m, q, body):
     doc.hub.publish("saved", {"docId": doc.id, **info})
     REGISTRY.hub.publish("saved", {"docId": doc.id, **info})
     return info
+
+
+@route("POST", r"/api/docs/([\w-]+)/media")
+@_wrap
+def r_media_add(h, m, q, body):
+    """Upload a picture (the preview's paste): {data: base64} -> {media, format, w, h}."""
+    import base64
+    doc = _doc(m)
+    try:
+        data = base64.b64decode(body.get("data") or "", validate=True)
+    except ValueError:
+        raise ApiError(400, "data must be base64.")
+    return add_media(doc, data)
+
+
+@route("GET", r"/api/docs/([\w-]+)/media/(\w+)")
+@_wrap
+def r_media_get(h, m, q, body):
+    doc = _doc(m)
+    data = doc.media.get(m.group(2))
+    if data is None:
+        raise ApiError(404, "Image not found.")
+    from PIL import Image as PILImage
+    import io
+    fmt = (PILImage.open(io.BytesIO(data)).format or "png").lower()
+    h._send(200, data, IMAGE_TYPES.get(fmt, "application/octet-stream"))
+    return None
 
 
 @route("POST", r"/api/docs/([\w-]+)/undo")

@@ -15,6 +15,15 @@ chart", "Check the cell I just changed and fix the other rows the same way".
 - **Follow agent** (status bar): on, the view moves to where the agent works; off, the view stays and the agent's changes are only highlighted.
 - Saving keeps the previous file in `<workspace>/.monoonom/backups/`. Files changed by another program since they were opened are not overwritten without asking.
 
+## Pictures
+
+Paste a picture into the preview (a screenshot, or an image copied from a web page): it is placed at the
+active cell, at most 640 px wide. Drag it to move it, drag a corner to resize it (Shift keeps its shape),
+press Delete to remove it; the right-click menu resets its size or changes its order. Pictures in the file
+are shown too, and all of them are saved as real Excel pictures. When the clipboard holds cells copied
+from Excel (which also carry a picture of them), they paste as cells. The agent adds pictures from files
+with `xl.py image add`.
+
 ## Language
 
 The preview is in English, or in Korean when the browser's language is Korean. Add `?lang=en` or `?lang=ko` to the

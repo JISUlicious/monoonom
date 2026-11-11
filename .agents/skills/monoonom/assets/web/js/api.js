@@ -76,6 +76,15 @@ export const api = {
   pivotRefresh: (id, payload) => call('POST', `${D(id)}/pivots/refresh`, payload),
   fonts: () => call('GET', `/api/fonts?lang=${LANG}`),
   edit: (id, payload) => call('POST', `${D(id)}/edit`, payload),
+  mediaAdd: (id, payload) => call('POST', `${D(id)}/media`, payload),
+  /** A picture's bytes as a Blob (with the token header; an <img src> could not send it). */
+  media: async (id, key) => {
+    const headers = { 'X-Monoonom': '1' };
+    if (token) headers['X-Monoonom-Token'] = token;
+    const res = await fetch(`${D(id)}/media/${encodeURIComponent(key)}`, { credentials: 'same-origin', headers });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.blob();
+  },
   pivotCreate: (id, payload) => call('POST', `${D(id)}/pivots`, { lang: LANG, ...payload }),
   closeDoc: (id, force = false) => call('DELETE', D(id), { force }),
   streamTicket: () => call('POST', '/api/stream/ticket', {}),

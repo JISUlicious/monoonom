@@ -25,7 +25,7 @@ from .colors import DEFAULT_THEME
 CHART_STYLE = preview_spec()  # sent with snapshots so the preview draws charts like saved files
 
 META_KEYS = ("name", "origName", "state", "tabColor", "showGrid", "defaultColW", "defaultRowH",
-             "cols", "rows", "filterHidden", "merges", "freeze", "autoFilter", "charts", "pivots")
+             "cols", "rows", "filterHidden", "merges", "freeze", "autoFilter", "charts", "pivots", "images")
 LOG_LIMIT = 5000
 
 
@@ -107,6 +107,8 @@ class DocSession:
         self.active_sheet = model.get("activeSheet", 0)
         self.warnings = model.get("warnings", [])
         styles = model.get("styles", [])
+        # picture bytes by key (sheet "images" refer to them); never sent with the snapshot
+        self.media = dict(model.get("media") or {})
         self.sheets = [self._sheet_from_json(sj, styles) for sj in model.get("sheets", [])]
         if not self.sheets:
             self.sheets = [self._sheet_from_json({"name": "Sheet1"}, [])]
@@ -128,6 +130,9 @@ class DocSession:
         sh["pivots"] = sh["pivots"] or []
         for ch in sh["charts"]:
             ch.setdefault("id", new_id("ch"))
+        sh["images"] = sh["images"] or []
+        for im in sh["images"]:
+            im.setdefault("id", new_id("im"))
         fh = sh["filterHidden"]
         if fh is None:  # from a file: rows hidden inside a filtered range belong to the filter
             fh = []
@@ -212,8 +217,9 @@ class DocSession:
                 for ch in sh["charts"]:
                     ch2 = {k: v for k, v in ch.items() if k not in ("id", "_range")}
                     charts.append(ch2)
+                images = [{k: v for k, v in im.items() if k != "id"} for im in sh.get("images") or []]
                 sheets.append({**{k: copy.deepcopy(sh.get(k)) for k in META_KEYS if k != "filterHidden"},
-                               "rows": rows, "cells": cells, "charts": charts})
+                               "rows": rows, "cells": cells, "charts": charts, "images": images})
             return {"name": self.name, "format": self.format, "activeSheet": self.active_sheet,
                     "styles": styles, "definedNames": self.defined_names,
                     "defaultFont": self.default_font, "sheets": sheets}

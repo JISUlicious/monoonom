@@ -52,6 +52,47 @@ def parse_at(doc, at):
     return (doc.sheet(sname) if sname else None), r, c
 
 
+def find_image(doc, meta, meta_of, iid, sheet=None):
+    """(sheet, images list, index) of a picture by id (ids are unique in the workbook)."""
+    sheets = [doc.sheet(sheet)] if sheet else list(doc.sheets)
+    for sh in sheets:
+        current = meta.get(sh["id"], {}).get("images", sh.get("images") or [])
+        for i, im in enumerate(current):
+            if im.get("id") == iid:
+                return sh, meta_of(sh, "images"), i
+    raise ApiError(404, f"Image not found: {iid}. Get the current ids with `xl.py image ls`.")
+
+
+def image_from(doc, e, active):
+    """A picture from a file in the workspace (e["path"], read through fileio like workbooks) or bytes
+    already uploaded (e["media"]), placed at e["at"] (default B2 of the target sheet). Its size is the
+    picture's own, scaled to --width / --height (aspect kept when only one is given), at most 640 px wide."""
+    from .docs_api import add_media
+    if e.get("path"):
+        from . import fileio
+        from .app import _norm
+        info = add_media(doc, fileio.read_bytes(_norm(e["path"])))
+    elif e.get("media") in doc.media:
+        info = add_media(doc, doc.media[e["media"]])
+    else:
+        raise ApiError(400, "An image needs a path (a picture file in the workspace).")
+    at_sheet, r, c = parse_at(doc, e["at"]) if e.get("at") else (None, 1, 1)
+    target = at_sheet or (doc.sheet(e["sheet"]) if e.get("sheet") else active)
+    w0, h0 = info["w"], info["h"]
+    w, h = e.get("width"), e.get("height")
+    if w and h:
+        w, h = int(w), int(h)
+    elif w:
+        w, h = int(w), round(h0 * int(w) / max(1, w0))
+    elif h:
+        w, h = round(w0 * int(h) / max(1, h0)), int(h)
+    else:
+        k = min(1.0, 640 / max(1, w0))
+        w, h = round(w0 * k), round(h0 * k)
+    return target, {"id": new_id("im"), "media": info["media"], "format": info["format"], "dirty": True,
+                    "anchor": {"c": c, "r": r, "dx": 0, "dy": 0, "w": max(1, w), "h": max(1, h)}}
+
+
 def find_chart(doc, meta, meta_of, cid=None, sheet=None, index=None):
     """(sheet, charts list, index) of a chart. Chart ids are unique in the workbook, so without --sheet
     every sheet is searched (`chart ls` lists all sheets); an index needs a sheet (default: active)."""
@@ -425,6 +466,32 @@ def build_ops(doc, edits):
             sh, charts, idx = find_chart(doc, meta, meta_of, e.get("id"), sheet, e.get("index"))
             meta[sh["id"]]["charts"] = [ch for i, ch in enumerate(charts) if i != idx]
             summary.append(f"{sh['name']} delete chart")
+        elif kind == "image":
+            target, im = image_from(doc, e, doc.sheets[min(doc.active_sheet, len(doc.sheets) - 1)])
+            meta_of(target, "images").append(im)
+            summary.append(f"{target['name']} add image {im['id']} ({im['anchor']['w']}x{im['anchor']['h']} px)")
+        elif kind in ("imageUpdate", "deleteImage"):
+            sh, images, idx = find_image(doc, meta, meta_of, e.get("id"), sheet)
+            if kind == "deleteImage":
+                meta[sh["id"]]["images"] = [x for i, x in enumerate(images) if i != idx]
+                summary.append(f"{sh['name']} delete image")
+            else:
+                im = images[idx]
+                st = e.get("set") or {}
+                a = im["anchor"]
+                if st.get("at"):
+                    at_sheet, a["r"], a["c"] = parse_at(doc, st["at"])
+                    a["dx"] = a["dy"] = 0
+                    if at_sheet is not None and at_sheet is not sh:
+                        raise ApiError(400, "Images move within their sheet; delete and add it on the other sheet.")
+                w, h = st.get("width"), st.get("height")
+                if w and not h:
+                    a["h"], a["w"] = round(a["h"] * int(w) / max(1, a["w"])), int(w)
+                elif h and not w:
+                    a["w"], a["h"] = round(a["w"] * int(h) / max(1, a["h"])), int(h)
+                elif w and h:
+                    a["w"], a["h"] = int(w), int(h)
+                summary.append(f"{sh['name']} edit image {im['id']}")
         elif kind == "addSheet":
             name = (e.get("name") or "").strip() or _unique_name(doc, "Sheet")
             _check_sheet_name(doc, name)
@@ -752,11 +819,13 @@ def shift_ops(doc, sh, axis, at, count):
         if not nr:
             meta["filterHidden"] = []
     charts = copy.deepcopy(sh["charts"])
-    for ch in charts:
+    images = copy.deepcopy(sh.get("images") or [])
+    for ch in charts + images:  # pictures move with their cells like charts
         p = "r" if is_row else "c"
         if ch["anchor"].get(p, 0) >= at:
             ch["anchor"][p] = max(at, ch["anchor"][p] + count)
     meta["charts"] = charts
+    meta["images"] = images
     pivots = copy.deepcopy(sh.get("pivots") or [])
     for p in pivots:  # the pivot moves as a whole (cutting through it was refused above)
         nr = shift_range(p["ref"])
@@ -1167,6 +1236,9 @@ def r_describe(h, m, q, body):
                                 "series": [{"name": s.get("name"), "nameRef": s.get("nameRef"), "x": s.get("cat") or _lit_label(s.get("catLit")), "y": s.get("val") or _lit_label(s.get("valLit")),
                                             **({"type": s["type"]} if s.get("type") else {})} for s in ch.get("series", [])]}
                                for ch in sh["charts"]],
+                    "images": [{"id": im.get("id"), "at": A.a1(im["anchor"].get("r", 0), im["anchor"].get("c", 0)),
+                                "width": im["anchor"].get("w"), "height": im["anchor"].get("h"), "format": im.get("format")}
+                               for im in sh.get("images") or []],
                     "pivots": [{"name": p["name"], "range": p["ref"], "source": p.get("source"), "rows": p.get("rows", []),
                                 "cols": p.get("cols", []), "values": [f"{v['fn']}({v['field']})" for v in p.get("values", [])],
                                 "filters": p.get("filters", [])} for p in sh.get("pivots") or []]}
