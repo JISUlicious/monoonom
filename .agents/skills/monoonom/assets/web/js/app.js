@@ -1003,15 +1003,15 @@ class App {
     if (this.editor.active && !this.editor.commit()) return false;
     const wb = this.doc.wb;
     if (!wb.path) return this.saveAs();
-    // .xls is read-only: the server saves it as NAME.xlsx (and asks before replacing an existing one)
-    return this.writeTo(wb.path, wb.format, wb.format !== 'xls');
+    // .xls / .csv: the server saves the workbook as NAME.xlsx (and asks before replacing an existing one)
+    return this.writeTo(wb.path, wb.format === 'csv' ? 'xlsx' : wb.format, wb.format !== 'xls' && wb.format !== 'csv');
   }
 
   async saveAs() {
     if (this.editor.active && !this.editor.commit()) return false;
     const wb = this.doc.wb;
     const startDir = wb.path ? wb.path.replace(/[\\/][^\\/]*$/, '') : null;
-    const res = await D.fileDialog({ mode: 'save', name: wb.name.replace(/\.(xlsx|xlsm|xls)$/i, ''), format: wb.format, startDir });
+    const res = await D.fileDialog({ mode: 'save', name: wb.name.replace(/\.(xlsx|xlsm|xls|csv|tsv)$/i, ''), format: wb.format, startDir });
     if (!res) return false;
     return this.writeTo(res.path, res.format, false);
   }
@@ -1032,7 +1032,7 @@ class App {
           const changed = /changed on disk/.test(e.raw || '');
           const target = e.data?.targetName || path.split(/[\\/]/).pop();
           const msg = changed ? t('{error}\nOverwrite it anyway?', { error: e.message })
-            : e.data?.converted ? t("An xls file is saved as {format}. '{target}' already exists. Do you want to replace it?", { format: e.data.format || 'xlsx', target })
+            : e.data?.converted ? t("A {ext} file is saved as {format}. '{target}' already exists. Do you want to replace it?", { ext: (/\.\w+$/.exec(wb.path || '') || ['.xls'])[0], format: e.data.format || 'xlsx', target })
               : t("'{target}' already exists. Do you want to replace it?", { target });
           const ans = await D.confirmBox(msg, { yes: t('Replace'), no: t('No') });
           if (ans !== 'yes') return false;

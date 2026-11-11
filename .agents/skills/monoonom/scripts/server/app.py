@@ -26,7 +26,7 @@ from .units import DEFAULT_COL_PX, DEFAULT_ROW_PX
 SKILL_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STATIC_DIR = os.path.join(SKILL_DIR, "assets", "web")
 VERSION = "0.2.0"
-EXTS = {".xlsx": "xlsx", ".xlsm": "xlsm", ".xls": "xls"}
+EXTS = {".xlsx": "xlsx", ".xlsm": "xlsm", ".xls": "xls", ".csv": "csv", ".tsv": "csv"}
 
 
 class Config:
@@ -63,7 +63,7 @@ def _norm(path: str) -> str:
 def _fmt_of(path: str) -> str:
     ext = os.path.splitext(path)[1].lower()
     if ext not in EXTS:
-        raise ApiError(400, "Only xlsx / xlsm / xls files are supported.")
+        raise ApiError(400, "Only xlsx / xlsm / xls / csv / tsv files are supported.")
     return EXTS[ext]
 
 
@@ -134,6 +134,9 @@ def read_workbook(path: str) -> dict:
             raise ApiError(422, "Opening .xls files needs the Python package xlrd: "
                                 "python -m pip install -r scripts/requirements.txt (in the skill folder)")
         model = read_xls(data)
+    elif fmt == "csv":
+        from .csv_io import read_csv
+        model = read_csv(data, path)
     else:
         from .xlsx_io import read_xlsx
         if data[:2] != b"PK":
@@ -153,12 +156,12 @@ def xlsx_target(path: str, fmt: str | None) -> tuple[str, str, bool]:
     fmt = (fmt or "").lower() or None
     root, ext = os.path.splitext(path)
     ext = ext.lower()
-    if ext == ".xls":
+    if ext in (".xls", ".csv", ".tsv"):  # a CSV keeps one sheet of values: save the workbook as .xlsx
         new = fmt if fmt in ("xlsx", "xlsm") else "xlsx"
         return root + "." + new, new, True
     if ext in (".xlsx", ".xlsm"):
         return path, ext[1:], False  # the extension decides; a stale client may still send 'xls'
-    if fmt == "xls":
+    if fmt in ("xls", "csv"):
         return path + ".xlsx", "xlsx", True
     return path, fmt, False
 
@@ -169,6 +172,11 @@ def write_workbook(path: str, fmt: str, model: dict, base: str | None) -> list[s
     if fmt == "xls" or path.lower().endswith(".xls"):
         # .xls is read-only (see xls_io); callers convert the target with xlsx_target() first
         raise ApiError(400, "Files are not saved as xls. Save as .xlsx.")
+    if fmt == "csv" or path.lower().endswith((".csv", ".tsv")):  # only on an explicit save as .csv
+        from .csv_io import write_csv
+        data, warns = write_csv(model, path)
+        fileio.write_bytes(path, data)
+        return warns
     from .xlsx_io import write_xlsx
     base_bytes = None
     if base and os.path.isfile(base) and EXTS.get(os.path.splitext(base)[1].lower()) in ("xlsx", "xlsm"):

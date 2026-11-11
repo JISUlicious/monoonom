@@ -176,8 +176,13 @@ def r_save_doc(h, m, q, body):
     fmt = body.get("format") or _fmt_of(path)
     if os.path.splitext(path)[1].lower() not in EXTS:
         path += "." + fmt
-    path, fmt, converted = xlsx_target(path, fmt)
+    same_path = bool(doc.path) and os.path.normcase(path) == os.path.normcase(doc.path)
+    if path.lower().endswith((".csv", ".tsv")) and (body.get("format") == "csv" or (body.get("path") and not same_path)):
+        fmt, converted = "csv", False  # asked for (Save As CSV, `save --as x.csv`): the active sheet's values (csv_io)
+    else:
+        path, fmt, converted = xlsx_target(path, fmt)  # a document read from .xls / .csv is saved as .xlsx
     from_xls = doc.format == "xls"
+    from_ext = os.path.splitext(doc.path or "")[1].lower()
     if not os.path.isdir(os.path.dirname(path)):
         raise ApiError(404, "The folder to save in does not exist.")
     same = doc.path and os.path.normcase(path) == os.path.normcase(doc.path)
@@ -185,7 +190,7 @@ def r_save_doc(h, m, q, body):
         if not same and not body.get("overwrite"):
             name = os.path.basename(path)
             err = ApiError(409, f"'{name}' already exists." + (
-                f" An xls file is saved as {fmt}, which would overwrite that file. Save under another name to keep it." if converted else ""))
+                f" A {from_ext or '.xls'} file is saved as {fmt}, which would overwrite that file. Save under another name to keep it." if converted else ""))
             err.extra = {"target": path, "targetName": name, "converted": converted, "format": fmt}
             raise err
         if same and doc.file_sig and doc.file_sig != _sig(path) and not body.get("force"):
@@ -201,7 +206,10 @@ def r_save_doc(h, m, q, body):
     calc = ensure_calc(doc, wait=2.0)
     warns = write_workbook(path, fmt, {**doc.file_model(), "media": doc.media}, doc.base_path)
     note = []
-    if converted:
+    if converted and from_ext in (".csv", ".tsv"):
+        note.append(f"A CSV file holds one sheet of values, so this was saved as '{os.path.basename(path)}' ({fmt}) with formulas and "
+                    f"formatting. The original {from_ext} is unchanged; save as a .csv name to write values only.")
+    elif converted:
         note.append(f"Files are not saved as xls, so this was saved as '{os.path.basename(path)}' ({fmt}). The original .xls is unchanged.")
     if from_xls:  # also for an explicit `--as new.xlsx` / Save As from a document read from .xls
         note.append("Formulas read from xls were saved as their computed values only (xlrd cannot read xls formula text). "

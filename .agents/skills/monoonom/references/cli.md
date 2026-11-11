@@ -28,7 +28,7 @@ and most accept `--json`.
 
 | Command | Notes |
 |---|---|
-| `ls [DIR]` | Excel files and folders. |
+| `ls [DIR]` | Excel, CSV and TSV files and folders. |
 | `open PATH` | Opens (or reuses) a workbook and shows it in every preview window (an already open one is brought to the front; a window where the user is typing only marks the tab). |
 | `new [--name N] [--lang en\|ko]` | New blank workbook (needs `save --as` later). Default name and body font as Excel in that language: Book1.xlsx / Calibri, or the Korean ones with `--lang ko`. |
 | `docs` | Open workbooks: id, version, unsaved flag, number of preview windows. |
@@ -38,6 +38,13 @@ and most accept `--json`.
 xlsx saving keeps parts the editor does not show (conditional formatting, data validation, images,
 VBA in .xlsm). `.xls` files are read-only: `save` writes `NAME.xlsx` next to the `.xls` (which stays
 unchanged) and the document then points to the `.xlsx`; `--as x.xls` is also saved as `x.xlsx`.
+
+`.csv` / `.tsv` files open as one sheet named after the file. The encoding is detected (UTF-8 with or
+without BOM, then CP949, then Latin-1) and so is the delimiter (`,` `;` tab `|`; `.tsv` is tab).
+Values are read as typing them would be: numbers, dates, percents and currency become numbers with a
+format, `=` starts a formula. A plain `save` writes `NAME.xlsx` (formulas and formatting kept) and
+leaves the `.csv` unchanged. `save --as x.csv` (or `x.tsv`) writes only the active sheet's values
+(formula results, dates as yyyy-mm-dd) in UTF-8 with a BOM, and warns what was left out.
 
 ## Reading
 
