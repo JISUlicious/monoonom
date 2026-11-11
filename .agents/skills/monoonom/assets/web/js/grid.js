@@ -725,7 +725,7 @@ export class Grid {
       case 'cell': {
         if (e.ctrlKey || e.metaKey) {
           const cell = this.sheet.get(h.r, h.c);
-          if (cell?.h) { window.open(cell.h, '_blank', 'noopener'); return; }
+          if (cell?.h) { this.app.openLink(cell.h); return; }
         }
         if (e.shiftKey) this.app.extendTo(h.r, h.c);
         else this.app.select(h.r, h.c);

@@ -217,6 +217,14 @@ def api_new(_body):
 
 ROUTES: list = []  # (method, compiled regex, handler, opts)
 
+# The page may load and contact only this server: the browser blocks any request elsewhere (fetch,
+# scripts, images, fonts, forms), so workbook data cannot leave through the page. Inline styles are
+# allowed (the grid and dialogs set them); no inline scripts or eval. Framing is not restricted: the
+# agent app shows the page in its preview pane.
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; "
+       "font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; "
+       "form-action 'none'")
+
 
 def _agent_saw(path: str, res) -> None:
     """After an agent (CLI) request on a document: the version it has now seen. The next edit reports
@@ -432,6 +440,8 @@ class Handler(BaseHTTPRequestHandler):
         if ctype.startswith("text/") or ctype == "application/javascript":
             ctype += "; charset=utf-8"
         extra = {}
+        if path == "/index.html":
+            extra["Content-Security-Policy"] = CSP
         if path == "/index.html" and Config.token:
             extra["Set-Cookie"] = f"{self.cookie_name()}={Config.token}; Path=/; HttpOnly; SameSite=Strict"
         with open(full, "rb") as fh:

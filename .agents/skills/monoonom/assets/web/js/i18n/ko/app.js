@@ -71,6 +71,7 @@ export default {
   "The browser may take some keys first (Ctrl+N, Ctrl+W, Ctrl+Tab, Ctrl+PgUp/PgDn, ...). Most work in the agent preview pane or an app-mode window.": "일부 키(Ctrl+N, Ctrl+W, Ctrl+Tab, Ctrl+PgUp/PgDn 등)는 브라우저가 먼저 가로챌 수 있습니다. 에이전트 미리보기 창이나 앱 모드 창에서는 대부분 동작합니다.",
   "Print from Excel instead of the browser (Ctrl+P is blocked).": "인쇄는 브라우저 인쇄(Ctrl+P는 차단됨) 대신 Excel에서 수행하세요.",
   "Invalid reference.": "잘못된 참조입니다.",
+  "This link was not opened: only web (http, https) and mail links open from here. {link}": "이 링크는 열지 않았습니다. 여기서는 웹(http, https)과 메일 링크만 엽니다. {link}",
   "No such sheet.": "시트가 없습니다.",
   "For DRM protection, files are opened through the server (Python) with [Open] (Ctrl+O).": "DRM 보호를 위해 파일은 [열기] (Ctrl+O)로 서버(Python)를 통해 엽니다.",
   "Cannot connect to the server: {error}. Reload the page.": "서버에 연결할 수 없습니다: {error}. 페이지를 새로 고치세요.",

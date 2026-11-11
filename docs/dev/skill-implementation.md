@@ -985,3 +985,13 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 **알리는 범위**: `/edit`를 거치는 명령(write, fill, format, apply, chart, image 등). `undo`·`pivot refresh`·`save`는 알리지 않는다. 덮어쓰기 판정은 셀 값 변경(`setCells`) 기준이며, 시트 메타(차트·서식 범위 등) 변경은 `note:`에만 나온다.
 
 **검증**: `tests/user_changes.test.py` 9개 — 사용자 변경 없음 → 알림 없음, 범위·셀 수 알림, 한 번만 알림, 읽기 뒤에는 알림 없음, 덮어쓰기 경고, 많은 변경은 6줄로 줄임, `--json`, 미리보기 요청에는 알림 없음.
+
+## 외부 전송 점검과 차단 (2026-11-11)
+**점검**: 패키지 코드에서 외부 URL, 네트워크 호출(urllib·socket·fetch·EventSource·sendBeacon), 서버 바인딩, 외부 프로그램 실행, 브라우저 외부 리소스(`<script>`·`<link>`·CSS `url()`), 웹 함수(WEBSERVICE 등)를 찾았다. 외부로 보내는 코드는 없었다. 서버는 `127.0.0.1`, CLI는 그 서버만, Chart.js는 패키지에 포함(외부 주소는 라이선스 주석), 외부 프로그램은 Node 계산 작업자(표준 입력)뿐. 외부와 닿는 지점은 셀 링크 Ctrl+클릭(스킴 검사 없음, Referer 전송), 에이전트 모델로 가는 읽기 출력, 설치 시 다운로드, 사용자가 설정한 DRM 훅이었다.
+
+**바꾼 것**:
+- 페이지(`index.html`) 응답에 CSP(`app.CSP`): `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'`. 인라인 스타일은 그리드·대화상자가 쓰므로 허용, 인라인 스크립트·eval은 없음. 미리보기 창이 iframe으로 보여 주므로 `frame-ancestors`는 두지 않았다.
+- 링크(`app.openLink`): `#위치`는 이름 상자와 같은 `goToRef`로 이동(전에는 같은 페이지를 새 탭으로 열었다), `http`·`https`·`mailto`만 `noopener,noreferrer`로 열기, 나머지는 열지 않고 알림.
+- 보안 가이드(en/ko)에 "네트워크" 절.
+
+**검증**: `tests/no_outbound.e2e.cjs` 9개 — CSP 헤더, 한 세션(수식·차트·그림 붙여넣기·저장)이 정책 아래에서 동작하고 위반·외부 요청 0건(모든 요청을 가로채 기록), 페이지에서 외부로 `fetch`·이미지 요청 시 CSP가 막음(`connect-src`·`img-src` 위반), 링크 4종(web·통합 문서 위치·`javascript:`/`file:`·mailto). 음성 대조: CSP를 빼면 CSP 항목 2개가 실패하고 외부 요청이 실제로 나가려 한다.
