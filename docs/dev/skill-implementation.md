@@ -945,3 +945,11 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 **검증**: `tests/images.e2e.cjs` 12개 — 파일의 그림 표시(60×40), 그림만 붙여넣기(E10, 120×80, 선택, 한국어 상태 표시줄, 에이전트 `image ls`), 글자+그림은 셀로, 끌어서 이동(G12)·모서리로 크기(180×90), Delete·Ctrl+Z, 저장 파일의 두 그림 위치·크기, 행 2개 삽입 뒤 이동. CLI로 추가·이동·크기·작업 폴더 밖 경로 거부·BMP→PNG를 확인했다. 전체 테스트 통과. 화면: [image-paste.png](images/image-paste.png)
 
 ![image-paste.png](images/image-paste.png)
+
+## 수식 지시 보강 (2026-11-11)
+**점검**: SKILL.md의 "Analysis and data processing: in the workbook, with formulas" 절이 계산·요약을 Excel 수식으로 하라고 지시하고, 실측(데이터 분석 7종)에서도 "수식으로"라고 하지 않은 작업(상위 10, 이상치)까지 결과가 수식이었다. 다만 상위 N에 `SORT`를 권하고 있었다. 이 엔진은 동적 배열 결과를 펼치지 않고(왼쪽 위 값만 표시), 저장도 동적 배열 표시(`cm` 속성, `metadata.xml`) 없이 일반 수식으로 한다(`<f>_xlfn._xlws.SORT(B2:B7)</f>` 확인). Excel에서도 한 칸 값만 보일 가능성이 크다(Excel에서는 미확인).
+
+**바꾼 것**(SKILL.md):
+- 동적 배열 함수(`UNIQUE`, `SORT`, `SORTBY`, `FILTER`, `SEQUENCE`)를 쓰지 않는다. 상위 N은 `LARGE`/`SMALL`과 `INDEX`/`MATCH`, 고유 키 목록은 읽어서 값으로 쓰고 옆에 `SUMIFS`/`COUNTIFS`.
+- 사용자가 바꿀 만한 상수(기준값, 구간 경계, 비율, 목표)는 라벨 붙은 입력 셀에 두고 참조한다.
+- 마무리 전에 `read --what formulas`로 다른 셀에서 계산되는 값이 수식인지 확인한다.

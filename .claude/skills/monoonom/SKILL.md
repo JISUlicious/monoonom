@@ -73,12 +73,20 @@ values in.
 
 - Aggregates and summaries: `SUMIFS`, `COUNTIFS`, `AVERAGEIFS`, `MAXIFS`/`MINIFS`, `SUMPRODUCT`;
   a summary table = a column of unique keys plus `SUMIFS` next to it (`fill` copies the formula down).
-- Lookups and joins: `XLOOKUP` (or `INDEX`/`MATCH`); ranking and top-N: `RANK.EQ`, `LARGE`/`SMALL`, `SORT`.
+- Lookups and joins: `XLOOKUP` (or `INDEX`/`MATCH`); ranking and top-N: `RANK.EQ`, `LARGE`/`SMALL`
+  with `INDEX`/`MATCH` for the matching labels.
+- No dynamic-array functions (`UNIQUE`, `SORT`, `SORTBY`, `FILTER`, `SEQUENCE`): their results do not
+  spill here (only the top-left value shows) and are saved as single-cell formulas. For a list of
+  unique keys, `read` the column and write the keys as values, then `SUMIFS`/`COUNTIFS` next to them.
 - Cleaning and reshaping: `TRIM`, `CLEAN`, `UPPER`/`PROPER`, `SUBSTITUTE`, `LEFT`/`MID`/`RIGHT`,
   `TEXTBEFORE`/`TEXTAFTER`, `VALUE`/`DATEVALUE`, `IF`/`IFS`/`IFERROR`; add helper columns rather
   than overwriting the source data.
 - Write one formula with relative references and `fill` it over the range instead of writing each
   cell; then `read` a few result cells to check the values.
+- Put constants the user may want to change (thresholds, bin edges, rates, targets) in labelled
+  input cells and refer to them (`$B$1`) instead of typing them into formulas.
+- Before finishing, `read --what formulas` the result cells: anything derived from other cells must
+  be a formula, not a typed number.
 - Use only functions this engine calculates: `describe` reports unsupported ones, and a new formula
   with one shows `#NAME?` here (Excel still calculates it). Prefer a supported equivalent.
 - Python is the exception: only when Excel functions cannot express it (e.g. fetching external data,

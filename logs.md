@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-11: SKILL.md 수식 지시 보강 — 동적 배열 함수(UNIQUE·SORT·FILTER 등) 사용 금지(여기서는 펼쳐지지 않고 한 칸 수식으로 저장됨), 상수는 라벨 붙은 입력 셀로, 마무리 때 `read --what formulas`로 확인 (→ docs/dev/skill-implementation.md)
 - 2026-11-11: 그림 — 미리보기에 그림 붙여넣기, 파일의 그림 표시, 이동·크기·삭제·실행 취소, 실제 Excel 그림으로 저장, `xl.py image add|ls|set|rm`. Pillow를 필수로(없으면 openpyxl이 파일의 그림을 저장 때 버리던 문제) (→ docs/dev/skill-implementation.md)
 - 2026-11-06: 데이터 분석 7종 실측(Sonnet) — 결과 값·원본 무결성 모두 정상, 도구 호출 작업당 2~7회. 발견한 오류 수정: 에이전트가 만든 차트가 수식으로 만든 레이블 열(=TEXT…)을 계열로 잡던 문제(수식 값을 0으로 봄, 편집 전에 계산 안 함) (→ docs/dev/skill-implementation.md)
 - 2026-11-06: 피벗 차트 3단계(만들기) — `xl.py chart add --pivot NAME`, 삽입 → 피벗 차트·피벗 오른쪽 클릭 메뉴. 계열은 피벗의 데이터 열, 항목은 행 항목(총합계 제외), `pivotSource`는 저장 파일 이름으로. 행 필드 하나인 피벗만, 분산형 거부 (→ docs/dev/skill-implementation.md)
