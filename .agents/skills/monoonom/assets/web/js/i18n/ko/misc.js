@@ -1,6 +1,14 @@
 // Korean text for misc modules (numfmt, formula, model, filter, charts, grid, docsync, clipboard,
 // editor, combo): English key -> Korean.
 export default {
+  "Delete Picture": "그림 삭제",
+  "Reset Picture Size": "그림 원래 크기로",
+  "Move Picture": "그림 이동",
+  "Resize Picture": "그림 크기 조정",
+  "Picture Order": "그림 순서",
+  "Paste Picture": "그림 붙여넣기",
+  "Pictures up to 10 MB can be pasted.": "10MB까지의 그림만 붙여넣을 수 있습니다.",
+  "Picture pasted ({w} × {h} px). Drag to move; drag a corner to resize (Shift keeps the shape).": "그림을 붙여넣었습니다({w} × {h} px). 끌어서 옮기고, 모서리를 끌어 크기를 바꿉니다(Shift: 비율 유지).",
   "This is a pivot chart of '{name}': its data comes from the pivot table. Change the pivot table's fields instead.": "피벗 테이블 '{name}'의 피벗 차트입니다. 데이터는 피벗 테이블에서 오므로 피벗 테이블의 필드를 바꾸세요.",
   "Pivot chart of '{name}': its data comes from the pivot table.": "피벗 테이블 '{name}'의 피벗 차트: 데이터는 피벗 테이블에서 옵니다.",
   "General": "일반",

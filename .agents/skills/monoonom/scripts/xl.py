@@ -47,9 +47,10 @@ def install_hint() -> str:
 
 
 def check_deps(quiet=False) -> dict:
-    """openpyxl is required (xlsx/xlsm); xlrd is optional (.xls). Raises CliError(EXIT_DEPS) if openpyxl is missing."""
+    """openpyxl and Pillow are required (xlsx/xlsm; openpyxl drops a file's pictures without Pillow);
+    xlrd is optional (.xls). Raises CliError(EXIT_DEPS) if a required one is missing."""
     found = {}
-    for name in ("openpyxl", "xlrd"):
+    for name in ("openpyxl", "PIL", "xlrd"):
         try:
             mod = __import__(name)
             found[name] = getattr(mod, "__version__", "?")
@@ -57,6 +58,9 @@ def check_deps(quiet=False) -> dict:
             found[name] = None
     if not found["openpyxl"]:
         raise CliError("The Python package openpyxl is missing. Install it and run again:\n  " + install_hint(), EXIT_DEPS)
+    if not found["PIL"]:
+        raise CliError("The Python package Pillow is missing (without it, pictures in workbooks would be lost when saving). "
+                       "Install it and run again:\n  " + install_hint(), EXIT_DEPS)
     if not quiet:
         if not found["openpyxl"].startswith("3.1."):
             print(f"warning: openpyxl {found['openpyxl']} is not the tested 3.1.x. If something breaks: {install_hint()}")

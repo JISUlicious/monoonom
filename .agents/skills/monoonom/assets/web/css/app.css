@@ -96,6 +96,8 @@ body.painting .grid-scroller { cursor: copy !important; }
 .cell-editor.idle { opacity: 0; pointer-events: none; border: 0; box-shadow: none; padding: 0; width: 2px !important; min-width: 0 !important; min-height: 0 !important; }
 .chart-box { position: absolute; background: #fff; border: 1px solid #d9d9d9; box-sizing: border-box; cursor: move; }
 .chart-box canvas { display: block; }
+.image-box { background: transparent; border: 0; }
+.image-box img { display: block; width: 100%; height: 100%; object-fit: fill; user-select: none; pointer-events: none; }
 .chart-box.selected { outline: 2px solid var(--accent); outline-offset: 0; }
 .ch-handle { position: absolute; width: 9px; height: 9px; background: #fff; border: 1px solid var(--accent); display: none; }
 .chart-box.selected .ch-handle { display: block; }

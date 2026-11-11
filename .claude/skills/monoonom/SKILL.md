@@ -106,6 +106,7 @@ values in.
 | Notes, links, autofit | `xl.py comment B2 'Check'`, `xl.py link A1 https://… --text Site`, `xl.py autofit A:F` |
 | Format copy, decimals | `xl.py format-copy A1:F1 A20:F20`, `xl.py decimals B2:B9 +1` |
 | Sheets | `xl.py sheet add Summary`, `rename Old New`, `rm`, `copy`, `move Name 1`, `hide`/`unhide`, `color Name #FF0000`, `gridlines Name off` |
+| Pictures | `xl.py image add logo.png --at H2 [--width 200]` (a picture file in the workspace; the user can also paste pictures in the preview), `image ls`, `image set ID --at B20 --width 300`, `image rm ID` |
 | Charts | `xl.py chart add 'A1:C13' --type line --title 'Monthly' --at H2`, `chart set ID --title … --to-type bar --data A1:D13` (`--switch` swaps rows/columns), `chart ls`, `chart rm ID`. Chart ids change whenever the file is reopened or the server restarts: run `chart ls` before `chart set/rm` instead of reusing an older id |
 | Preview URL (with token) | `xl.py url` |
 | Show the user something | `xl.py goto 'Sheet2!B10'` (moves the preview), `xl.py view --zoom 150 --formulas` |

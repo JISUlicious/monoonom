@@ -8,6 +8,7 @@ import { Editor } from './editor.js';
 import { Clipboard } from './clipboard.js';
 import { Filters } from './filter.js';
 import { ChartLayer } from './charts.js';
+import { ImageLayer } from './images.js';
 import { DocSync, EventStream } from './docsync.js';
 import { api, hasToken, tokenFragment } from './api.js';
 import { geom } from './geometry.js';
@@ -59,6 +60,7 @@ class App {
     this.clipboard = new Clipboard(this);
     this.filters = new Filters(this);
     this.charts = new ChartLayer(this, this.grid);
+    this.images = new ImageLayer(this, this.grid);
     this.clientId = newId('c');
     this.stream = new EventStream(this);
     this.lastAction = null;
@@ -1353,7 +1355,8 @@ class App {
     if (this.editor.active) return; // editor handles its own keys
     if (this.painter && k === 'Escape') { this.painter = null; document.body.classList.remove('painting'); this.setStatus(''); return; }
     if (this.charts.selected && (k === 'Delete' || k === 'Backspace')) return go(() => this.charts.remove(this.charts.selected));
-    if (k === 'Escape') { this.clipboard.clear(); this.charts.deselect(); return; }
+    if (this.images.selected && (k === 'Delete' || k === 'Backspace')) return go(() => this.images.remove(this.images.selected));
+    if (k === 'Escape') { this.clipboard.clear(); this.charts.deselect(); this.images.deselect(); return; }
     const v = this.view();
     const arrows = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
     if (alt && k === 'ArrowDown') {

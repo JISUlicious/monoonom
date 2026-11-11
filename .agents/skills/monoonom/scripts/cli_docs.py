@@ -161,6 +161,8 @@ def cmd_describe(args):
         for ch in sh["charts"]:
             print(f"  chart {ch['id']}: {ch['type']} '{ch['title'] or ''}' @{ch['at']}  data {', '.join(x or '' for x in ch['data'])}"
                   + (f"  (pivot chart of '{ch['pivot']}')" if ch.get("pivot") else ""))
+        for im in sh.get("images", []):
+            print(f"  image {im['id']}: {im['format']} @{im['at']}  {im['width']}x{im['height']} px")
     if res["definedNames"]:
         print("\nDefined names: " + ", ".join(f"{k}={v}" for k, v in res["definedNames"].items()))
     return 0
@@ -348,6 +350,31 @@ def cmd_pivot(args):
         print("  note: " + n)
     if res.get("batchId"):
         print(f"v{res['version']}  batch={res['batchId']}  (undo: xl.py undo {res['batchId']})")
+    return 0
+
+
+def cmd_image(args):
+    if args.action == "add":
+        if not args.target:
+            raise CliError("Usage: image add PATH [--at CELL] [--width PX] [--height PX] [--sheet S]", EXIT_USAGE)
+        e = {"op": "image", "path": args.target, "at": args.at, "sheet": args.sheet, "width": args.width, "height": args.height}
+        return edit(args, [{k: v for k, v in e.items() if v is not None}])
+    if args.action == "rm":
+        return edit(args, [{"op": "deleteImage", "id": args.target, "sheet": args.sheet}])
+    if args.action == "set":
+        st = {k: v for k, v in (("at", args.at), ("width", args.width), ("height", args.height)) if v is not None}
+        return edit(args, [{"op": "imageUpdate", "id": args.target, "sheet": args.sheet, "set": st}])
+    st, d = ctx(args)
+    res = request(st, "GET", f"/api/docs/{d['docId']}/describe")
+    if args.json:
+        return out_json([{"sheet": sh["name"], **im} for sh in res["sheets"] for im in sh.get("images", [])])
+    n = 0
+    for sh in res["sheets"]:
+        for im in sh.get("images", []):
+            n += 1
+            print(f"{sh['name']}  {im['id']}  {im['format']}  @{im['at']}  {im['width']}x{im['height']} px")
+    if not n:
+        print("No images.")
     return 0
 
 
@@ -628,6 +655,10 @@ def register(sub):
     p.add_argument("--title"); p.add_argument("--at", help="top-left cell"); p.add_argument("--sheet"); p.add_argument("--legend")
     p.add_argument("--width", type=int); p.add_argument("--height", type=int)
     p.add_argument("--pivot", help="add: a pivot chart of this pivot table (its data, linked to it); --sheet: the pivot's sheet if names repeat")
+    p = add("image", cmd_image, "pictures: add PATH [--at CELL] [--width PX] | ls | set ID --at/--width/--height | rm ID")
+    p.add_argument("action", choices=["add", "ls", "set", "rm"]); p.add_argument("target", nargs="?", help="add: picture file (png, jpg, gif, bmp, …); set/rm: image id")
+    p.add_argument("--at", help="top-left cell, e.g. B2 or 'Sheet!B2'"); p.add_argument("--sheet")
+    p.add_argument("--width", type=int, help="pixels (height follows unless given)"); p.add_argument("--height", type=int)
     for name in ("rows", "cols"):
         p = add(name, cmd_rows_cols, "insert / delete rows (e.g. rows insert 5 --count 2, rows delete 5:7)" if name == "rows" else "insert / delete columns (e.g. cols insert C, cols delete C:D)")
         p.add_argument("action", choices=["insert", "delete"]); p.add_argument("at", help="5 / 5:7" if name == "rows" else "C / C:D")

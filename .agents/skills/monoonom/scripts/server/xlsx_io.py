@@ -7,6 +7,7 @@ validation, images, print settings, defined names, VBA in .xlsm …) survive the
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import io
 import re
 import warnings
@@ -23,6 +24,7 @@ from openpyxl.drawing.line import LineProperties
 from openpyxl.chart import Series  # SeriesFactory
 from openpyxl.chart.series import SeriesLabel
 from openpyxl.comments import Comment
+from openpyxl.drawing.image import Image as XLImage
 from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
 from openpyxl.drawing.xdr import XDRPositiveSize2D
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -244,6 +246,25 @@ def _series_color(s, stype, theme):
     else:
         c = colors.drawing_color(getattr(gp, "solidFill", None), theme) if gp is not None else None
     return "#" + c if c else None
+
+
+def media_key(data: bytes) -> str:
+    return hashlib.sha1(data).hexdigest()[:16]
+
+
+def _image_model(im, idx, geom, media):
+    """A picture in the file -> {"orig", "media", "format", "anchor"}; its bytes go to media[key]."""
+    data = im._data()
+    key = media_key(data)
+    media[key] = data
+    a = im.anchor
+    if isinstance(a, str):  # "C3": a one-cell anchor at that cell with the picture's own size
+        from openpyxl.utils.cell import coordinate_to_tuple
+        r, c = coordinate_to_tuple(a)
+        anchor = {"c": c - 1, "r": r - 1, "dx": 0, "dy": 0, "w": int(im.width), "h": int(im.height)}
+    else:
+        anchor = _anchor_model(a, geom)
+    return {"orig": idx, "media": key, "format": im.format, "anchor": anchor}
 
 
 def pivot_chart_source(chart):
@@ -565,6 +586,7 @@ def _create_pivot(wb, ws, pm):
 
 def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
     wb = load_workbook(io.BytesIO(data), data_only=False, keep_vba=keep_vba)
+    media: dict = {}  # picture bytes by key, for the sheets' "images"
     try:
         wbv = load_workbook(io.BytesIO(data), data_only=True, read_only=False)
     except Exception:
@@ -677,8 +699,12 @@ def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
         if pivots:
             warn.append(f"Pivot tables on sheet '{ws.title}' ({', '.join(p['name'] for p in pivots)}) are kept and their areas cannot be edited. "
                         "When the source data changes, Excel refreshes them when it opens the file.")
-        if getattr(ws, "_images", None):
-            warn.append(f"Images on sheet '{ws.title}' are not shown but are kept when saving.")
+        images = []
+        for i, im in enumerate(getattr(ws, "_images", None) or []):
+            try:
+                images.append(_image_model(im, i, geom, media))
+            except Exception as exc:  # pragma: no cover
+                warn.append(f"Could not read an image on sheet '{ws.title}': {exc}")
         if ws.conditional_formatting:
             warn.append(f"Conditional formatting on sheet '{ws.title}' is not shown but is kept when saving.")
 
@@ -698,6 +724,7 @@ def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
             "autoFilter": _filter_model(ws.auto_filter),
             "charts": charts,
             "pivots": pivots,
+            "images": images,
             "showGrid": ws.sheet_view.showGridLines is not False,
         })
 
@@ -717,7 +744,7 @@ def read_xlsx(data: bytes, keep_vba: bool = False) -> dict:
     if wb.chartsheets:
         warn.append("Chart sheets are not shown but are kept when saving.")
     active = wb.worksheets.index(wb.active) if wb.active in wb.worksheets else 0
-    return {"sheets": sheets, "styles": styles, "activeSheet": active,
+    return {"sheets": sheets, "styles": styles, "activeSheet": active, "media": media,
             "definedNames": names, "warnings": warn, "themeColors": theme,
             "defaultFont": {"name": default_font[0], "size": default_font[1]}}
 
@@ -1033,6 +1060,7 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
 
     for ws, sm in ordered:
         orig_charts = list(getattr(ws, "_charts", []))
+        orig_images = list(getattr(ws, "_images", None) or [])
         ws._cells.clear()
         ws._hyperlinks = []
         ws.merged_cells = MultiCellRange()
@@ -1114,6 +1142,21 @@ def write_xlsx(model: dict, base: bytes | None = None, keep_vba: bool = False) -
             ch.anchor = _anchor(cm.get("anchor", {}))
             new_charts.append(ch)
         ws._charts = new_charts
+        new_images = []
+        for im in sm.get("images", []):
+            o = im.get("orig")
+            if isinstance(o, int) and 0 <= o < len(orig_images) and not im.get("dirty"):
+                pic = orig_images[o]  # the file's picture as is (moved or resized only through its anchor)
+            else:
+                data = (model.get("media") or {}).get(im.get("media"))
+                if data is None:
+                    continue  # bytes not available (should not happen): leave it out rather than fail the save
+                pic = XLImage(io.BytesIO(data))
+            a = im.get("anchor", {})
+            pic.anchor = _anchor(a)
+            pic.width, pic.height = int(a.get("w", pic.width)), int(a.get("h", pic.height))
+            new_images.append(pic)
+        ws._images = new_images
         _write_pivots(ws, sm, model["sheets"])
 
     active = model.get("activeSheet", 0)

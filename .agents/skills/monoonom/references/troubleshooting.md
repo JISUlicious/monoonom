@@ -1,8 +1,8 @@
 # Troubleshooting
 
-## "The Python package openpyxl is missing" / exit code 6
+## "The Python package openpyxl is missing" / "Pillow is missing" / exit code 6
 The Python packages are not bundled. Install them for the same Python that runs `xl.py`:
-`python -m pip install -r scripts/requirements.txt` (openpyxl required; xlrd only for `.xls`). Offline PCs:
+`python -m pip install -r scripts/requirements.txt` (openpyxl and Pillow required; xlrd only for `.xls`). Without Pillow, openpyxl drops a workbook's pictures, so `xl.py` refuses to start. Offline PCs:
 on a connected machine run `pip download -r scripts/requirements.txt -d wheels`, copy `wheels/`, then
 `pip install --no-index --find-links wheels -r scripts/requirements.txt`. If `.xls` files fail to open
 with "Opening .xls files needs the Python package xlrd", only xlrd is missing.

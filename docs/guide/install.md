@@ -4,16 +4,16 @@
 
 ## Requirements
 
-- **Python 3.9+** with `openpyxl` (required) and `xlrd` (only to open `.xls`).
+- **Python 3.9+** with `openpyxl` and `Pillow` (required; openpyxl needs Pillow to keep a workbook's pictures) and `xlrd` (only to open `.xls`).
 - Optional: **Node.js 18+**, so formulas are also computed when no preview is open.
 - The agent must run on the **same computer** (the preview connects to `localhost`). Agents running in the cloud and the Skills API cannot use it.
 
 ```bash
-python3 -m pip install openpyxl xlrd
+python3 -m pip install openpyxl pillow xlrd
 ```
 
-Offline computers: on a connected one run `pip download openpyxl xlrd -d wheels`, copy `wheels/`, then
-`pip install --no-index --find-links wheels openpyxl xlrd`. If a package is missing, `xl.py serve` prints the install command and exits with code 6.
+Offline computers: on a connected one run `pip download openpyxl pillow xlrd -d wheels`, copy `wheels/`, then
+`pip install --no-index --find-links wheels openpyxl pillow xlrd`. If a package is missing, `xl.py serve` prints the install command and exits with code 6.
 
 ## Claude Code: the plugin (recommended)
 

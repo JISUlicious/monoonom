@@ -165,6 +165,7 @@ export class Grid {
     }
     this.lastVisible = { r0: sr0, r1: sr1, c0: sc0, c1: sc1 };
     this.app.charts?.layout();
+    this.app.images?.layout();
     this.app.editor?.reposition();
   }
 
@@ -674,6 +675,7 @@ export class Grid {
     const h = this.hit(e.clientX, e.clientY);
     if (h.type === 'scrollbar') return;
     this.app.charts?.deselect();
+    this.app.images?.deselect();
     const ed = this.app.editor;
     // pointing mode: clicking cells while editing a formula inserts references
     // (Shift+click extends the reference at the caret, Ctrl/Cmd+click adds another one after a comma)

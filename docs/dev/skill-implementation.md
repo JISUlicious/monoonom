@@ -927,3 +927,21 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 - 계산된 값으로 판정한다(같은 batch에서 방금 쓴 수식만 값이 없으므로 숫자로 본다). 차트를 만드는 편집 전에 `ensure_calc`로 계산을 최신으로 맞춘다.
 - 검증: `tests/chart_ids.test.py`에 재현 검사 추가(수정 전 실패, 수정 후 통과). 관련 테스트 9종 통과.
 - 실측에서 함께 본 것(그대로 둠): `sheet add` 뒤 시트 이름 없는 범위는 활성 시트로 간다(정해진 규칙). 에이전트가 원본 머리글을 덮어썼다가 스스로 되돌린 경우가 1번 있었다.
+
+## 그림: 붙여넣기·표시·저장 (2026-11-11)
+**먼저 찾은 문제**: openpyxl은 Pillow가 없으면 파일을 읽을 때 그림을 버린다(`openpyxl/reader/drawings.py`: "Pillow not installed, drop images"). 필수 패키지가 openpyxl뿐이라, Pillow가 없는 PC에서는 "그림은 표시하지 않지만 저장 시 보존"이라는 안내와 달리 저장하면 그림이 경고 없이 사라졌다(재현: `sys.modules["PIL"] = None`으로 읽고 저장 → `xl/media` 없음). Pillow를 `requirements.txt`의 필수로 올리고, `xl.py`가 없으면 종료 코드 6과 설치 명령을 낸다.
+
+**구조**(차트와 같은 방식):
+- 시트 메타 `images`: `[{id, media, format, anchor {c, r, dx, dy, w, h}, orig?, dirty?}]`. 그림 바이트는 문서의 `media`(내용 해시 키)에 서버만 갖고, 스냅숏으로 보내지 않는다.
+- 읽기(`xlsx_io._image_model`): 파일의 그림 → `orig`(순서), `media`, 위치는 차트와 같은 앵커 변환. 쓰기: 바뀌지 않은 그림은 원래 객체를 그대로 두고 앵커만 갱신, 새 그림은 바이트로 만든다(`openpyxl.drawing.image.Image`). 지운 그림은 빠진다.
+- API: `POST /api/docs/{id}/media {data: base64}` → Pillow로 확인(10MB까지, PNG·JPEG·GIF는 그대로, BMP·WebP 등은 PNG로 변환), `GET …/media/{key}`(미리보기가 토큰 헤더와 함께 받아 blob URL로 표시; `<img src>`는 헤더를 못 보냄).
+- 행·열 삽입·삭제 때 차트처럼 위치가 이동(서버 `structural_batch`, 미리보기 `model.js`).
+
+**미리보기**(`js/images.js`): 차트 레이어에 `<img>`로 그린다. 선택, 끌어서 이동, 모서리로 크기(Shift: 비율 유지), Delete, 오른쪽 클릭(삭제, 원래 크기, 순서). 모두 실행 취소되는 시트 메타 변경.
+- **붙여넣기 규칙**: 클립보드에 그림만 있으면(화면 캡처) 그림으로, 웹 페이지에서 복사한 그림(HTML이 `<img>` 하나)도 그림으로. 글자와 그림이 함께 있으면(Excel의 셀 복사는 셀 그림도 함께 넣는다) 셀로 붙여넣는다. 활성 셀 위치에 최대 640px 너비. 리본의 붙여넣기 단추는 브라우저가 허용하면 비동기 클립보드 API로 그림을 읽는다.
+
+**에이전트**: `xl.py image add PATH [--at] [--width] [--height] [--sheet]`(작업 폴더의 파일을 `fileio`로 읽음, DRM 훅 동일), `image ls`, `image set ID --at/--width/--height`, `image rm ID`. `describe`에 그림 목록.
+
+**검증**: `tests/images.e2e.cjs` 12개 — 파일의 그림 표시(60×40), 그림만 붙여넣기(E10, 120×80, 선택, 한국어 상태 표시줄, 에이전트 `image ls`), 글자+그림은 셀로, 끌어서 이동(G12)·모서리로 크기(180×90), Delete·Ctrl+Z, 저장 파일의 두 그림 위치·크기, 행 2개 삽입 뒤 이동. CLI로 추가·이동·크기·작업 폴더 밖 경로 거부·BMP→PNG를 확인했다. 전체 테스트 통과. 화면: [image-paste.png](images/image-paste.png)
+
+![image-paste.png](images/image-paste.png)
