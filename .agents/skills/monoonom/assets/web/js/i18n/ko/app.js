@@ -46,7 +46,7 @@ export default {
   "Opened ({sheets} sheets, calculated in {ms} ms)": "열기 완료 ({sheets}개 시트, 계산 {ms}ms)",
   "Cannot open the file: {error}": "파일을 열 수 없습니다: {error}",
   "{error}\nOverwrite it anyway?": "{error}\n그래도 덮어쓰시겠습니까?",
-  "An xls file is saved as {format}. '{target}' already exists. Do you want to replace it?": "xls 파일은 {format}로 저장됩니다. '{target}'이(가) 이미 있습니다. 바꾸시겠습니까?",
+  "A {ext} file is saved as {format}. '{target}' already exists. Do you want to replace it?": "{ext} 파일은 {format}로 저장됩니다. '{target}'이(가) 이미 있습니다. 바꾸시겠습니까?",
   "'{target}' already exists. Do you want to replace it?": "'{target}'이(가) 이미 있습니다. 바꾸시겠습니까?",
   "Replace": "바꾸기",
   "No": "아니요",

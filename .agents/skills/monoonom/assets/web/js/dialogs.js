@@ -98,7 +98,7 @@ export async function fileDialog({ mode = 'open', name = '', format = 'xlsx', st
     <div class="fd-main"><div class="fd-side"><div class="fd-side-title">${t('Recent files')}</div>${recentFiles().map((p) => `<div class="fd-recent" data-path="${esc(p)}" title="${esc(p)}">${esc(p.split(/[\\/]/).pop())}</div>`).join('') || `<div class="muted">${t('None')}</div>`}</div>
       <div class="fd-list" tabindex="0"></div></div>
     ${saving ? `<div class="fd-save"><label>${t('File name')} <input class="inp" data-fd="name" value="${esc(name)}"></label>
-      <label>${t('Save as type')} <select class="inp" data-fd="fmt"><option value="xlsx">${t('Excel Workbook (*.xlsx)')}</option><option value="xlsm">${t('Excel Macro-Enabled Workbook (*.xlsm)')}</option></select></label></div>`
+      <label>${t('Save as type')} <select class="inp" data-fd="fmt"><option value="xlsx">${t('Excel Workbook (*.xlsx)')}</option><option value="xlsm">${t('Excel Macro-Enabled Workbook (*.xlsm)')}</option><option value="csv">${t('CSV UTF-8 (values of this sheet) (*.csv)')}</option></select></label></div>`
       : `<div class="fd-save"><label>${t('File path')} <input class="inp" data-fd="name" placeholder="${t('Select a file or type a full path')}"></label></div>`}
     <p class="muted small">${t('Files are read and written by the local Python server (the browser never reads file contents directly).')}</p>`;
   let current = dir;
@@ -113,8 +113,8 @@ export async function fileDialog({ mode = 'open', name = '', format = 'xlsx', st
       let path = isAbs ? n : current.replace(/[\\/]$/, '') + sep + n;
       if (saving) {
         const fmt = el.querySelector('[data-fd=fmt]').value;
-        if (!/\.(xlsx|xlsm|xls)$/i.test(path)) path += '.' + fmt;
-        else path = path.replace(/\.(xlsx|xlsm|xls)$/i, '.' + fmt);
+        if (!/\.(xlsx|xlsm|xls|csv|tsv)$/i.test(path)) path += '.' + fmt;
+        else if (!(fmt === 'csv' && /\.tsv$/i.test(path))) path = path.replace(/\.(xlsx|xlsm|xls|csv|tsv)$/i, '.' + fmt);
         try { localStorage.setItem(LASTDIR_KEY, current); } catch { /* ignore */ }
         return { path, format: fmt };
       }
@@ -133,7 +133,7 @@ export async function fileDialog({ mode = 'open', name = '', format = 'xlsx', st
       el.querySelector('[data-fd=dir]').value = res.path;
       el.dataset.parent = res.parent || '';
       list.innerHTML = res.entries.map((e) => `<div class="fd-item" data-path="${esc(e.path)}" ${e.dir ? 'data-dir="1"' : ''}>
-        <span class="ic">${e.dir ? '📁' : /\.xls$/i.test(e.name) ? '📗' : '📊'}</span><span class="nm">${esc(e.name)}</span>
+        <span class="ic">${e.dir ? '📁' : /\.xls$/i.test(e.name) ? '📗' : /\.(csv|tsv)$/i.test(e.name) ? '📄' : '📊'}</span><span class="nm">${esc(e.name)}</span>
         <span class="sz">${e.dir ? '' : fmtSize(e.size)}</span><span class="dt">${new Date(e.mtime * 1000).toLocaleString(LANG === 'ko' ? 'ko-KR' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })}</span></div>`).join('') || `<div class="muted pad">${t('No Excel files.')}</div>`;
     } catch (err) { list.innerHTML = `<div class="err pad">${esc(err.message)}</div>`; }
   };

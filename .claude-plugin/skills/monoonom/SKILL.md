@@ -1,12 +1,13 @@
 ---
 name: monoonom
 description: >
-  Opens, inspects, edits, formats, charts, filters and saves Excel workbooks (.xlsx, .xlsm, .xls)
-  in the workspace through a local monoonom server, while the user watches and edits the same
-  workbook live in the agent's preview pane at a localhost URL. Use when the user asks to read or
-  change spreadsheet data, build formulas or charts, or wants to see or edit an Excel file
-  together with the agent. Do not use for CSV-only processing, Google Sheets, or one-off
-  conversions where no live view is wanted; a plain spreadsheet library is simpler there.
+  Opens, inspects, edits, formats, charts, filters and saves Excel workbooks (.xlsx, .xlsm, .xls;
+  .csv and .tsv open as one sheet) in the workspace through a local monoonom server, while the
+  user watches and edits the same workbook live in the agent's preview pane at a localhost URL.
+  Use when the user asks to read or change spreadsheet data, build formulas or charts, or wants
+  to see or edit an Excel file together with the agent. Do not use for batch CSV processing,
+  Google Sheets, or one-off conversions where no live view is wanted; a plain spreadsheet
+  library is simpler there.
 license: MIT
 compatibility: >
   Claude Code on the user's machine with Python 3.9+; binds a port on 127.0.0.1. Optional
@@ -59,7 +60,9 @@ the token the page loads but no workbook opens. If you no longer have the URL, r
    ("this part" usually means the user's current selection).
 6. **Save only when the user asks** (or agreed): `xl.py save` or `xl.py save --as new.xlsx`.
    The previous file is backed up to `.monoonom/backups/` first. `.xls` files are read-only: saving
-   one writes `NAME.xlsx` next to it, so tell the user the new file name.
+   one writes `NAME.xlsx` next to it, so tell the user the new file name. A `.csv`/`.tsv` file
+   opens as one sheet and a plain `save` likewise writes `NAME.xlsx` (the `.csv` stays unchanged);
+   `save --as NAME.csv` writes only the active sheet's values, so use it only when asked.
 
 Leave the server running when done so the user can keep working; it stops itself after an hour
 without clients. Use `xl.py stop` only on request (it refuses while there are unsaved changes).

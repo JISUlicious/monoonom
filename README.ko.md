@@ -5,7 +5,7 @@
 <img src=".agents/skills/monoonom/assets/web/img/monoonom.svg" alt="" width="72" align="right">
 
 사람과 AI 에이전트가 **같은 스프레드시트를 함께 보면서 작업하는** 로컬 웹 스프레드시트입니다.
-에이전트가 Excel 파일(xlsx·xlsm, xls 읽기)을 열고 고치면, 사용자는 에이전트 앱의 미리보기 창(또는 브라우저)에서
+에이전트가 Excel 파일(xlsx·xlsm, xls 읽기, csv·tsv는 시트 하나로)을 열고 고치면, 사용자는 에이전트 앱의 미리보기 창(또는 브라우저)에서
 그 변화를 실시간으로 보고 직접 편집할 수 있습니다. 이름은 '모눈(종이)'을 영어로 쓰고 어느 쪽에서도 읽히게 만든 것입니다(MoNooN + NooNoM).
 
 ![사용자가 보는 동안 에이전트가 비율 열과 차트를 추가하는 화면](docs/guide/images/monoonom-agent.png)
