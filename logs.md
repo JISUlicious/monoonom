@@ -2,6 +2,7 @@
 
 최신 항목이 위에 온다.
 
+- 2026-11-11: 사용자 변경 알림 — 에이전트 편집 출력에 "직전 명령 이후 사용자가 바꾼 것" 줄(`note:`)과, 사용자가 방금 바꾼 셀을 덮어썼을 때 `warning:`을 붙임. 추가 도구 호출 없음 (→ docs/dev/skill-implementation.md)
 - 2026-11-11: CSV·TSV 열기 — 인코딩(UTF-8/CP949/Latin-1)·구분자 자동 판별, 값은 입력과 같은 규칙으로 해석해 시트 하나로 연다. 그냥 저장은 `NAME.xlsx`(원본 .csv 유지), `save --as x.csv`는 활성 시트 값만 UTF-8(BOM)으로. 미리보기 다른 이름 저장에 CSV 형식 추가 (→ docs/dev/skill-implementation.md)
 - 2026-11-11: SKILL.md 수식 지시 보강 — 동적 배열 함수(UNIQUE·SORT·FILTER 등) 사용 금지(여기서는 펼쳐지지 않고 한 칸 수식으로 저장됨), 상수는 라벨 붙은 입력 셀로, 마무리 때 `read --what formulas`로 확인 (→ docs/dev/skill-implementation.md)
 - 2026-11-11: 그림 — 미리보기에 그림 붙여넣기, 파일의 그림 표시, 이동·크기·삭제·실행 취소, 실제 Excel 그림으로 저장, `xl.py image add|ls|set|rm`. Pillow를 필수로(없으면 openpyxl이 파일의 그림을 저장 때 버리던 문제) (→ docs/dev/skill-implementation.md)

@@ -972,3 +972,16 @@ UI와 에이전트가 같은 서버 코드로 만든다.
 **확인하지 못한 것**: 실제 Excel에서 저장한 CSV를 연 결과(이 환경에 Excel 없음). UTF-8 BOM은 Excel이 UTF-8로 인식하는 일반적인 방법으로 알려져 있다.
 
 **검증**: `tests/csv.test.py` 11개 — `ls` 표시, 열기 안내, 값 해석(`1,200`·`12%`·날짜·`00123`), `=` 수식 계산, 그냥 저장 → `.xlsx`(수식 유지, .csv 그대로), `save --as out.csv`(BOM·값·경고), CP949+`;`, TSV, 다른 확장자 거부. 미리보기(한국어)에서 열기 안내·저장 → xlsx·저장 형식 목록을 확인.
+
+## 사용자 변경 알림 (2026-11-11)
+**배경**: 사용자 변경은 `xl.py changes --actor user`로만 알 수 있었다. 에이전트가 이를 부르지 않으면 사용자가 방금 고친 셀을 모른 채 덮어쓸 수 있었다(서로 다른 셀의 동시 편집은 충돌이 아니라서 409도 없음).
+
+**바꾼 것**:
+- CLI 요청에 `X-Monoonom-Client: agent-cli` 헤더(`xl.py request`). 미리보기는 보내지 않는다.
+- 서버 `_dispatch`가 이 헤더가 있는 문서 요청을 처리한 뒤 `doc.agent_seen = doc.version`(`app._agent_saw`). 읽기·편집·`changes` 등 어떤 명령이든 "에이전트가 본 시점"이 된다.
+- `/edit`: 에이전트 요청이면 `agent_seen` 이후 `actor == "user"` 묶음을 `userChanges`(최대 6줄, 넘으면 `changes --since` 안내)로, 이번 편집 셀과 겹치는 사용자 셀을 `overwroteUser`로 돌려준다. 범위 문자열은 `changes`와 같은 함수(`_entry_parts`).
+- CLI가 `note: since your last command the user changed …`, `warning: this edit replaced cells the user had just changed: …`로 출력. SKILL.md 5단계, cli.md에 설명.
+
+**알리는 범위**: `/edit`를 거치는 명령(write, fill, format, apply, chart, image 등). `undo`·`pivot refresh`·`save`는 알리지 않는다. 덮어쓰기 판정은 셀 값 변경(`setCells`) 기준이며, 시트 메타(차트·서식 범위 등) 변경은 `note:`에만 나온다.
+
+**검증**: `tests/user_changes.test.py` 9개 — 사용자 변경 없음 → 알림 없음, 범위·셀 수 알림, 한 번만 알림, 읽기 뒤에는 알림 없음, 덮어쓰기 경고, 많은 변경은 6줄로 줄임, `--json`, 미리보기 요청에는 알림 없음.

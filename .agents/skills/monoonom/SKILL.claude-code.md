@@ -57,7 +57,9 @@ the token the page loads but no workbook opens. If you no longer have the URL, r
    (one undoable batch). Every edit prints a batch id; `xl.py undo BATCH` reverts it.
 5. **Check the user's side**: the user may be editing at the same time. Before changing an area the
    user is working on, run `xl.py changes --since VERSION --actor user` and `xl.py selection`
-   ("this part" usually means the user's current selection).
+   ("this part" usually means the user's current selection). Each edit's output also starts with
+   `note: since your last command the user changed …` lines, and with a `warning:` when the edit
+   replaced cells the user had just changed; then tell the user and offer `xl.py undo BATCH`.
 6. **Save only when the user asks** (or agreed): `xl.py save` or `xl.py save --as new.xlsx`.
    The previous file is backed up to `.monoonom/backups/` first. `.xls` files are read-only: saving
    one writes `NAME.xlsx` next to it, so tell the user the new file name. A `.csv`/`.tsv` file

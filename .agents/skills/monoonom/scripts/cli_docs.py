@@ -54,6 +54,11 @@ def edit(args, edits, label=None):
     if getattr(args, "json", False):
         return out_json(res)
     batches = [b for b in res.get("batches", [res]) if b.get("batchId")]
+    for line in res.get("userChanges") or []:
+        print(f"note: since your last command the user changed {line}")
+    if res.get("overwroteUser"):
+        print("warning: this edit replaced cells the user had just changed: " + ", ".join(res["overwroteUser"])
+              + " — check with the user; `xl.py undo BATCH` restores them")
     if not batches:
         print(f"v{res['version']}  no change  " + "; ".join(res.get("summary", [])))
         return 0
