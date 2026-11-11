@@ -27,7 +27,7 @@
 - **구조**: 폴더당 `SKILL.md` 정확히 1개(루트). 선택 디렉터리 `scripts/`(실행), `references/`(필요 시 읽음), `assets/`(산출물용 파일), `evals/`(패키징 제외). 중첩 `SKILL.md`는 거부 → 여러 스킬이면 플러그인 [12].
 - **점진적 공개 3단계**: L1 name+description 항상 로드(스킬당 약 100토큰) / L2 본문 트리거 시(**5,000토큰 미만**, 500줄 미만 — 둘 다 명세 권고 [16]) / L3 번들은 읽거나 실행할 때만, 스크립트 코드는 컨텍스트에 들어가지 않음 [1][12].
 - **이식 가능(P0) 필드 6개**: `name`, `description`, `license`, `compatibility`, `metadata`, `allowed-tools`. 그 밖의 Claude Code 확장 필드(약 14개)는 claude.ai·Skills API 업로드에서 **하드 에러** [1][12].
-  - `allowed-tools`는 명세가 **"Experimental. Support for this field may vary between agent implementations"**로 표시한다 [16]. → P0판에서는 쓰지 않고 Claude Code판에만 둔다.
+  - `allowed-tools`는 명세가 "**Experimental. Support for this field may vary between agent implementations**"로 표시한다 [16]. → P0판에서는 쓰지 않고 Claude Code판에만 둔다.
   - `metadata`는 **문자열 키 → 문자열 값** 맵으로 한정된다 [16]. 숫자·리스트·중첩 객체 금지(`version: "0.1"`처럼 따옴표).
 - **하드 제약** [12]
   - `name`: `^[a-z0-9-]+$`, 64자 이하, 앞뒤 하이픈·`--` 금지, `anthropic`/`claude` 포함 금지. **상위 디렉터리 이름과 일치해야 한다**(명세상 규칙 [16]; [12]는 권고로만 적음). VS Code는 불일치 시 로드 실패 [17].
@@ -56,7 +56,7 @@
 
 ### 2.2 미리보기 창
 - 사용자 제공 전제: `localhost:{port}` 웹을 보여주는 뷰. → 서버가 UI·API·SSE를 **하나의 포트, 같은 출처**로 제공하면 된다.
-- 웹뷰 특성상 주의: 팝업(`window.open`)이 외부 브라우저로 열릴 수 있음, 클립보드 권한 제한 가능, 일부 단축키를 호스트 앱이 가로챌 수 있음. → 다중 창 동기화를 `BroadcastChannel`(같은 브라우저 한정) 대신 **서버 경유(SSE)**로 바꾸면 미리보기 창과 외부 브라우저가 함께 동기화된다.
+- 웹뷰 특성상 주의: 팝업(`window.open`)이 외부 브라우저로 열릴 수 있음, 클립보드 권한 제한 가능, 일부 단축키를 호스트 앱이 가로챌 수 있음. → 다중 창 동기화를 `BroadcastChannel`(같은 브라우저 한정) 대신 **서버 경유**(SSE)로 바꾸면 미리보기 창과 외부 브라우저가 함께 동기화된다.
 - Claude Code 데스크톱은 `.claude/launch.json`에 선언한 서버를 **앱이 띄우고 정리**하며 미리보기를 `http://localhost:<port>`로 연다 [15](analysis-docs 세션의 preview 도구 사용 경험). 세부:
   - 엔트리 예: `{"version":"0.0.1","configurations":[{"name":"web-excel","runtimeExecutable":"python3","runtimeArgs":["<skill>/scripts/xl.py","serve","--foreground","--port","8765"],"port":8765}]}`
   - 명령 없이 `url`만 있는 엔트리는 이미 떠 있는 서버에 붙는다(attach).
@@ -193,7 +193,7 @@ metadata:
 
 | 명령 | 설명 |
 |---|---|
-| `serve [--port 8765] [--root DIR] [--no-open-browser] [--foreground]` | 멱등 기동. 이미 있으면 상태만 출력. 포트가 사용 중이면 다음 포트 탐색. `--foreground`는 launch.json 용 |
+| `serve [--port 8765] [--root DIR] [--no-open-browser] [--foreground]` | 멱등 기동. 이미 있으면 상태만 출력. 포트가 사용 중이면 다음 포트 탐색. `--foreground`는 launch.json용 |
 | `launch-config [--port P]` | 빈 포트를 골라 `.claude/launch.json`에 web-excel 엔트리를 추가·갱신(기존 엔트리 보존) |
 | `status` / `stop` | 서버 상태(포트, 열린 문서, 연결 클라이언트 수, dirty) / 종료(dirty 문서가 있으면 거부, `--force` 시 복구 파일 기록) |
 | `ls [DIR]` | 작업 경로의 엑셀 파일 목록 |
