@@ -3,10 +3,10 @@
 ## Contents
 - Server: serve, url, status, stop, launch-config
 - Documents: ls, open, new, docs, close, save
-- Reading: describe, read, changes, selection
-- Editing: write, fill, series, clear, format, format-copy, decimals, merge, unmerge, width, height, autofit, hide, unhide, freeze, filter, rows, cols, cells, sort, dedupe, copy, move, find, replace, comment, link, sheet, chart, apply, undo
+- Reading: describe, read, changes, selection, fonts
+- Editing: write, fill, series, clear, format, format-copy, decimals, merge, unmerge, width, height, autofit, hide, unhide, freeze, filter, rows, cols, cells, sort, dedupe, copy, move, find, replace, comment, link, sheet, chart, pivot, apply, undo
 - View: goto, view
-- Common options and exit codes
+- Exit codes
 
 Run xl.py with the user's workspace as the current folder (call it by the skill's absolute path; do not
 `cd` into the skill folder). Every command accepts `--root DIR` (workspace; default `$MONOONOM_ROOT`,
@@ -99,4 +99,4 @@ All edits are one batch per command, applied live and undoable with `undo BATCH`
 
 ## Exit codes
 
-0 ok · 1 other error · 2 usage · 3 server not running · 4 conflict (409) · 5 file, DRM, path or sheet error.
+0 ok · 1 other error · 2 usage · 3 server not running · 4 conflict (409) · 5 file, DRM, path or sheet error · 6 Python package missing.
